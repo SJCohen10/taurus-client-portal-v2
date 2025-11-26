@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.env
+.env.local
+.env.*.local
+
+# Build output
+build/
+dist/
+out/
+coverage/
+
+# Catalyst
+catalyst-debug.log
+catalyst-error.log
+catalyst-*.log
+.catalyst/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor settings
+.vscode/
+.idea/
+.DS_Store
+
+# Misc
+*.zip
+*.tar.gz
+client/node_modules/
+client/build/
+functions/*/node_modules/
+catalyst-debug.log
+*.env
+*.env.*

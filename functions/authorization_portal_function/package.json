@@ -1,0 +1,9 @@
+{
+	"name": "authorization_portal_function",
+	"version": "1.0.0",
+	"main": "index.js",
+	"author": "administrator@tauruscapital.co.za",
+	"dependencies": {
+		"zcatalyst-sdk-node": "latest"
+	}
+}

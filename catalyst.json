@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "targets": [
+      "taurus_client_portal_function",
+      "authorization_portal_function",
+      "getportalusercontext"
+    ],
+    "ignore": [],
+    "source": "functions"
+  },
+  "client": {
+    "source": "client",
+    "plugin": "zcatalyst-cli-plugin-react"
+  }
+}

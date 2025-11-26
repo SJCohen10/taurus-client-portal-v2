@@ -1,0 +1,30 @@
+{
+  "defaults": {
+    "project": 1,
+    "env": 1
+  },
+  "actives": {
+    "project": 1,
+    "env": 1
+  },
+  "projects": [
+    {
+      "idx": 1,
+      "id": "23570000000015028",
+      "name": "Taurus-Client-Portal",
+      "domain": {
+        "id": "10108997476",
+        "name": "taurus-client-portal-889090616.development"
+      },
+      "timezone": "Africa/Johannesburg",
+      "env": [
+        {
+          "idx": 1,
+          "id": "889090616",
+          "name": "Development",
+          "type": 3
+        }
+      ]
+    }
+  ]
+}

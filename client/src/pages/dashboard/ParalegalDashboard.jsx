@@ -3,12 +3,39 @@ import React, { useEffect, useState, useMemo } from "react";
 import { fetchMyDeals, fetchFirmDeals } from "../../services/portalApi";
 import "./ParalegalDashboard.css";
 
+const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
+const DEV_DEFAULT_NAME = "Sandbox Paralegal";
+
+function getPortalUserDisplay() {
+    if (window?.portalUser?.email || window?.portalUser?.name) {
+        return {
+            name: window.portalUser.name || "Portal User",
+            email: window.portalUser.email || "",
+        };
+    }
+
+    if (process.env.NODE_ENV === "development") {
+        return {
+            name: DEV_DEFAULT_NAME,
+            email: DEV_DEFAULT_EMAIL,
+        };
+    }
+
+    return {
+        name: "Portal User",
+        email: "",
+    };
+}
+
+
 export default function ParalegalDashboard() {
     const [view, setView] = useState("my"); // "my" | "firm"
     const [myDeals, setMyDeals] = useState([]);
     const [firmDeals, setFirmDeals] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const { name: displayName, email: displayEmail } = getPortalUserDisplay();
+
 
     const activeDeals = view === "my" ? myDeals : firmDeals;
 
@@ -22,6 +49,8 @@ export default function ParalegalDashboard() {
             setLoading(true);
             setError("");
             const data = await fetchMyDeals();
+
+            console.log("MY DEALS RESPONSE", data);  // 👈 add this
 
             // Expecting { count, deals: [...] }
             setMyDeals(data.deals || []);
@@ -74,6 +103,7 @@ export default function ParalegalDashboard() {
         return { total, activeCount, totalAmount };
     }, [activeDeals]);
 
+
     return (
         <div className="dashboard-container">
             <header className="dashboard-header">
@@ -84,12 +114,9 @@ export default function ParalegalDashboard() {
                     </p>
                 </div>
                 <div className="dashboard-user-pill">
-                    <span className="user-name">
-                        {window?.portalUser?.name || "Paralegal / Conveyancer"}
-                    </span>
-                    <span className="user-email">
-                        {window?.portalUser?.email || "email@lawfirm.co.za"}
-                    </span>
+                    <span className="user-name">{displayName}</span>
+                    <span className="user-email">{displayEmail}</span>
+
                 </div>
             </header>
 

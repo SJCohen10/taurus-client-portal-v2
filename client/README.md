@@ -70,6 +70,139 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
 
 
+Taurus Client Portal – Development Guide
+🚀 Running the React App Locally
+
+From the repo root:
+
 cd client
-npm install        # only if not done yet on this machine
+npm install
 npm start
+
+
+This launches the React dev server at:
+
+http://localhost:3000
+
+🔐 Authentication in Local Development
+
+Catalyst authentication does not run when using npm start on localhost.
+Because of this, window.portalUser is not available in dev.
+
+To allow local development, the app uses a fallback sandbox user:
+
+Email: paralegal.sandbox@lawfirm.co.za
+Name:  Sandbox Paralegal
+
+
+This is defined in:
+
+client/src/services/portalApi.js
+client/src/pages/dashboard/ParalegalDashboard.jsx
+
+
+When the app runs in production (Catalyst), the real user from Catalyst Auth is used.
+
+🌐 Calling the Catalyst Backend in Dev
+
+When running locally, React lives on:
+
+http://localhost:3000
+
+
+Your Catalyst backend lives on:
+
+https://taurus-client-portal-889090616.development.catalystserverless.com
+
+
+To avoid CORS and routing issues, the app automatically switches API endpoints:
+
+In Development (npm start)
+
+API calls go to:
+
+https://taurus-client-portal-889090616.development.catalystserverless.com/server
+
+In Production (Catalyst Hosting)
+
+API calls go to:
+
+/server
+
+
+This logic lives in:
+
+client/src/services/portalApi.js
+
+🔎 Getting Deals From Zoho Analytics
+
+The backend function getportaldeals is called via:
+
+GET /server/getportaldeals?email={userEmail}
+
+
+The API returns:
+
+{
+  "count": 1,
+  "deals": [
+    {
+      "property_ref_number": "...",
+      "created_time": "...",
+      "paralegal_name": "...",
+      "contact_email": "..."
+    }
+  ]
+}
+
+
+The dashboard shows:
+
+My Deals
+
+Firm Deals (future)
+
+🧪 Testing the Dashboard Locally
+
+Open:
+
+http://localhost:3000/
+
+
+You should see:
+
+User: Sandbox Paralegal
+
+Email: paralegal.sandbox@lawfirm.co.za
+
+Deals table populated via live Catalyst API
+
+Use DevTools → Console to check logs:
+
+MY DEALS RESPONSE { ... }
+
+📦 Deployment (Catalyst)
+
+To deploy backend functions:
+
+catalyst deploy functions
+
+
+To deploy frontend:
+
+cd client
+npm run build
+
+
+Then upload the build/ folder to Catalyst (or use catalyst deploy if configured).
+
+🧩 File Map for Dashboard Feature
+client/src/
+  services/
+    portalApi.js       ← API wrapper + dev/prod routing
+  pages/
+    dashboard/
+      ParalegalDashboard.jsx
+      ParalegalDashboard.css
+      RoleBasedDashboard.jsx
+  App.js               ← Routes (RoleBasedDashboard as /)

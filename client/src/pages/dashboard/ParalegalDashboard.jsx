@@ -182,7 +182,8 @@ export default function ParalegalDashboard() {
                         <table className="deals-table">
                             <thead>
                                 <tr>
-                                    <th>Property / Matter</th>
+                                    <th>Property Ref Number</th>
+                                    <th>Property Description</th>
                                     <th>Status</th>
                                     <th>Amount</th>
                                     <th>Paralegal</th>
@@ -201,6 +202,11 @@ export default function ParalegalDashboard() {
                                         <td>
                                             {deal.property_ref_number ||
                                                 deal.matter_name ||
+                                                "—"}
+                                        </td>
+                                        <td>
+                                            {deal.property_description ||
+                                                deal["Property Description"] ||
                                                 "—"}
                                         </td>
                                         <td>{deal.status || "—"}</td>

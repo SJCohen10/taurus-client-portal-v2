@@ -6,7 +6,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import Layout from "./Layout";
-import Dashboard from "./pages/forms/Dashboard";
+import RoleBasedDashboard from "./pages/dashboard/RoleBasedDashboard";
 import QuickRatesAdvance from "./pages/forms/property/QuickRatesAdvance";
 
 // Use basename "/app" only in production (Catalyst hosting)
@@ -18,9 +18,15 @@ export default function App() {
     <BrowserRouter basename={basename}>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
+          {/* Default + explicit dashboard routes */}
+          <Route index element={<RoleBasedDashboard />} />
+          <Route path="dashboard" element={<RoleBasedDashboard />} />
+
+          {/* Existing Quick Rates route */}
           <Route path="quick-rates" element={<QuickRatesAdvance />} />
         </Route>
+
+        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

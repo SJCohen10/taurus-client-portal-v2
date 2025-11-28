@@ -1,0 +1,188 @@
+/* client/src/pages/dashboard/ParalegalDashboard.css */
+
+.dashboard-container {
+    padding: 24px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    align-items: flex-start;
+    margin-bottom: 24px;
+}
+
+.dashboard-title {
+    font-size: 1.8rem;
+    margin: 0;
+}
+
+.dashboard-subtitle {
+    margin: 6px 0 0;
+    color: #555;
+    font-size: 0.95rem;
+}
+
+.dashboard-user-pill {
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: #f3f4f6;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.user-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.user-email {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.dashboard-toggle {
+    display: inline-flex;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.toggle-button {
+    border: none;
+    background: transparent;
+    padding: 8px 18px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.toggle-button.active {
+    background: #111827;
+    color: #ffffff;
+}
+
+.toggle-button:not(.active):hover {
+    background: #f3f4f6;
+}
+
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    border: 1px solid #e5e7eb;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.stat-value {
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.dashboard-table-section {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 16px 16px 4px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.section-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.section-title {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.section-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.dashboard-message {
+    padding: 12px;
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.dashboard-message.error {
+    color: #b91c1c;
+}
+
+.deals-table-wrapper {
+    overflow-x: auto;
+}
+
+.deals-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.deals-table th,
+.deals-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.deals-table th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+
+.deals-row {
+    cursor: pointer;
+}
+
+.deals-row:hover {
+    background: #f9fafb;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .dashboard-container {
+        padding: 16px;
+    }
+
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .dashboard-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-table-section {
+        padding: 12px;
+    }
+}

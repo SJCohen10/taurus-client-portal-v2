@@ -28,6 +28,19 @@ function getPortalUserDisplay() {
 }
 
 
+const NORMALIZED_STATUSES = ["pending review", "active", "due to taurus"];
+
+function getAmountValue(deal) {
+    const rawAmount = deal?.amount ?? deal?.deal_amount;
+
+    if (rawAmount === undefined || rawAmount === null || rawAmount === "") {
+        return null;
+    }
+
+    const numeric = Number(String(rawAmount).replace(/[^0-9.-]/g, ""));
+    return Number.isNaN(numeric) ? null : numeric;
+}
+
 export default function ParalegalDashboard() {
     const [view, setView] = useState("my"); // "my" | "firm"
     const [myDeals, setMyDeals] = useState([]);
@@ -89,15 +102,14 @@ export default function ParalegalDashboard() {
     const stats = useMemo(() => {
         const list = activeDeals || [];
         const total = list.length;
+        const activeList = list.filter((d) =>
+            NORMALIZED_STATUSES.includes((d.status || "").toLowerCase())
+        );
+        const activeCount = activeList.length;
 
-        // Adjust these based on real field names later
-        const activeCount = list.filter(
-            (d) => (d.status || "").toLowerCase() === "active"
-        ).length;
-
-        const totalAmount = list.reduce((sum, d) => {
-            const val = Number(d.amount || d.deal_amount || 0);
-            return sum + (isNaN(val) ? 0 : val);
+        const totalAmount = activeList.reduce((sum, d) => {
+            const val = getAmountValue(d);
+            return sum + (val ?? 0);
         }, 0);
 
         return { total, activeCount, totalAmount };
@@ -184,12 +196,15 @@ export default function ParalegalDashboard() {
                                 <tr>
                                     <th>Property Ref Number</th>
                                     <th>Property Description</th>
+                                    <th>Lodged</th>
+                                    <th>Registered</th>
                                     <th>Status</th>
                                     <th>Amount</th>
                                     <th>Paralegal</th>
                                     <th>Created</th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {activeDeals.map((deal, index) => (
                                     <tr
@@ -199,34 +214,66 @@ export default function ParalegalDashboard() {
                                             // Future: navigate(`/deals/${deal.id}`);
                                         }}
                                     >
+                                        {/* Property Ref Number */}
                                         <td>
                                             {deal.property_ref_number ||
                                                 deal.matter_name ||
                                                 "—"}
                                         </td>
+
+                                        {/* Property Description */}
                                         <td>
                                             {deal.property_description ||
                                                 deal["Property Description"] ||
                                                 "—"}
                                         </td>
-                                        <td>{deal.status || "—"}</td>
+
+                                        {/* Lodged */}
                                         <td>
-                                            {deal.amount || deal.deal_amount
-                                                ? `R ${Number(
-                                                    deal.amount || deal.deal_amount
-                                                ).toLocaleString("en-ZA")}`
+                                            {deal.lodged ??
+                                                deal["Lodged"] ??
+                                                "—"}
+                                        </td>
+
+                                        {/* Registered */}
+                                        <td>
+                                            {deal.registered ??
+                                                deal["Registered"] ??
+                                                "—"}
+                                        </td>
+
+                                        {/* Status */}
+                                        <td>
+                                            {deal.status ??
+                                                deal["Status"] ??
+                                                "—"}
+                                        </td>
+
+                                        {/* Amount */}
+                                        <td>
+                                            {getAmountValue(deal) !== null
+                                                ? `R ${getAmountValue(deal).toLocaleString("en-ZA")}`
                                                 : "—"}
                                         </td>
+
+                                        {/* Paralegal */}
                                         <td>
                                             {deal.paralegal_name ||
                                                 deal.owner_name ||
                                                 deal.contact_email ||
                                                 "—"}
                                         </td>
-                                        <td>{deal.created_time || deal.created_at || "—"}</td>
+
+                                        {/* Created */}
+                                        <td>
+                                            {deal.created_time ||
+                                                deal.created_at ||
+                                                "—"}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
+
                         </table>
                     </div>
                 )}

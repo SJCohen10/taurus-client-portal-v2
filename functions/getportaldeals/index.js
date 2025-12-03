@@ -172,15 +172,31 @@ async function getDealsForPortal({ email, accountId }) {
 
     // Otherwise treat as CSV
     const rows = parseCsv(text);
+    console.log("Parsed Analytics rows sample:", rows[0]);
 
     // Map into a clean shape for the frontend based on your columns:
-    // "Property Ref Number","Created time","Paralegal","Contact_Email"
-    return rows.map((row) => ({
-        property_ref_number: row["Property Ref Number"] || null,
-        created_time: row["Created time"] || null,
-        paralegal_name: row["Paralegal"] || null,
-        contact_email: row["Contact_Email"] || null,
-    }));
+    // "Property Ref Number","Property Description","Created time","Paralegal","Contact_Email"
+    return rows.map((row) => {
+        const rawAmount = row["Amount"] || null;
+        let amount = null;
+        if (rawAmount !== null && rawAmount !== "") {
+            const numeric = Number(String(rawAmount).replace(/[^0-9.-]/g, ""));
+            amount = Number.isNaN(numeric) ? null : numeric;
+        }
+
+        return {
+            property_ref_number: row["Property Ref Number"] || null,
+            property_description: row["Property Description"] || null,
+            created_time: row["Created time"] || null,
+            paralegal_name: row["Paralegal"] || null,
+            contact_email: row["Contact_Email"] || null,
+            status: row["Status"] || null,
+            amount, // now numeric or null
+            lodged: row["Lodged"] || null,
+            registered: row["Registered"] || null,
+        };
+    });
+
 }
 
 /**

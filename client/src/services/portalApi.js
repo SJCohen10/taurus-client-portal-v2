@@ -10,7 +10,10 @@ const API_BASE =
 // Dev-only fallback email for local testing
 const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
 
-function getPortalUserEmail() {
+function getPortalUserEmail(explicitEmail) {
+  if (explicitEmail) {
+    return explicitEmail;
+  }
   // 1) Real user from Catalyst auth (in prod)
   if (window?.portalUser?.email) {
     return window.portalUser.email;
@@ -34,8 +37,8 @@ async function handleResponse(res) {
 }
 
 // 👇 Deals for the logged-in portal user (paralegal / conveyancer)
-export async function fetchMyDeals() {
-  const email = getPortalUserEmail();
+export async function fetchMyDeals(emailOverride) {
+  const email = getPortalUserEmail(emailOverride);
 
   // Your function expects `email` or `accountId` as QUERY PARAM
   const url = `${API_BASE}/getportaldeals?email=${encodeURIComponent(email)}`;
@@ -47,15 +50,44 @@ export async function fetchMyDeals() {
   return handleResponse(res);
 }
 
-// 👇 Firm deals – for now, call same endpoint with same email
-// Later we can extend backend to support firm-level logic.
-export async function fetchFirmDeals() {
-  const email = getPortalUserEmail();
+// 👇 Firm deals – prefer AccountId so one firm can see all contacts' deals
+export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
+  const email = getPortalUserEmail(fallbackEmail);
 
-  const url = `${API_BASE}/getportaldeals?email=${encodeURIComponent(email)}`;
+  const params = new URLSearchParams();
+
+  if (accountId) {
+    params.set("accountId", accountId);
+  } else if (email) {
+    params.set("email", email);
+  }
+
+  const url = `${API_BASE}/getportaldeals?${params.toString()}`;
 
   const res = await fetch(url, {
     method: "GET",
+  });
+
+  return handleResponse(res);
+}
+
+// 👇 Upload a document for a specific deal/property
+export async function uploadDealDocument(payload) {
+  const res = await fetch(`${API_BASE}/uploaddealdocument`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse(res);
+}
+
+// 👇 Generate a statement using the Creator-backed logic
+export async function generateStatement({ assetId }) {
+  const res = await fetch(`${API_BASE}/generatestatement`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ assetId }),
   });
 
   return handleResponse(res);

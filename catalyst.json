@@ -4,7 +4,9 @@
       "taurus_client_portal_function",
       "authorization_portal_function",
       "getportalusercontext",
-      "getportaldeals"
+      "getportaldeals",
+      "uploaddealdocument",
+      "generatestatement"
     ],
     "ignore": [],
     "source": "functions"

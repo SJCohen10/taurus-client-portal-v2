@@ -1,12 +1,23 @@
 // client/src/pages/dashboard/ParalegalDashboard.jsx
 import React, { useEffect, useState, useMemo } from "react";
+import { usePortalContext } from "../../PortalContext";
 import { fetchMyDeals, fetchFirmDeals } from "../../services/portalApi";
 import "./ParalegalDashboard.css";
+import DealActions from "./components/DealActions";
 
 const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
 const DEV_DEFAULT_NAME = "Sandbox Paralegal";
 
-function getPortalUserDisplay() {
+function getPortalUserDisplay(portalContext) {
+    if (portalContext?.context?.contactName || portalContext?.email) {
+        return {
+            name:
+                portalContext.context?.contactName ||
+                portalContext.user?.name ||
+                "Portal User",
+            email: portalContext.email || "",
+        };
+    }
     if (window?.portalUser?.email || window?.portalUser?.name) {
         return {
             name: window.portalUser.name || "Portal User",
@@ -42,26 +53,37 @@ function getAmountValue(deal) {
 }
 
 export default function ParalegalDashboard() {
+    const portalContext = usePortalContext();
+    const accountId =
+        portalContext?.context?.accountId || portalContext?.context?.account_id;
+    const accountName = portalContext?.context?.accountName || "";
     const [view, setView] = useState("my"); // "my" | "firm"
     const [myDeals, setMyDeals] = useState([]);
     const [firmDeals, setFirmDeals] = useState([]);
+    const [loadedFirmAccountId, setLoadedFirmAccountId] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const { name: displayName, email: displayEmail } = getPortalUserDisplay();
+    const { name: displayName, email: displayEmail } =
+        getPortalUserDisplay(portalContext);
 
 
     const activeDeals = view === "my" ? myDeals : firmDeals;
 
     useEffect(() => {
-        loadMyDeals();
+        if (displayEmail) {
+            loadMyDeals(displayEmail);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [displayEmail]);
 
-    async function loadMyDeals() {
+    async function loadMyDeals(emailOverride) {
+        if (!emailOverride) return;
+
+
         try {
             setLoading(true);
             setError("");
-            const data = await fetchMyDeals();
+            const data = await fetchMyDeals(emailOverride);
 
             console.log("MY DEALS RESPONSE", data);  // 👈 add this
 
@@ -75,15 +97,29 @@ export default function ParalegalDashboard() {
         }
     }
 
-    async function loadFirmDeals() {
-        // Avoid reloading if we already have them
-        if (firmDeals.length > 0) return;
+    async function loadFirmDeals(accountIdToUse) {
+        if (!accountIdToUse && !displayEmail) {
+            setError("Firm account is not available yet.");
+            return;
+        }
+
+        if (
+            firmDeals.length > 0 &&
+            loadedFirmAccountId &&
+            loadedFirmAccountId === accountIdToUse
+        ) {
+            return;
+        }
 
         try {
             setLoading(true);
             setError("");
-            const data = await fetchFirmDeals();
+            const data = await fetchFirmDeals({
+                accountId: accountIdToUse,
+                fallbackEmail: displayEmail,
+            });
             setFirmDeals(data.deals || []);
+            setLoadedFirmAccountId(accountIdToUse || "");
         } catch (err) {
             console.error(err);
             setError("Unable to load your firm’s deals at the moment.");
@@ -95,9 +131,17 @@ export default function ParalegalDashboard() {
     function handleViewChange(nextView) {
         setView(nextView);
         if (nextView === "firm") {
-            loadFirmDeals();
+            loadFirmDeals(accountId);
         }
     }
+
+    useEffect(() => {
+        if (view === "firm" && accountId) {
+            loadFirmDeals(accountId);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [accountId, view]);
+
 
     const stats = useMemo(() => {
         const list = activeDeals || [];
@@ -124,6 +168,11 @@ export default function ParalegalDashboard() {
                     <p className="dashboard-subtitle">
                         View your live matters and your firm’s pipeline at a glance.
                     </p>
+                    {accountName && (
+                        <div className="dashboard-subtitle subtle">
+                            Firm: {accountName}
+                        </div>
+                    )}
                 </div>
                 <div className="dashboard-user-pill">
                     <span className="user-name">{displayName}</span>
@@ -172,8 +221,7 @@ export default function ParalegalDashboard() {
                         {view === "my" ? "My Deals" : "Firm Deals"}
                     </h2>
                     <p className="section-subtitle">
-                        Click a deal to view details, statements and documents (coming
-                        soon).
+                        Click a deal to view details, statements and documents
                     </p>
                 </div>
 
@@ -202,6 +250,7 @@ export default function ParalegalDashboard() {
                                     <th>Amount</th>
                                     <th>Paralegal</th>
                                     <th>Created</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
 
@@ -269,6 +318,13 @@ export default function ParalegalDashboard() {
                                             {deal.created_time ||
                                                 deal.created_at ||
                                                 "—"}
+                                        </td>
+                                        <td className="actions-cell">
+                                            <DealActions
+                                                deal={deal}
+                                                portalEmail={displayEmail}
+                                                accountId={accountId}
+                                            />
                                         </td>
                                     </tr>
                                 ))}

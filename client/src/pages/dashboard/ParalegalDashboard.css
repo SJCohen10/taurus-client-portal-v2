@@ -167,6 +167,43 @@
     background: #f9fafb;
 }
 
+.actions-cell {
+    min-width: 220px;
+}
+
+.deal-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.deal-action-button {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #f3f4f6;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #111827;
+}
+
+.deal-action-button.secondary {
+    background: #1f2937;
+    color: #ffffff;
+    border-color: #1f2937;
+}
+
+.deal-action-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.deal-action-message {
+    font-size: 0.78rem;
+    color: #065f46;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
     .dashboard-container {

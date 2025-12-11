@@ -184,6 +184,29 @@ async function getDealsForPortal({ email, accountId }) {
             amount = Number.isNaN(numeric) ? null : numeric;
         }
 
+        const assetId =
+            row["Asset Id"] ||
+            row["Asset_Id"] ||
+            row["Asset ID"] ||
+            row["asset_id"] ||
+            null;
+
+        const assetCreatorId =
+            row["Asset Creator ID"] ||
+            row["Asset_Creator_ID"] ||
+            row["Asset Creator Id"] ||
+            null;
+
+        const accountId =
+            row["Account_Id"] || row["Account Id"] || row["Account_ID"] || null;
+
+        const propertyFolderId =
+            row["Property Folder Id"] ||
+            row["Property_Folder_Id"] ||
+            row["Property Folder"] ||
+            null;
+
+
         return {
             property_ref_number: row["Property Ref Number"] || null,
             property_description: row["Property Description"] || null,
@@ -194,6 +217,11 @@ async function getDealsForPortal({ email, accountId }) {
             amount, // now numeric or null
             lodged: row["Lodged"] || null,
             registered: row["Registered"] || null,
+            asset_id: assetId,
+            asset_creator_id: assetCreatorId,
+            account_id: accountId,
+            property_folder_id: propertyFolderId,
+
         };
     });
 

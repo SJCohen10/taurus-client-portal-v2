@@ -33,6 +33,13 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         deal.property_description || deal["Property Description"] || "";
     const assetId =
         deal.asset_id || deal.Asset_Id || deal.assetId || deal["Asset Id"] || null;
+    const propertyFolderId =
+        deal.property_folder_id ||
+        deal.propertyFolderId ||
+        deal["Property Folder Id"] ||
+        deal["Property_Folder_Id"] ||
+        null;
+    const dealId = deal.deal_id || deal.id || null;
 
     async function handleFileChange(event) {
         event.stopPropagation();
@@ -53,7 +60,9 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 propertyDescription,
                 accountId,
                 contactEmail: portalEmail,
-                assetId: assetId || deal.id || deal.deal_id || null,
+                propertyFolderId,
+                dealId,
+                assetId: assetId || dealId || null,
             };
 
             const response = await uploadDealDocument(payload);

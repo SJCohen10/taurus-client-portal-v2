@@ -83,7 +83,12 @@ Taurus-Client-Portal/
        `ZOHO_WORKDRIVE_REFRESH_TOKEN` (for WorkDrive OAuth)
      - `ZOHO_WORKDRIVE_ROOT_FOLDER_ID` **or** `ZOHO_WORKDRIVE_PARENT_FOLDER_ID`
        (the WorkDrive folder under which property folders/files should live)
+       (the WorkDrive folder under which property folders/files should live).
+       If your Analytics view already supplies the WorkDrive property folder ID,
+       that ID is used directly and this parent folder is only a fallback.
      - `ZOHO_WORKDRIVE_TEAM_ID` (optional, if your org requires a team header)
+     - `PORTAL_UPLOAD_FOLDER_NAME` (optional, defaults to
+       `Portal Document Uploads`)
      - Any existing CRM/Creator auth variables you already use for other
        functions.
 3. **Run the React app locally**
@@ -95,6 +100,10 @@ Taurus-Client-Portal/
    - Choose any small file; after upload you should see a success toast.
    - Confirm in Zoho WorkDrive that a folder named with the property reference
      number exists under your configured parent and the file appears inside.
+   - Confirm in Zoho WorkDrive that the file lands inside the deal’s WorkDrive
+     folder, under a subfolder called **Portal Document Uploads**. (If a
+     WorkDrive folder ID comes from Analytics/CRM, that folder is used;
+     otherwise a property folder is created under your configured parent.)
 5. **Test statement generation**
    - In the dashboard, click **View Statement** for a deal. A new browser tab
      should open to the Zoho Creator statement page that matches the asset type
@@ -104,3 +113,5 @@ Taurus-Client-Portal/
    - You can run the React test suite with `CI=true npm test -- --watch=false`.
      In this environment `react-scripts` may not be available, so a failure
      there is expected unless you install it.
+
+     on each deploy of functions, add the getportaldeals variables and the uploaddealdocument variables

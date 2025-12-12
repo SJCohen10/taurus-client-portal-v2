@@ -14,13 +14,13 @@ export default function Dashboard() {
 
       <div className="card-grid" style={{ marginBottom: "2rem" }}>
         <section className="card">
-          <h2>Quick Rates Application</h2>
+          <h2>Quick Bridge Application</h2>
           <p>
-            Submit a Quick Rates application to settle Rates / Levies or
+            Submit a Quick Bridge application to settle Rates / Levies or
             advance funds to sellers within your Quick Bridge Limit.
           </p>
           <Link to="/quick-rates" className="button">
-            Go to Quick Rates
+            Go to Quick Bridge
           </Link>
         </section>
 

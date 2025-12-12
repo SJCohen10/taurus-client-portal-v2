@@ -2,6 +2,19 @@
 
 const { Buffer } = require("buffer");
 
+// ----------------------------------------------------------------------
+// Constants
+// ----------------------------------------------------------------------
+const DEFAULT_PORTAL_UPLOAD_FOLDER_NAME =
+    process.env.PORTAL_UPLOAD_FOLDER_NAME || "Portal Document Uploads";
+
+const WORKDRIVE_BASE =
+    process.env.ZOHO_WORKDRIVE_BASE ||
+    "https://www.zohoapis.com/workdrive/api/v1";
+
+// ----------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
     res.end(JSON.stringify(payload));
@@ -61,7 +74,8 @@ async function getWorkDriveAccessToken() {
 
     if (!res.ok || !data.access_token) {
         throw new Error(
-            `Failed to get WorkDrive access token (${res.status}): ${data.error || text}`
+            `Failed to get WorkDrive access token (${res.status}): ${data.error || text
+            }`
         );
     }
 
@@ -71,6 +85,7 @@ async function getWorkDriveAccessToken() {
 function buildAuthHeaders(accessToken) {
     const headers = {
         Authorization: `Zoho-oauthtoken ${accessToken}`,
+        Accept: "application/vnd.api+json",
     };
 
     if (process.env.ZOHO_WORKDRIVE_TEAM_ID) {
@@ -80,6 +95,9 @@ function buildAuthHeaders(accessToken) {
     return headers;
 }
 
+// ----------------------------------------------------------------------
+// Folder helpers
+// ----------------------------------------------------------------------
 async function ensurePropertyFolder({
     accessToken,
     parentId,
@@ -100,7 +118,7 @@ async function ensurePropertyFolder({
         body.description = propertyDescription;
     }
 
-    const res = await fetch("https://workdrive.zoho.com/api/v1/folders", {
+    const res = await fetch(`${WORKDRIVE_BASE}/folders`, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
@@ -117,14 +135,131 @@ async function ensurePropertyFolder({
     }
 
     if (!res.ok) {
-        // If folder already exists, fallback to uploading directly to the parent
-        console.warn("WorkDrive folder create failed:", data);
+        // If folder creation fails (e.g. name conflict), fallback to parent
+        console.warn("WorkDrive property folder create failed:", data);
         return parentId;
     }
 
     return data?.data?.id || parentId;
 }
 
+async function searchForChildFolder({
+    accessToken,
+    parentFolderId,
+    folderName,
+}) {
+    const headers = {
+        ...buildAuthHeaders(accessToken),
+        "Content-Type": "application/json",
+    };
+
+    try {
+        const res = await fetch(`${WORKDRIVE_BASE}/search`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+                search_text: folderName,
+                type: "folder",
+                parent_id: parentFolderId,
+            }),
+        });
+
+        const text = await res.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (err) {
+            console.warn("WorkDrive search parse failed:", text);
+            return null;
+        }
+
+        if (!res.ok) {
+            console.warn("WorkDrive search failed:", data);
+            return null;
+        }
+
+        if (Array.isArray(data?.data)) {
+            const match = data.data.find(
+                (item) => item.attributes?.name === folderName
+            );
+            return match?.id || null;
+        }
+
+        return null;
+    } catch (err) {
+        console.warn("WorkDrive search error:", err);
+        return null;
+    }
+}
+
+async function ensurePortalUploadsFolder({
+    accessToken,
+    parentFolderId,
+    folderName = DEFAULT_PORTAL_UPLOAD_FOLDER_NAME,
+}) {
+    const headers = {
+        ...buildAuthHeaders(accessToken),
+        "Content-Type": "application/json",
+    };
+
+    const createBody = {
+        name: folderName,
+        parent_id: parentFolderId,
+    };
+
+    const res = await fetch(`${WORKDRIVE_BASE}/folders`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(createBody),
+    });
+
+    const text = await res.text();
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (err) {
+        console.warn("Portal folder creation parse failed:", text);
+    }
+
+    if (res.ok) {
+        return data?.data?.id || parentFolderId;
+    }
+
+    const alreadyExists =
+        res.status === 409 ||
+        (typeof text === "string" && text.toLowerCase().includes("exists"));
+
+    if (alreadyExists) {
+        const existingId = await searchForChildFolder({
+            accessToken,
+            parentFolderId,
+            folderName,
+        });
+
+        if (existingId) {
+            return existingId;
+        }
+    }
+
+    console.warn("Portal folder creation failed:", data || text);
+    return parentFolderId;
+}
+
+async function probeFolderAccess(accessToken, folderId) {
+    const res = await fetch(`${WORKDRIVE_BASE}/files/${folderId}`, {
+        method: "GET",
+        headers: buildAuthHeaders(accessToken),
+    });
+
+    const text = await res.text();
+    console.log("probeFolderAccess:", { status: res.status, body: text });
+
+    return { status: res.status, body: text };
+}
+
+// ----------------------------------------------------------------------
+// Upload file to WorkDrive (official upload API)
+// ----------------------------------------------------------------------
 async function uploadFileToFolder({
     accessToken,
     folderId,
@@ -132,15 +267,25 @@ async function uploadFileToFolder({
     mimeType,
     fileBase64,
 }) {
+    const safeName = fileName || "upload.bin";
+    const encodedName = encodeURIComponent(safeName);
+
     const fileBuffer = Buffer.from(fileBase64, "base64");
     const blob = new Blob([fileBuffer], {
         type: mimeType || "application/octet-stream",
     });
+
     const formData = new FormData();
-    formData.append("file", blob, fileName || "upload.bin");
+
+    // Required by API
+    formData.append("content", blob, safeName);
     formData.append("parent_id", folderId);
 
-    const res = await fetch("https://workdrive.zoho.com/api/v1/upload", {
+    // Optional but matches docs
+    formData.append("filename", encodedName);
+    formData.append("override-name-exist", "false");
+
+    const res = await fetch(`${WORKDRIVE_BASE}/upload`, {
         method: "POST",
         headers: buildAuthHeaders(accessToken),
         body: formData,
@@ -151,18 +296,27 @@ async function uploadFileToFolder({
     try {
         data = JSON.parse(text);
     } catch (err) {
+        console.error("WorkDrive upload non-JSON response:", text);
         throw new Error(`WorkDrive upload response parse failed: ${text}`);
     }
 
     if (!res.ok) {
+        console.error("WorkDrive upload failed raw:", data || text);
         throw new Error(
-            `WorkDrive upload failed (${res.status}): ${data.message || text}`
+            `WorkDrive upload failed (${res.status}): ${data.message || text
+            }`
         );
     }
 
     return data?.data || data;
 }
 
+
+
+
+// ----------------------------------------------------------------------
+// Main handler
+// ----------------------------------------------------------------------
 module.exports = async (req, res) => {
     try {
         if (req.method !== "POST") {
@@ -181,6 +335,8 @@ module.exports = async (req, res) => {
             accountId,
             contactEmail,
             assetId,
+            propertyFolderId, // from Analytics (deal's folder)
+            dealId,
         } = body || {};
 
         if (!fileName || !fileBase64) {
@@ -189,27 +345,43 @@ module.exports = async (req, res) => {
             });
         }
 
-        const parentFolderId =
+        const accessToken = await getWorkDriveAccessToken();
+
+        const envParentFolderId =
             process.env.ZOHO_WORKDRIVE_ROOT_FOLDER_ID ||
             process.env.ZOHO_WORKDRIVE_PARENT_FOLDER_ID;
 
-        if (!parentFolderId) {
+        if (!propertyFolderId && !envParentFolderId) {
             throw new Error(
-                "Missing WorkDrive parent folder env var (ZOHO_WORKDRIVE_ROOT_FOLDER_ID or ZOHO_WORKDRIVE_PARENT_FOLDER_ID)."
+                "Missing WorkDrive folder context: provide propertyFolderId or set ZOHO_WORKDRIVE_ROOT_FOLDER_ID/ZOHO_WORKDRIVE_PARENT_FOLDER_ID."
             );
         }
 
-        const accessToken = await getWorkDriveAccessToken();
-        const folderId = await ensurePropertyFolder({
+        // If we already have a property folder for the deal, use it;
+        // otherwise, create one under the root env folder.
+        let baseFolderId =
+            typeof propertyFolderId === "string" && propertyFolderId.trim()
+                ? propertyFolderId.trim()
+                : await ensurePropertyFolder({
+                    accessToken,
+                    parentId: envParentFolderId,
+                    propertyRefNumber,
+                    propertyDescription,
+                });
+
+        // Ensure / find the "Portal Document Uploads" subfolder
+        const portalFolderId = await ensurePortalUploadsFolder({
             accessToken,
-            parentId: parentFolderId,
-            propertyRefNumber,
-            propertyDescription,
+            parentFolderId: baseFolderId,
         });
+
+        // 🔍 DEBUG: confirm we can access the folder before uploading
+        await probeFolderAccess(accessToken, portalFolderId);
+
 
         const uploadResult = await uploadFileToFolder({
             accessToken,
-            folderId,
+            folderId: portalFolderId,
             fileName,
             mimeType,
             fileBase64,
@@ -217,7 +389,7 @@ module.exports = async (req, res) => {
 
         return sendJson(res, 200, {
             message: "Document uploaded to WorkDrive",
-            folderId,
+            folderId: portalFolderId,
             file: uploadResult,
             context: {
                 propertyRefNumber,
@@ -225,6 +397,9 @@ module.exports = async (req, res) => {
                 accountId,
                 contactEmail,
                 assetId,
+                propertyFolderId: baseFolderId,
+                portalFolderName: DEFAULT_PORTAL_UPLOAD_FOLDER_NAME,
+                dealId,
             },
         });
     } catch (err) {

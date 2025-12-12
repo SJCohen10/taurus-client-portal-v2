@@ -166,7 +166,7 @@ export default function Layout() {
                                     : "#6b7280",
                         }}
                     >
-                        Quick Rates Application
+                        Quick Bridge and Seller Application
                     </Link>
                 </nav>
                 {loading && (

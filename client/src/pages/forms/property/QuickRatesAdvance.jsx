@@ -63,7 +63,7 @@ export default function QuickRatesAdvance() {
 
   return (
     <div>
-      <h2>Quick Rates Application</h2>
+      <h2>Quick Bridge Application</h2>
       <p className="subtle" style={{ marginBottom: "1rem" }}>
         Please complete the form below. Your firm and user details are
         pre-populated from CRM where possible.

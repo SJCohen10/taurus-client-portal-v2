@@ -7,7 +7,9 @@ import {
 } from "react-router-dom";
 import Layout from "./Layout";
 import RoleBasedDashboard from "./pages/dashboard/RoleBasedDashboard";
-import QuickRatesAdvance from "./pages/forms/property/QuickRatesAdvance";
+// import QuickRatesAdvance from "./pages/forms/property/QuickRatesAdvance";
+import QuickBridgeStart from "./pages/forms/property/QuickBridgeStart";
+import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 
 // Use basename "/app" only in production (Catalyst hosting)
 const basename =
@@ -23,7 +25,9 @@ export default function App() {
           <Route path="dashboard" element={<RoleBasedDashboard />} />
 
           {/* Existing Quick Rates route */}
-          <Route path="quick-rates" element={<QuickRatesAdvance />} />
+          <Route path="quick-rates" element={<QuickBridgeStart />} />
+          <Route path="seller-proceeds" element={<SellerProceedsStart />} />
+
         </Route>
 
         {/* Catch-all */}

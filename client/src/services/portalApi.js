@@ -92,3 +92,12 @@ export async function generateStatement({ assetId }) {
 
   return handleResponse(res);
 }
+
+export async function fetchPreferredFirmBankDetails(emailOverride) {
+  const email = getPortalUserEmail(emailOverride);
+  const url = `${API_BASE}/getpreferredfirmbankdetails?email=${encodeURIComponent(email)}`;
+  const res = await fetch(url, { method: "GET" });
+  return handleResponse(res);
+}
+
+

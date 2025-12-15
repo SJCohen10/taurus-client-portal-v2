@@ -223,3 +223,27 @@
         padding: 12px;
     }
 }
+
+.dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.dashboard-actions .card {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.dashboard-actions .card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-actions .card .button {
+  margin-top: 1rem;
+  align-self: flex-start;
+}

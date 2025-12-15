@@ -25,6 +25,16 @@ export default function Dashboard() {
         </section>
 
         <section className="card">
+          <h2>Seller Proceeds Bridging Finance Application</h2>
+          <p>
+            Submit a Seller Proceeds Bridging Finance application shich will be signed by your seller.
+          </p>
+          <Link to="/seller-proceeds" className="button">
+            Go to Seller Proceeds
+          </Link>
+        </section>
+
+        <section className="card">
           <h2>Deals Overview</h2>
           <p>
             Below is a summary of your recent deals linked to your Contact
@@ -34,6 +44,7 @@ export default function Dashboard() {
             Total deals loaded: <strong>{deals.length}</strong>
           </p>
         </section>
+
       </div>
 
       <section className="card">

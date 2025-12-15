@@ -1,81 +1,74 @@
-import React, { useEffect, useState } from "react";
-import { fetchPreferredFirmBankDetails } from "../../../services/portalApi";
-
-const QUICK_BRIDGE_FORM_URL = "PASTE_YOUR_QUICK_BRIDGE_FORM_PERMALINK";
-
-function buildUrl(baseUrl, params) {
-  const u = new URL(baseUrl);
-  Object.entries(params).forEach(([k, v]) => {
-    if (v === undefined || v === null || v === "") return;
-    u.searchParams.set(k, String(v));
-  });
-  return u.toString();
-}
+import React, { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { usePortalContext } from "../../../PortalContext";
 
 export default function QuickBridgeStart() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [preferred, setPreferred] = useState(null);
+    const navigate = useNavigate();
+    const portalContext = usePortalContext();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const data = await fetchPreferredFirmBankDetails();
-        if (!data.hasPreferred) {
-          setError("Your firm does not have a Preferred Quick Rates Bank Account set in CRM.");
-          return;
-        }
-        setPreferred(data);
-      } catch (e) {
-        setError(e.message || "Failed to load preferred bank details.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    const preferred = portalContext?.context?.preferredQuickBridgeBank || null;
+    console.log("PORTAL CONTEXT", portalContext);
+    console.log("PREFERRED BANK", preferred);
 
-  function openForm() {
-    if (!preferred) return;
 
-    const url = buildUrl(QUICK_BRIDGE_FORM_URL, {
-      Attorney_Firm_Bank: preferred.bankName,
-      Attorney_Firm_Account_Name: preferred.accountName,
-      Attorney_Firm_Account_Number: preferred.accountNumber,
+    const hasPreferred =
+        preferred && (preferred.id || preferred.accountNumber || preferred.name);
 
-      user_email: window?.portalUser?.email || "",
-      product_type: "Quick Bridge",
-    });
+    function handleContinue() {
+        // We will pass the bank details to the form page via URL params
+        const params = new URLSearchParams();
 
-    window.location.href = url;
-  }
+        // These keys should match your Zoho Form field link names
+        // (adjust if your field link names differ)
+        params.set("Attorney_Firm_Bank", preferred?.bank || "");
+        params.set("Attorney_Firm_Account_Name", preferred?.name || "");
+        params.set("Attorney_Firm_Account_Number", preferred?.accountNumber || "");
 
-  return (
-    <div>
-      <h2>Quick Bridge</h2>
+        navigate(`/quick-rates?${params.toString()}`);
+    }
 
-      {loading && <p className="subtle">Loading preferred firm bank details…</p>}
-      {error && !loading && <p className="error">{error}</p>}
+    if (portalContext?.loading) {
+        return <p className="subtle">Loading firm details…</p>;
+    }
 
-      {!loading && !error && preferred && (
-        <section className="card form-card">
-          <p className="subtle" style={{ marginTop: 0 }}>
-            Using your firm’s preferred bank account from CRM:
-          </p>
-          <div style={{ marginBottom: "1rem" }}>
-            <div><strong>Bank:</strong> {preferred.bankName || "—"}</div>
-            <div><strong>Account Name:</strong> {preferred.accountName || "—"}</div>
-            <div><strong>Account Number:</strong> {preferred.accountNumber || "—"}</div>
-          </div>
+    if (portalContext?.error) {
+        return <p className="error">Error: {portalContext.error}</p>;
+    }
 
-          <div className="form-actions">
-            <button className="button" onClick={openForm}>
-              Continue to Quick Bridge Form
+    if (!hasPreferred) {
+        return (
+            <div className="card">
+                <h2>Quick Bridge</h2>
+                <p className="error" style={{ marginTop: "0.75rem" }}>
+                    No preferred firm bank account found. Please set{" "}
+                    <strong>Preferred_Quick_Rates_Bank_Accounts</strong> on the firm Account in CRM.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="card">
+            <h2>Quick Bridge</h2>
+            <p className="subtle" style={{ marginBottom: "1rem" }}>
+                Your application will use your firm’s preferred bank account by default.
+            </p>
+
+            <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "1rem" }}>
+                <div style={{ marginBottom: "0.5rem" }}>
+                    <strong>Bank:</strong> {preferred.bank || "—"}
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                    <strong>Account name:</strong> {preferred.name || "—"}
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                    <strong>Account number:</strong> {preferred.accountNumber || "—"}
+                </div>
+            </div>
+
+            <button className="button" style={{ marginTop: "1rem" }} onClick={handleContinue}>
+                Continue to application form
             </button>
-          </div>
-        </section>
-      )}
-    </div>
-  );
+        </div>
+    );
 }

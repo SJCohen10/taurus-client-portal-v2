@@ -92,3 +92,7 @@ export async function generateStatement({ assetId }) {
 
   return handleResponse(res);
 }
+
+
+
+

@@ -4,6 +4,8 @@ import { usePortalContext } from "../../PortalContext";
 import { fetchMyDeals, fetchFirmDeals } from "../../services/portalApi";
 import "./ParalegalDashboard.css";
 import DealActions from "./components/DealActions";
+import { Link } from "react-router-dom";
+
 
 const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
 const DEV_DEFAULT_NAME = "Sandbox Paralegal";
@@ -180,6 +182,25 @@ export default function ParalegalDashboard() {
 
                 </div>
             </header>
+
+            <div className="dashboard-actions">
+                <div className="card" style={{ padding: "1rem" }}>
+                    <h3 style={{ marginTop: 0 }}>Quick Bridge Application</h3>
+                    <p className="subtle">
+                        Submit a Quick Bridge application and choose the bank account before opening the form.
+                    </p>
+                    <Link className="button" to="/quick-rates">Start Quick Bridge</Link>
+                </div>
+
+                <div className="card" style={{ padding: "1rem" }}>
+                    <h3 style={{ marginTop: 0 }}>Seller Proceeds Bridging Finance</h3>
+                    <p className="subtle">
+                        Submit a Seller Proceeds application and capture 1 or 2 seller bank accounts before opening the form.
+                    </p>
+                    <Link className="button" to="/seller-proceeds">Start Seller Proceeds</Link>
+                </div>
+            </div>
+
 
             <div className="dashboard-toggle">
                 <button

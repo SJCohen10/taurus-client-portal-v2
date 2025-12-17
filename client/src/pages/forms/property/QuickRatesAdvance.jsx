@@ -2,13 +2,22 @@ import React, { useMemo } from "react";
 import QRFormEmbed from "../../../components/QRFormEmbed";
 import { usePortalContext } from "../../../PortalContext";
 
-export default function QuickRatesAdvance() {
+export default function QuickRatesAdvance({
+  title = "Quick Bridge Application",
+  productType = "Quick Bridge",
+  subtitle = "Please complete the form below. Your firm and user details are pre-populated where possible.",
+}) {
   const portal = usePortalContext();
   const crm = portal?.context || null;
   const emailFromContext = portal?.email || "";
 
-  // ✅ add this HERE
-  const preferredBank = crm?.preferredQuickBridgeBank || null;
+  const preferredBank =
+    crm?.preferredQuickBridgeBank ||
+    crm?.preferred_quick_bridge_bank ||
+    crm?.preferredQuickRatesBank ||
+    crm?.preferred_quick_rates_bank ||
+    null;
+
 
   const baseUrl =
     "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalQuickRatesApplication/formperma/c90HISe4lSZnneCy3A41lVxvxS2OpRCydid_cm6fZ4s";
@@ -31,7 +40,7 @@ export default function QuickRatesAdvance() {
   const prefill = useMemo(
     () => ({
       user_email: email,
-      product_type: "Quick Rates",
+      product_type: productType,
       gclid: window.localStorage?.getItem("gclid") || "",
       utm_source: window.localStorage?.getItem("utm_source") || "",
       utm_medium: window.localStorage?.getItem("utm_medium") || "",
@@ -55,17 +64,70 @@ export default function QuickRatesAdvance() {
       portalRole,
       firmName,
       quickRatesLimit,
-      preferredBank, // ✅ add dependency
+      preferredBank?.bank,
+      preferredBank?.name,
+      preferredBank?.accountNumber,
+      productType,
     ]
   );
 
+  const hasPreferredBank =
+    preferredBank && (preferredBank.bank || preferredBank.name || preferredBank.accountNumber);
+
+
   return (
     <div>
-      <h2>Quick Bridge Application</h2>
+      <h2>{title}</h2>
       <p className="subtle" style={{ marginBottom: "1rem" }}>
-        Please complete the form below. Your firm and user details are
-        pre-populated from CRM where possible.
+        {subtitle}
       </p>
+
+      {portal?.loading && (
+        <p className="subtle" style={{ marginTop: 0 }}>
+          Loading your firm details…
+        </p>
+      )}
+
+      {portal?.error && (
+        <p className="error" style={{ marginTop: "0.5rem" }}>
+          Unable to load your firm details at the moment. The form will still
+          load without CRM prefill.
+        </p>
+      )}
+
+      {!portal?.loading && !portal?.error && !crm && (
+        <p className="error" style={{ marginTop: "0.5rem" }}>
+          Firm context is unavailable. The form will load without CRM prefill.
+        </p>
+      )}
+
+      <div className="card" style={{ marginBottom: "1.25rem" }}>
+        <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+          Preferred Quick Rates Bank Account
+        </h3>
+        <p className="subtle" style={{ marginTop: 0 }}>
+          Pulled automatically from the firm account’s <strong>Preferred_Quick_Rates_Bank_Accounts</strong> lookup.
+          These values are passed through to the Zoho form below.
+        </p>
+        {hasPreferredBank ? (
+          <div>
+            <div style={{ marginBottom: "0.4rem" }}>
+              <strong>Bank:</strong> {preferredBank?.bank || "—"}
+            </div>
+            <div style={{ marginBottom: "0.4rem" }}>
+              <strong>Account name:</strong> {preferredBank?.name || "—"}
+            </div>
+            <div style={{ marginBottom: "0.4rem" }}>
+              <strong>Account number:</strong> {preferredBank?.accountNumber || "—"}
+            </div>
+          </div>
+        ) : (
+          <p className="error" style={{ margin: 0 }}>
+            No preferred bank account is configured for your firm yet. The Zoho form will load without these fields prefilled.
+          </p>
+        )}
+      </div>
+
       <QRFormEmbed baseUrl={baseUrl} prefill={prefill} />
     </div>
   );

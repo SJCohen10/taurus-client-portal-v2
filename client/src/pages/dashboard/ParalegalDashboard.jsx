@@ -59,6 +59,11 @@ export default function ParalegalDashboard() {
     const accountId =
         portalContext?.context?.accountId || portalContext?.context?.account_id;
     const accountName = portalContext?.context?.accountName || "";
+    const preferredBank = portalContext?.context?.preferredQuickBridgeBank ||
+        portalContext?.context?.preferred_quick_bridge_bank ||
+        portalContext?.context?.preferredQuickRatesBank ||
+        portalContext?.context?.preferred_quick_rates_bank ||
+        null;
     const [view, setView] = useState("my"); // "my" | "firm"
     const [myDeals, setMyDeals] = useState([]);
     const [firmDeals, setFirmDeals] = useState([]);
@@ -183,23 +188,40 @@ export default function ParalegalDashboard() {
                 </div>
             </header>
 
-            <div className="dashboard-actions">
-                <div className="card" style={{ padding: "1rem" }}>
-                    <h3 style={{ marginTop: 0 }}>Quick Bridge Application</h3>
-                    <p className="subtle">
-                        Submit a Quick Bridge application and choose the bank account before opening the form.
-                    </p>
-                    <Link className="button" to="/quick-rates">Start Quick Bridge</Link>
-                </div>
-
-                <div className="card" style={{ padding: "1rem" }}>
-                    <h3 style={{ marginTop: 0 }}>Seller Proceeds Bridging Finance</h3>
-                    <p className="subtle">
-                        Submit a Seller Proceeds application and capture 1 or 2 seller bank accounts before opening the form.
-                    </p>
-                    <Link className="button" to="/seller-proceeds">Start Seller Proceeds</Link>
-                </div>
+            <div className="dashboard-actions" style={{ gap: "1rem" }}>
+                <Link className="button" to="/quick-rates">
+                    Start Quick Bridge Application
+                </Link>
+                <Link className="button" to="/seller-proceeds">
+                    Start Seller Application
+                </Link>
             </div>
+
+            <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+                <h3 style={{ marginTop: 0 }}>Preferred Quick Rates Bank Account</h3>
+                <p className="subtle" style={{ marginBottom: "0.75rem" }}>
+                    Pulled from your firm account’s <strong>Preferred_Quick_Rates_Bank_Accounts</strong> lookup in CRM.
+                </p>
+                {preferredBank ? (
+                    <div>
+                        <div style={{ marginBottom: "0.4rem" }}>
+                            <strong>Bank:</strong> {preferredBank.bank || "—"}
+                        </div>
+                        <div style={{ marginBottom: "0.4rem" }}>
+                            <strong>Account name:</strong> {preferredBank.name || "—"}
+                        </div>
+                        <div style={{ marginBottom: "0.4rem" }}>
+                            <strong>Account number:</strong> {preferredBank.accountNumber || "—"}
+                        </div>
+                    </div>
+                ) : (
+                    <p className="error" style={{ margin: 0 }}>
+                        Preferred Quick Rates bank details are not set. Please update the firm’s preferred bank in CRM.
+                    </p>
+                )}
+            </div>
+
+           
 
 
             <div className="dashboard-toggle">
@@ -355,6 +377,6 @@ export default function ParalegalDashboard() {
                     </div>
                 )}
             </section>
-        </div>
+        </div >
     );
 }

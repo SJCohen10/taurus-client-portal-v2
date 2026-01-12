@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     generateStatement,
     uploadDealDocument,
@@ -21,6 +21,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
     const [message, setMessage] = useState("");
     const [uploading, setUploading] = useState(false);
     const [statementLoading, setStatementLoading] = useState(false);
+    const [selectedAssetId, setSelectedAssetId] = useState("");
     const fileInputRef = useRef(null);
 
     const propertyRefNumber =
@@ -33,6 +34,37 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         deal.property_description || deal["Property Description"] || "";
     const assetId =
         deal.asset_id || deal.Asset_Id || deal.assetId || deal["Asset Id"] || null;
+    const assetIdsRaw =
+        deal.asset_ids ||
+        deal.assetIds ||
+        deal["Asset Ids"] ||
+        deal["Asset IDs"] ||
+        deal["Asset Id List"] ||
+        null;
+    const assetIdsList = Array.isArray(assetIdsRaw)
+        ? assetIdsRaw
+        : typeof assetIdsRaw === "string"
+            ? assetIdsRaw
+                .split(/\s*[|;]\s*/)
+                .map((item) => item.trim())
+                .filter(Boolean)
+            : [];
+    const assetIds = assetIdsList.length
+        ? assetIdsList
+        : assetId
+            ? [assetId]
+            : [];
+
+    useEffect(() => {
+        if (assetIds.length === 0) {
+            setSelectedAssetId("");
+            return;
+        }
+
+        if (!selectedAssetId || !assetIds.includes(selectedAssetId)) {
+            setSelectedAssetId(assetIds[0]);
+        }
+    }, [assetIds, selectedAssetId]);
 
     async function handleFileChange(event) {
         event.stopPropagation();
@@ -53,7 +85,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 propertyDescription,
                 accountId,
                 contactEmail: portalEmail,
-                assetId: assetId || deal.id || deal.deal_id || null,
+                assetId: selectedAssetId || assetId || deal.id || deal.deal_id || null,
             };
 
             const response = await uploadDealDocument(payload);
@@ -74,7 +106,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
 
     async function handleGenerateStatement(event) {
         event.stopPropagation();
-        if (!assetId) {
+        if (!selectedAssetId) {
             setMessage("No Asset ID is linked to this deal yet.");
             return;
         }
@@ -82,7 +114,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         try {
             setStatementLoading(true);
             setMessage("");
-            const response = await generateStatement({ assetId });
+            const response = await generateStatement({ assetId: selectedAssetId });
 
             if (response?.statementUrl) {
                 window.open(response.statementUrl, "_blank", "noopener");
@@ -109,6 +141,19 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 style={{ display: "none" }}
                 onChange={handleFileChange}
             />
+            {assetIds.length > 1 && (
+                <select
+                    className="deal-action-select"
+                    value={selectedAssetId}
+                    onChange={(event) => setSelectedAssetId(event.target.value)}
+                >
+                    {assetIds.map((id) => (
+                        <option key={id} value={id}>
+                            {id}
+                        </option>
+                    ))}
+                </select>
+            )}
             <button
                 type="button"
                 className="deal-action-button"
@@ -121,8 +166,10 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 type="button"
                 className="deal-action-button secondary"
                 onClick={handleGenerateStatement}
-                disabled={!assetId || statementLoading}
-                title={assetId ? "Generate statement" : "No Asset ID available"}
+                disabled={!selectedAssetId || statementLoading}
+                title={
+                    selectedAssetId ? "Generate statement" : "No Asset ID available"
+                }
             >
                 {statementLoading ? "Preparing…" : "Statement"}
             </button>

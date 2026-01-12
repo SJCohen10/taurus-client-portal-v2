@@ -40,18 +40,26 @@ Taurus-Client-Portal/
 │  │  │  └─ QRFormEmbed.jsx   # Zoho Form iframe with prefill
 │  │  └─ pages/
 │  │     └─ forms/
-│  │        ├─ Dashboard.jsx
+│  │        ├─ Dashboard.jsx          # Legacy/unused (not routed)
 │  │        └─ property/
-│  │           └─ QuickRatesAdvance.jsx
+│  │           ├─ QuickBridgeStart.jsx
+│  │           ├─ QuickRatesAdvance.jsx
+│  │           └─ SellerProceedsStart.jsx
 │  ├─ package.json
 │  └─ client-package.json     # Config for Catalyst React plugin
 └─ functions/                 # Catalyst Node functions
-   ├─ getportalusercontext/
-   │  └─ index.js             # Fetch CRM Contact & Account by email
    ├─ authorization_portal_function/
-   │  └─ index.js             # (Optional) custom signup validation
-   └─ taurus_client_portal_function/
-      └─ index.js             # (Optional) duplicate / legacy context function
+   │  └─ index.js             # Custom signup validation
+   ├─ generatestatement/
+   │  └─ index.js             # Generate statement link for deals
+   ├─ getPortalUserContext/
+   │  └─ index.js             # Fetch CRM Contact & Account by email
+   ├─ getportaldeals/
+   │  └─ index.js             # Load portal deals for the dashboard
+   ├─ taurus_client_portal_function/
+   │  └─ index.js             # Legacy context function
+   └─ uploaddealdocument/
+      └─ index.js             # Upload deal documents to WorkDrive
 
 ---
 

@@ -199,6 +199,16 @@
     cursor: not-allowed;
 }
 
+.deal-action-select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    font-size: 0.78rem;
+    color: #111827;
+}
+
+
 .deal-action-message {
     font-size: 0.78rem;
     color: #065f46;
@@ -225,25 +235,25 @@
 }
 
 .dashboard-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.25rem;
-  margin: 1.5rem 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0;
 }
 
 .dashboard-actions .card {
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .dashboard-actions .card h3 {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
+    margin-top: 0;
+    margin-bottom: 0.5rem;
 }
 
 .dashboard-actions .card .button {
-  margin-top: 1rem;
-  align-self: flex-start;
+    margin-top: 1rem;
+    align-self: flex-start;
 }

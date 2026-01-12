@@ -93,6 +93,22 @@ function parseCsv(text) {
     return rows;
 }
 
+
+function parseDelimitedList(value) {
+    if (!value) {
+        return [];
+    }
+
+    if (Array.isArray(value)) {
+        return value.filter((item) => item != null && String(item).trim() !== "");
+    }
+
+    return String(value)
+        .split(/\s*[|;]\s*/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
 /**
  * Fetch deals for the portal from Zoho Analytics using CSV export.
  */
@@ -191,11 +207,37 @@ async function getDealsForPortal({ email, accountId }) {
             row["asset_id"] ||
             null;
 
+        const assetIdsList = parseDelimitedList(
+            row["Asset Ids"] ||
+            row["Asset IDs"] ||
+            row["Asset Id List"] ||
+            row["Asset Ids List"] ||
+            null
+        );
+
         const assetCreatorId =
             row["Asset Creator ID"] ||
             row["Asset_Creator_ID"] ||
             row["Asset Creator Id"] ||
             null;
+
+        const assetCreatorIdsList = parseDelimitedList(
+            row["Asset Creator IDs"] ||
+            row["Asset Creator Ids"] ||
+            row["Asset Creator Id List"] ||
+            null
+        );
+
+        const assetIds = assetIdsList.length
+            ? assetIdsList
+            : assetId
+                ? [assetId]
+                : [];
+        const assetCreatorIds = assetCreatorIdsList.length
+            ? assetCreatorIdsList
+            : assetCreatorId
+                ? [assetCreatorId]
+                : [];
 
         const accountId =
             row["Account_Id"] || row["Account Id"] || row["Account_ID"] || null;
@@ -217,8 +259,10 @@ async function getDealsForPortal({ email, accountId }) {
             amount, // now numeric or null
             lodged: row["Lodged"] || null,
             registered: row["Registered"] || null,
-            asset_id: assetId,
-            asset_creator_id: assetCreatorId,
+            asset_id: assetIds[0] || assetId,
+            asset_ids: assetIds,
+            asset_creator_id: assetCreatorIds[0] || assetCreatorId,
+            asset_creator_ids: assetCreatorIds,
             account_id: accountId,
             property_folder_id: propertyFolderId,
 

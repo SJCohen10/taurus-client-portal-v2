@@ -100,10 +100,12 @@ async function getContactAndAccountByEmail(email) {
 
   const contact = contacts[0];
   const contactId = contact.id;
-  const fullName =
-    contact.Full_Name || [contact.First_Name, contact.Last_Name].filter(Boolean).join(" ");
+  const contactFirstName = contact.First_Name || "";
+  const contactLastName = contact.Last_Name || "";
+  const fullName = contact.Full_Name || [contactFirstName, contactLastName].filter(Boolean).join(" ");
   const portalRole = contact.Portal_Role || null;
-  const contactEmail = contact.Email;
+  const contactEmail = contact.Email || "";
+  const contactMobile = contact.Mobile || contact.Phone || "";
 
   const accountLookup = contact.Account_Name || contact.Account || {};
   const accountId = accountLookup.id;
@@ -112,10 +114,8 @@ async function getContactAndAccountByEmail(email) {
     throw new Error(`CRM Contact ${contactId} has no linked Account (Account_Name lookup missing).`);
   }
 
-  // 2) Fetch Account details (explicit fields)
-  const accountUrl =
-    `${crmBase}/Accounts/${accountId}` +
-    `?fields=Account_Name,Quick_Bridge_Limit,Preferred_Quick_Rates_Bank_Accounts`;
+  // 2) Fetch Account details (full record to include custom firm fields)
+  const accountUrl = `${crmBase}/Accounts/${accountId}`;
 
   const accountRes = await fetch(accountUrl, {
     headers: {
@@ -168,16 +168,54 @@ async function getContactAndAccountByEmail(email) {
     };
   }
 
-  const accountName = accountRecord.Account_Name;
+  const accountName = accountRecord.Account_Name || "";
+  const firmRegNumber =
+    accountRecord.Reg_Number ||
+    accountRecord.Firm_Reg_Number ||
+    accountRecord.Firm_Registration_Number ||
+    "";
+  const firmStreetAddress =
+    accountRecord.Billing_Street ||
+    accountRecord.Shipping_Street ||
+    "";
+  const firmCity =
+    accountRecord.Billing_City ||
+    accountRecord.Shipping_City ||
+    "";
+  const firmProvince =
+    accountRecord.Billing_State ||
+    accountRecord.Shipping_State ||
+    "";
+  const firmZipCode =
+    accountRecord.Billing_Code ||
+    accountRecord.Shipping_Code ||
+    "";
+  const accountEmail = accountRecord.Email || contactEmail;
+  const accountMobile = accountRecord.Phone || contactMobile;
+
+  const directorName = accountRecord.Quick_Rates_Director_Name;
+  const directorEmail = accountRecord.Quick_Rates_Director_Email || "";
   const quickBridgeLimit = accountRecord.Quick_Bridge_Limit || 120000;
 
   return {
     contactId,
     contactName: fullName,
     contactEmail,
+    contactFirstName,
+    contactLastName,
+    contactMobile,
     portalRole,
     accountId,
     accountName,
+    firmRegNumber,
+    firmStreetAddress,
+    firmCity,
+    firmProvince,
+    firmZipCode,
+    accountEmail,
+    accountMobile,
+    directorName,
+    directorEmail,
     quickBridgeLimit,
     preferredQuickBridgeBank,
   };

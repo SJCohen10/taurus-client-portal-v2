@@ -33,8 +33,20 @@ export default function QuickRatesAdvance({
 
   const contactEmail = crm?.contactEmail || email;
   const contactName = crm?.contactName || "";
+  const contactFirstName = crm?.contactFirstName || "";
+  const contactLastName = crm?.contactLastName || "";
+  const contactMobile = crm?.contactMobile || "";
   const portalRole = crm?.portalRole || "";
   const firmName = crm?.accountName || "";
+  const firmRegNumber = crm?.firmRegNumber || "";
+  const firmStreetAddress = crm?.firmStreetAddress || "";
+  const firmCity = crm?.firmCity || "";
+  const firmProvince = crm?.firmProvince || "";
+  const firmZipCode = crm?.firmZipCode || "";
+  const accountEmail = crm?.accountEmail || contactEmail;
+  const accountMobile = crm?.accountMobile || contactMobile;
+  const directorName = crm?.directorName || "";
+  const directorEmail = crm?.directorEmail || "";
   const quickRatesLimit = crm?.quickRatesLimit ?? crm?.quickBridgeLimit ?? "";
 
   const prefill = useMemo(
@@ -48,8 +60,20 @@ export default function QuickRatesAdvance({
 
       contact_email: contactEmail,
       contact_name: contactName,
+      contact_first_name: contactFirstName,
+      contact_last_name: contactLastName,
+      contact_mobile: contactMobile,
       portal_role: portalRole,
       firm_name: firmName,
+      firm_reg_number: firmRegNumber,
+      firm_street_address: firmStreetAddress,
+      firm_city: firmCity,
+      firm_province: firmProvince,
+      firm_zip_code: firmZipCode,
+      account_email: accountEmail,
+      account_mobile: accountMobile,
+      director_first_name: directorName,
+      director_email: directorEmail,
       quick_rates_limit: quickRatesLimit,
 
       // ✅ NEW: default firm bank details for Quick Bridge
@@ -61,8 +85,20 @@ export default function QuickRatesAdvance({
       email,
       contactEmail,
       contactName,
+      contactFirstName,
+      contactLastName,
+      contactMobile,
       portalRole,
       firmName,
+      firmRegNumber,
+      firmStreetAddress,
+      firmCity,
+      firmProvince,
+      firmZipCode,
+      accountEmail,
+      accountMobile,
+      directorName,
+      directorEmail,
       quickRatesLimit,
       preferredBank?.bank,
       preferredBank?.name,

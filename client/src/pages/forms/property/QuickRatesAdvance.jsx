@@ -18,7 +18,6 @@ export default function QuickRatesAdvance({
     crm?.preferred_quick_rates_bank ||
     null;
 
-
   const baseUrl =
     "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalQuickRatesApplication/formperma/c90HISe4lSZnneCy3A41lVxvxS2OpRCydid_cm6fZ4s";
 
@@ -37,6 +36,15 @@ export default function QuickRatesAdvance({
   const contactLastName = crm?.contactLastName || "";
   const contactMobile = crm?.contactMobile || "";
   const portalRole = crm?.portalRole || "";
+
+  // ✅ NEW: pull Contact ID from portal context (adjust keys if needed)
+  const contactId =
+    crm?.contactId ||
+    crm?.contact_id ||
+    crm?.Contact_ID ||
+    crm?.contact?.id ||
+    "";
+
   const firmName = crm?.accountName || "";
   const firmRegNumber = crm?.firmRegNumber || "";
   const firmStreetAddress = crm?.firmStreetAddress || "";
@@ -58,7 +66,10 @@ export default function QuickRatesAdvance({
       utm_medium: window.localStorage?.getItem("utm_medium") || "",
       utm_campaign: window.localStorage?.getItem("utm_campaign") || "",
 
+      // ✅ NEW: hidden fields on your Zoho Form
+      contact_id: contactId,
       contact_email: contactEmail,
+
       contact_name: contactName,
       contact_first_name: contactFirstName,
       contact_last_name: contactLastName,
@@ -76,13 +87,15 @@ export default function QuickRatesAdvance({
       director_email: directorEmail,
       quick_rates_limit: quickRatesLimit,
 
-      // ✅ NEW: default firm bank details for Quick Bridge
+      // ✅ default firm bank details for Quick Bridge
       Attorney_Firm_Bank: preferredBank?.bank || "",
       Attorney_Firm_Account_Name: preferredBank?.name || "",
       Attorney_Firm_Account_Number: preferredBank?.accountNumber || "",
     }),
     [
       email,
+      productType,
+      contactId, // ✅ NEW
       contactEmail,
       contactName,
       contactFirstName,
@@ -103,13 +116,12 @@ export default function QuickRatesAdvance({
       preferredBank?.bank,
       preferredBank?.name,
       preferredBank?.accountNumber,
-      productType,
     ]
   );
 
   const hasPreferredBank =
-    preferredBank && (preferredBank.bank || preferredBank.name || preferredBank.accountNumber);
-
+    preferredBank &&
+    (preferredBank.bank || preferredBank.name || preferredBank.accountNumber);
 
   return (
     <div>
@@ -142,9 +154,11 @@ export default function QuickRatesAdvance({
           Preferred Quick Rates Bank Account
         </h3>
         <p className="subtle" style={{ marginTop: 0 }}>
-          Pulled automatically from the firm account’s <strong>Preferred_Quick_Rates_Bank_Accounts</strong> lookup.
-          These values are passed through to the Zoho form below.
+          Pulled automatically from the firm account’s{" "}
+          <strong>Preferred_Quick_Rates_Bank_Accounts</strong> lookup. These
+          values are passed through to the Zoho form below.
         </p>
+
         {hasPreferredBank ? (
           <div>
             <div style={{ marginBottom: "0.4rem" }}>
@@ -159,7 +173,8 @@ export default function QuickRatesAdvance({
           </div>
         ) : (
           <p className="error" style={{ margin: 0 }}>
-            No preferred bank account is configured for your firm yet. The Zoho form will load without these fields prefilled.
+            No preferred bank account is configured for your firm yet. The Zoho
+            form will load without these fields prefilled.
           </p>
         )}
       </div>

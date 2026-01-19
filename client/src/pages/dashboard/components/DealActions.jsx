@@ -31,8 +31,23 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         "";
     const propertyDescription =
         deal.property_description || deal["Property Description"] || "";
-    const assetId =
-        deal.asset_id || deal.Asset_Id || deal.assetId || deal["Asset Id"] || null;
+    const assetIdsRaw =
+        deal["Asset IDs"] ||
+        deal.asset_ids ||
+        deal.assetIds ||
+        null;
+
+    const assetIds = String(assetIdsRaw || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+
+    const propertyFolderId =
+        deal.property_folder_id || deal["Property Folder Id"] || null;
+
+    const dealId =
+        deal.deal_id || deal.id || deal["Deal Id"] || deal["Id"] || null;
 
     async function handleFileChange(event) {
         event.stopPropagation();
@@ -53,8 +68,10 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 propertyDescription,
                 accountId,
                 contactEmail: portalEmail,
-                assetId: assetId || deal.id || deal.deal_id || null,
+                propertyFolderId,  // <-- THIS is what your upload function prefers
+                dealId,
             };
+
 
             const response = await uploadDealDocument(payload);
             setMessage(
@@ -74,25 +91,39 @@ export default function DealActions({ deal, portalEmail, accountId }) {
 
     async function handleGenerateStatement(event) {
         event.stopPropagation();
-        if (!assetId) {
-            setMessage("No Asset ID is linked to this deal yet.");
+
+        if (!assetIds.length) {
+            setMessage("No Assets are linked to this deal yet.");
             return;
         }
 
         try {
             setStatementLoading(true);
             setMessage("");
-            const response = await generateStatement({ assetId });
 
-            if (response?.statementUrl) {
-                window.open(response.statementUrl, "_blank", "noopener");
-                setMessage("Statement opened in a new tab.");
-            } else {
-                setMessage(
-                    response?.message ||
-                    "No statement page was returned for this deal."
-                );
+            // Option A: first asset only
+            // const targetIds = [assetIds[0]];
+
+            // Option B: generate ALL assets (what you asked for)
+            const targetIds = assetIds;
+
+            const results = [];
+            for (const id of targetIds) {
+                const response = await generateStatement({ assetId: id });
+                results.push({ assetId: id, response });
+
+                if (response?.statementUrl) {
+                    window.open(response.statementUrl, "_blank", "noopener");
+                }
             }
+
+            const openedCount = results.filter((r) => r.response?.statementUrl).length;
+
+            setMessage(
+                openedCount
+                    ? `Opened ${openedCount} statement(s) in new tabs.`
+                    : "No statement page was returned for the selected assets."
+            );
         } catch (err) {
             console.error("Generate statement failed", err);
             setMessage(err.message || "Unable to generate a statement right now.");
@@ -121,12 +152,18 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 type="button"
                 className="deal-action-button secondary"
                 onClick={handleGenerateStatement}
-                disabled={!assetId || statementLoading}
-                title={assetId ? "Generate statement" : "No Asset ID available"}
+                disabled={!assetIds.length || statementLoading}
+                title={assetIds.length ? "Generate statement" : "No Asset IDs available"}
             >
                 {statementLoading ? "Preparing…" : "Statement"}
             </button>
+
             {message && <div className="deal-action-message">{message}</div>}
         </div>
     );
+
+    console.log("Deal row keys:", Object.keys(deal));
+    console.log("Deal row sample:", deal);
+    console.log("Asset IDs raw:", deal["Asset IDs"], deal["Asset IDs "], deal["Asset IDs"]?.length);
+
 }

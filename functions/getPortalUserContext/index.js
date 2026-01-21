@@ -11,6 +11,7 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
+
 /**
  * Fetch a fresh access token from Zoho using the refresh token.
  */
@@ -32,7 +33,9 @@ async function getAccessToken() {
     grant_type: "refresh_token",
   });
 
-  const tokenUrl = "https://accounts.zoho.com/oauth/v2/token";
+  const accountsBase = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
+  const tokenUrl = `${accountsBase}/oauth/v2/token`;
+
 
   const res = await fetch(tokenUrl, {
     method: "POST",
@@ -52,7 +55,9 @@ async function getAccessToken() {
     throw new Error("No access_token returned by Zoho");
   }
 
-  return { accessToken: data.access_token, apiDomain: data.api_domain || "https://www.zohoapis.com" };
+  const apiDomain = process.env.ZOHO_API_DOMAIN || data.api_domain || "https://www.zohoapis.com";
+  return { accessToken: data.access_token, apiDomain };
+
 
 }
 
@@ -61,7 +66,9 @@ async function getAccessToken() {
  */
 async function getContactAndAccountByEmail(email) {
   const { accessToken, apiDomain } = await getAccessToken();
-  const crmBase = `${apiDomain}/crm/v6`;
+  const crmVersion = process.env.ZOHO_CRM_VERSION || "v6";
+  const crmBase = `${apiDomain}/crm/${crmVersion}`;
+
 
   // 1) Search Contact by Email
   const searchUrl = `${crmBase}/Contacts/search?email=${encodeURIComponent(email)}`;

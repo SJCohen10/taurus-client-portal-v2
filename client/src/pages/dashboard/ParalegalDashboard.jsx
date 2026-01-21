@@ -221,7 +221,7 @@ export default function ParalegalDashboard() {
                 )}
             </div>
 
-           
+
 
 
             <div className="dashboard-toggle">
@@ -264,7 +264,7 @@ export default function ParalegalDashboard() {
                         {view === "my" ? "My Deals" : "Firm Deals"}
                     </h2>
                     <p className="section-subtitle">
-                        Click a deal to view details, statements and documents
+                        View Deal Details, Generate Statements and Upload Documents
                     </p>
                 </div>
 
@@ -276,7 +276,7 @@ export default function ParalegalDashboard() {
 
                 {!loading && !error && activeDeals.length === 0 && (
                     <div className="dashboard-message">
-                        No deals found yet for this view.
+                        No Active Deals Found.
                     </div>
                 )}
 

@@ -5,6 +5,22 @@ function sendJson(res, statusCode, payload) {
     res.end(JSON.stringify(payload));
 }
 
+
+const { URLSearchParams } = require("url");
+
+let _fetch = typeof fetch === "function" ? fetch : null;
+
+async function getFetch() {
+    if (_fetch) return _fetch;
+
+    // Fallback to node-fetch only if present
+    const mod = await import("node-fetch");
+    _fetch = mod.default;
+    return _fetch;
+}
+
+
+
 function readJsonBody(req) {
     return new Promise((resolve, reject) => {
         let data = "";
@@ -41,7 +57,10 @@ async function getAccessToken() {
         grant_type: "refresh_token",
     });
 
-    const res = await fetch("https://accounts.zoho.com/oauth/v2/token", {
+    const accountsBase = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
+    const tokenUrl = `${accountsBase}/oauth/v2/token`;
+    const fetchFn = await getFetch();
+    const res = await fetchFn(tokenUrl, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString(),
@@ -66,18 +85,27 @@ async function getAccessToken() {
     return data.access_token;
 }
 
-async function fetchAsset(accessToken, assetId) {
-    const base = process.env.ZOHO_CRM_SANDBOX_BASE || "https://crmsandbox.zoho.com";
-    const url = `${base}/crm/v6/Assets/${assetId}`;
+function getCrmBase() {
+    const apiDomain = process.env.ZOHO_API_DOMAIN || "https://www.zohoapis.com";
+    const crmVersion = process.env.ZOHO_CRM_VERSION || "v6";
+    return `${apiDomain}/crm/${crmVersion}`;
+}
 
-    const res = await fetch(url, {
+async function fetchAsset(accessToken, assetId) {
+    const crmBase = getCrmBase();
+    const url = `${crmBase}/Assets/${assetId}`;
+    const fetchFn = await getFetch();
+    const res = await fetchFn(url, {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
 
-    const data = await res.json();
+    const raw = await res.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { }
+
     if (!res.ok) {
         throw new Error(
-            `Failed to fetch CRM Asset ${assetId}: ${data.message || res.status}`
+            `Failed to fetch CRM Asset ${assetId}: ${data?.message || raw || res.status}`
         );
     }
 
@@ -85,22 +113,26 @@ async function fetchAsset(accessToken, assetId) {
 }
 
 async function fetchTransactions(accessToken, assetId) {
-    const base = process.env.ZOHO_CRM_SANDBOX_BASE || "https://crmsandbox.zoho.com";
-    const url = `${base}/crm/v6/Assets/${assetId}/Transactions`;
+    const crmBase = getCrmBase();
+    const url = `${crmBase}/Assets/${assetId}/Transactions`;
 
     const res = await fetch(url, {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
 
-    const data = await res.json();
+    const raw = await res.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { }
+
     if (!res.ok) {
         throw new Error(
-            `Failed to fetch related Transactions for Asset ${assetId}: ${data.message || res.status}`
+            `Failed to fetch related Transactions for Asset ${assetId}: ${data?.message || raw || res.status}`
         );
     }
 
     return data.data || [];
 }
+
 
 function pickStatementPage({ transactionTypes }) {
     const lowerTypes = transactionTypes.map((t) => (t || "").toLowerCase());

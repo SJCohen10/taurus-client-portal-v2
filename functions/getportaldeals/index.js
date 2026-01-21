@@ -206,6 +206,13 @@ async function getDealsForPortal({ email, accountId }) {
             row["Property Folder"] ||
             null;
 
+        const assetIds =
+            row["Asset IDs"] || row["Asset_IDs"] || row["Asset Ids"] || null;
+
+        const assetCreatorIds =
+            row["Asset Creator IDs"] || row["Asset_Creator_IDs"] || null;
+
+
 
         return {
             property_ref_number: row["Property Ref Number"] || null,
@@ -221,6 +228,8 @@ async function getDealsForPortal({ email, accountId }) {
             asset_creator_id: assetCreatorId,
             account_id: accountId,
             property_folder_id: propertyFolderId,
+            asset_ids: assetIds,
+            asset_creator_ids: assetCreatorIds
 
         };
     });

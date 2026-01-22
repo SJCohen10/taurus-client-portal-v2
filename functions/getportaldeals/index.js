@@ -174,6 +174,13 @@ async function getDealsForPortal({ email, accountId }) {
     const rows = parseCsv(text);
     console.log("Parsed Analytics rows sample:", rows[0]);
 
+    function parseNumber(val) {
+        if (val === undefined || val === null || val === "") return null;
+        const numeric = Number(String(val).replace(/[^0-9.-]/g, ""));
+        return Number.isNaN(numeric) ? null : numeric;
+    }
+
+
     // Map into a clean shape for the frontend based on your columns:
     // "Property Ref Number","Property Description","Created time","Paralegal","Contact_Email"
     return rows.map((row) => {
@@ -212,16 +219,19 @@ async function getDealsForPortal({ email, accountId }) {
         const assetCreatorIds =
             row["Asset Creator IDs"] || row["Asset_Creator_IDs"] || null;
 
+        const currentBalance = parseNumber(row["Current Balance"]);
+        const upsellAvailable = parseNumber(row["Upsell Available"]);
 
 
         return {
             property_ref_number: row["Property Ref Number"] || null,
             property_description: row["Property Description"] || null,
             created_time: row["Created time"] || null,
-            paralegal_name: row["Paralegal"] || null,
             contact_email: row["Contact_Email"] || null,
             status: row["Status"] || null,
-            amount, // now numeric or null
+            amount: parseNumber(row["Amount"]),
+            current_balance: currentBalance,
+            upsell_available: upsellAvailable,
             lodged: row["Lodged"] || null,
             registered: row["Registered"] || null,
             asset_id: assetId,
@@ -229,9 +239,9 @@ async function getDealsForPortal({ email, accountId }) {
             account_id: accountId,
             property_folder_id: propertyFolderId,
             asset_ids: assetIds,
-            asset_creator_ids: assetCreatorIds
-
+            asset_creator_ids: assetCreatorIds,
         };
+
     });
 
 }

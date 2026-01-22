@@ -43,6 +43,18 @@ function getPortalUserDisplay(portalContext) {
 
 const NORMALIZED_STATUSES = ["pending review", "active", "due to taurus"];
 
+function parseNumber(val) {
+    if (val === undefined || val === null || val === "") return null;
+    const numeric = Number(String(val).replace(/[^0-9.-]/g, ""));
+    return Number.isNaN(numeric) ? null : numeric;
+}
+
+function formatRand(val) {
+    const n = parseNumber(val);
+    return n === null ? "—" : `R ${n.toLocaleString("en-ZA")}`;
+}
+
+
 function getAmountValue(deal) {
     const rawAmount = deal?.amount ?? deal?.deal_amount;
 
@@ -188,38 +200,28 @@ export default function ParalegalDashboard() {
                 </div>
             </header>
 
-            <div className="dashboard-actions" style={{ gap: "1rem" }}>
-                <Link className="button" to="/quick-rates">
-                    Start Quick Bridge Application
-                </Link>
-                <Link className="button" to="/seller-proceeds">
-                    Start Seller Application
-                </Link>
+            <div className="dashboard-actions">
+                <div className="card action-card">
+                    <h3>Quick Bridge Application</h3>
+                    <p className="subtle">
+                        Start a new request with your firm’s preferred quick rates bank details.
+                    </p>
+                    <Link className="button" to="/quick-rates">
+                        Start Quick Bridge Application
+                    </Link>
+                </div>
+                <div className="card action-card">
+                    <h3>Seller Application</h3>
+                    <p className="subtle">
+                        Create a seller proceeds request and keep your pipeline moving.
+                    </p>
+                    <Link className="button" to="/seller-proceeds">
+                        Start Seller Application
+                    </Link>
+                </div>
             </div>
 
-            <div className="card" style={{ padding: "1rem", marginBottom: "1rem" }}>
-                <h3 style={{ marginTop: 0 }}>Preferred Quick Rates Bank Account</h3>
-                <p className="subtle" style={{ marginBottom: "0.75rem" }}>
-                    Pulled from your firm account’s <strong>Preferred_Quick_Rates_Bank_Accounts</strong> lookup in CRM.
-                </p>
-                {preferredBank ? (
-                    <div>
-                        <div style={{ marginBottom: "0.4rem" }}>
-                            <strong>Bank:</strong> {preferredBank.bank || "—"}
-                        </div>
-                        <div style={{ marginBottom: "0.4rem" }}>
-                            <strong>Account name:</strong> {preferredBank.name || "—"}
-                        </div>
-                        <div style={{ marginBottom: "0.4rem" }}>
-                            <strong>Account number:</strong> {preferredBank.accountNumber || "—"}
-                        </div>
-                    </div>
-                ) : (
-                    <p className="error" style={{ margin: 0 }}>
-                        Preferred Quick Rates bank details are not set. Please update the firm’s preferred bank in CRM.
-                    </p>
-                )}
-            </div>
+
 
 
 
@@ -290,10 +292,12 @@ export default function ParalegalDashboard() {
                                     <th>Lodged</th>
                                     <th>Registered</th>
                                     <th>Status</th>
-                                    <th>Amount</th>
-                                    <th>Paralegal</th>
+                                    <th>Advanced</th>
+                                    <th>Current Balance</th>
+                                    <th>Upsell Available</th>
                                     <th>Created</th>
                                     <th>Actions</th>
+
                                 </tr>
                             </thead>
 
@@ -342,33 +346,22 @@ export default function ParalegalDashboard() {
                                         </td>
 
                                         {/* Amount */}
-                                        <td>
-                                            {getAmountValue(deal) !== null
-                                                ? `R ${getAmountValue(deal).toLocaleString("en-ZA")}`
-                                                : "—"}
-                                        </td>
+                                        <td>{formatRand(deal.amount ?? deal["Amount"])}</td>
 
-                                        {/* Paralegal */}
-                                        <td>
-                                            {deal.paralegal_name ||
-                                                deal.owner_name ||
-                                                deal.contact_email ||
-                                                "—"}
-                                        </td>
+                                        {/* Current Balance */}
+                                        <td>{formatRand(deal.current_balance ?? deal["Current Balance"])}</td>
+
+                                        {/* Upsell Available */}
+                                        <td>{formatRand(deal.upsell_available ?? deal["Upsell Available"])}</td>
 
                                         {/* Created */}
-                                        <td>
-                                            {deal.created_time ||
-                                                deal.created_at ||
-                                                "—"}
-                                        </td>
+                                        <td>{deal.created_time || deal.created_at || "—"}</td>
+
+                                        {/* Actions */}
                                         <td className="actions-cell">
-                                            <DealActions
-                                                deal={deal}
-                                                portalEmail={displayEmail}
-                                                accountId={accountId}
-                                            />
+                                            <DealActions deal={deal} portalEmail={displayEmail} accountId={accountId} />
                                         </td>
+
                                     </tr>
                                 ))}
                             </tbody>

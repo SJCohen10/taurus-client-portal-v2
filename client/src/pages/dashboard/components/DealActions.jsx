@@ -1,8 +1,6 @@
-import React, { useRef, useState } from "react";
-import {
-    generateStatement,
-    uploadDealDocument,
-} from "../../../services/portalApi";
+import React, { useEffect, useRef, useState } from "react";
+import ReactDOM from "react-dom";
+import { generateStatement, uploadDealDocument } from "../../../services/portalApi";
 
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
@@ -18,9 +16,15 @@ function readFileAsBase64(file) {
 }
 
 export default function DealActions({ deal, portalEmail, accountId }) {
+    const [open, setOpen] = useState(false);
     const [message, setMessage] = useState("");
     const [uploading, setUploading] = useState(false);
     const [statementLoading, setStatementLoading] = useState(false);
+    const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 0 });
+    const buttonRef = useRef(null);
+
+
+    const rootRef = useRef(null);
     const fileInputRef = useRef(null);
 
     const propertyRefNumber =
@@ -29,25 +33,36 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         deal.deal_ref ||
         deal["Property Ref Number"] ||
         "";
+
     const propertyDescription =
         deal.property_description || deal["Property Description"] || "";
-    const assetIdsRaw =
-        deal["Asset IDs"] ||
-        deal.asset_ids ||
-        deal.assetIds ||
-        null;
 
+    const assetIdsRaw = deal["Asset IDs"] || deal.asset_ids || deal.assetIds || null;
     const assetIds = String(assetIdsRaw || "")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
 
+    const propertyFolderId = deal.property_folder_id || deal["Property Folder Id"] || null;
+    const dealId = deal.deal_id || deal.id || deal["Deal Id"] || deal["Id"] || null;
 
-    const propertyFolderId =
-        deal.property_folder_id || deal["Property Folder Id"] || null;
+    // Close popup on outside click / ESC
+    useEffect(() => {
+        function onDocMouseDown(e) {
+            if (!rootRef.current) return;
+            if (!rootRef.current.contains(e.target)) setOpen(false);
+        }
+        function onEsc(e) {
+            if (e.key === "Escape") setOpen(false);
+        }
 
-    const dealId =
-        deal.deal_id || deal.id || deal["Deal Id"] || deal["Id"] || null;
+        document.addEventListener("mousedown", onDocMouseDown);
+        document.addEventListener("keydown", onEsc);
+        return () => {
+            document.removeEventListener("mousedown", onDocMouseDown);
+            document.removeEventListener("keydown", onEsc);
+        };
+    }, []);
 
     async function handleFileChange(event) {
         event.stopPropagation();
@@ -68,24 +83,22 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 propertyDescription,
                 accountId,
                 contactEmail: portalEmail,
-                propertyFolderId,  // <-- THIS is what your upload function prefers
+                propertyFolderId,
                 dealId,
             };
-
 
             const response = await uploadDealDocument(payload);
             setMessage(
                 response?.message ||
                 "Uploaded to WorkDrive. You can find it in the property folder."
             );
+            setOpen(false);
         } catch (err) {
             console.error("Document upload failed", err);
             setMessage(err.message || "Unable to upload document right now.");
         } finally {
             setUploading(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
+            if (fileInputRef.current) fileInputRef.current.value = "";
         }
     }
 
@@ -101,11 +114,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
             setStatementLoading(true);
             setMessage("");
 
-            // Option A: first asset only
-            // const targetIds = [assetIds[0]];
-
-            // Option B: generate ALL assets (what you asked for)
-            const targetIds = assetIds;
+            const targetIds = assetIds; // generate ALL assets
 
             const results = [];
             for (const id of targetIds) {
@@ -124,6 +133,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                     ? `Opened ${openedCount} statement(s) in new tabs.`
                     : "No statement page was returned for the selected assets."
             );
+            setOpen(false);
         } catch (err) {
             console.error("Generate statement failed", err);
             setMessage(err.message || "Unable to generate a statement right now.");
@@ -133,37 +143,112 @@ export default function DealActions({ deal, portalEmail, accountId }) {
     }
 
     return (
-        <div className="deal-actions" onClick={(e) => e.stopPropagation()}>
+        <div
+            ref={rootRef}
+            className="deal-actions"
+            onClick={(e) => e.stopPropagation()}
+            style={{ position: "relative", display: "inline-block" }}
+        >
             <input
                 type="file"
                 ref={fileInputRef}
                 style={{ display: "none" }}
                 onChange={handleFileChange}
             />
+
             <button
                 type="button"
                 className="deal-action-button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
+                onClick={() => {
+                    const next = !open;
+                    setOpen(next);
+
+                    if (next && buttonRef.current) {
+                        const rect = buttonRef.current.getBoundingClientRect();
+                        setMenuPos({
+                            top: rect.bottom + 8 + window.scrollY,
+                            left: rect.right - 220 + window.scrollX, // 220 = menu width (adjust if you want)
+                            width: rect.width,
+                        });
+                    }
+                }}
+                ref={buttonRef}
+
+                aria-haspopup="menu"
+                aria-expanded={open ? "true" : "false"}
             >
-                {uploading ? "Uploading…" : "Upload Doc"}
-            </button>
-            <button
-                type="button"
-                className="deal-action-button secondary"
-                onClick={handleGenerateStatement}
-                disabled={!assetIds.length || statementLoading}
-                title={assetIds.length ? "Generate statement" : "No Asset IDs available"}
-            >
-                {statementLoading ? "Preparing…" : "Statement"}
+                Actions ▾
             </button>
 
-            {message && <div className="deal-action-message">{message}</div>}
+            {open &&
+                ReactDOM.createPortal(
+                    <div
+                        className="deal-actions-menu-portal"
+                        role="menu"
+                        style={{
+                            position: "absolute",
+                            top: menuPos.top,
+                            left: menuPos.left,
+                            width: 220,
+                            background: "#fff",
+                            border: "1px solid rgba(0,0,0,0.12)",
+                            borderRadius: 12,
+                            padding: 8,
+                            boxShadow: "0 14px 40px rgba(0,0,0,0.18)",
+                            zIndex: 9999,
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            className="deal-actions-menu-item"
+                            role="menuitem"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 10px",
+                                borderRadius: 10,
+                                border: "none",
+                                background: "transparent",
+                                cursor: uploading ? "not-allowed" : "pointer",
+                            }}
+                        >
+                            {uploading ? "Uploading…" : "Upload Document"}
+                        </button>
+
+                        <button
+                            type="button"
+                            className="deal-actions-menu-item"
+                            role="menuitem"
+                            onClick={handleGenerateStatement}
+                            disabled={!assetIds.length || statementLoading}
+                            title={assetIds.length ? "Generate statement" : "No Asset IDs available"}
+                            style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 10px",
+                                borderRadius: 10,
+                                border: "none",
+                                background: "transparent",
+                                cursor:
+                                    !assetIds.length || statementLoading ? "not-allowed" : "pointer",
+                                opacity: !assetIds.length || statementLoading ? 0.6 : 1,
+                            }}
+                        >
+                            {statementLoading ? "Preparing…" : "Generate Statement"}
+                        </button>
+                    </div>,
+                    document.body
+                )}
+
+
+            {message && (
+                <div className="deal-action-message" style={{ marginTop: 6 }}>
+                    {message}
+                </div>
+            )}
         </div>
     );
-
-    console.log("Deal row keys:", Object.keys(deal));
-    console.log("Deal row sample:", deal);
-    console.log("Asset IDs raw:", deal["Asset IDs"], deal["Asset IDs "], deal["Asset IDs"]?.length);
-
 }

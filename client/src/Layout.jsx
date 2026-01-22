@@ -17,54 +17,49 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>Taurus Client Portal</h1>
-
-        <small>
-          {email ? (
-            <>
-              Signed in as <strong>{email}</strong>{" "}
-              {accountName && <>| {accountName}</>}
-              {typeof quickBridgeLimit === "number" && (
-                <> | Quick Bridge Limit: R {quickBridgeLimit.toLocaleString()}</>
+        <div className="app-header-top">
+          <div className="app-header-meta">
+            <h1>Taurus Client Portal</h1>
+            <small>
+              {email ? (
+                <>
+                  Signed in as <strong>{email}</strong>{" "}
+                  {accountName && <>| {accountName}</>}
+                  {typeof quickBridgeLimit === "number" && (
+                    <>
+                      {" "}
+                      | Quick Bridge Limit: R {quickBridgeLimit.toLocaleString()}
+                    </>
+                  )}
+                </>
+              ) : (
+                "Checking login…"
               )}
-            </>
-          ) : (
-            "Checking login…"
-          )}
-        </small>
+            </small>
+          </div>
+        </div>
 
-        <nav style={{ marginTop: "0.75rem", display: "flex", gap: "0.75rem" }}>
+        <nav className="app-nav">
           <Link
             to="/"
-            className="button"
-            style={{
-              marginRight: "0.75rem",
-              background: location.pathname === "/" ? "#1d4ed8" : "#6b7280",
-            }}
+            className={`app-nav-link ${location.pathname === "/" ? "active" : ""
+              }`}
           >
             Dashboard
           </Link>
 
           <Link
             to="/quick-rates"
-            className="button"
-            style={{
-              background: location.pathname.startsWith("/quick-rates")
-                ? "#1d4ed8"
-                : "#6b7280",
-            }}
+            className={`app-nav-link ${location.pathname.startsWith("/quick-rates") ? "active" : ""
+              }`}
           >
             Quick Bridge Application
           </Link>
 
           <Link
             to="/seller-proceeds"
-            className="button"
-            style={{
-              background: location.pathname.startsWith("/seller-proceeds")
-                ? "#1d4ed8"
-                : "#6b7280",
-            }}
+            className={`app-nav-link ${location.pathname.startsWith("/seller-proceeds") ? "active" : ""
+              }`}
           >
             Seller Application
           </Link>

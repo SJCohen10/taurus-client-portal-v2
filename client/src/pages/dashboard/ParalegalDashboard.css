@@ -14,44 +14,52 @@
     gap: 24px;
     align-items: flex-start;
     margin-bottom: 24px;
+    background: #ffffff;
+    padding: 24px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
 }
 
 .dashboard-title {
-    font-size: 1.8rem;
+    font-size: 2rem;
     margin: 0;
+    color: #0f172a;
 }
 
 .dashboard-subtitle {
     margin: 6px 0 0;
-    color: #555;
+    color: #475569;
     font-size: 0.95rem;
 }
 
 .dashboard-user-pill {
     border-radius: 999px;
-    padding: 10px 16px;
-    background: #f3f4f6;
+    padding: 12px 18px;
+    background: #eef2ff;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    border: 1px solid rgba(99, 102, 241, 0.25);
 }
 
 .user-name {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.98rem;
 }
 
 .user-email {
     font-size: 0.8rem;
-    color: #666;
+    color: #475569;
 }
 
 .dashboard-toggle {
     display: inline-flex;
     border-radius: 999px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #cbd5f5;
     overflow: hidden;
     margin-bottom: 20px;
+    background: #eef2ff;
 }
 
 .toggle-button {
@@ -60,10 +68,11 @@
     padding: 8px 18px;
     font-size: 0.9rem;
     cursor: pointer;
+    color: #1f2937;
 }
 
 .toggle-button.active {
-    background: #111827;
+    background: #1d4ed8;
     color: #ffffff;
 }
 
@@ -75,15 +84,15 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
-    margin-bottom: 24px;
+    margin: 24px 0;
 }
 
 .stat-card {
     background: #ffffff;
     border-radius: 12px;
     padding: 16px;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
 .stat-label {
@@ -103,8 +112,8 @@
     background: #ffffff;
     border-radius: 12px;
     padding: 16px 16px 4px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
 }
 
 .section-header {
@@ -164,7 +173,7 @@
 }
 
 .deals-row:hover {
-    background: #f9fafb;
+    background: #eef2ff;
 }
 
 .actions-cell {
@@ -186,6 +195,7 @@
     cursor: pointer;
     font-size: 0.8rem;
     color: #111827;
+    transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .deal-action-button.secondary {
@@ -225,25 +235,39 @@
 }
 
 .dashboard-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.25rem;
-  margin: 1.5rem 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0 2rem;
 }
 
-.dashboard-actions .card {
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+.dashboard-actions .action-card {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.75rem;
 }
 
-.dashboard-actions .card h3 {
-  margin-top: 0;
-  margin-bottom: 0.5rem;
+
+.dashboard-actions .action-card h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #0f172a;
 }
 
-.dashboard-actions .card .button {
-  margin-top: 1rem;
-  align-self: flex-start;
+.dashboard-actions .action-card .button {
+    margin-top: 1rem;
+    align-self: flex-start;
+}
+
+.info-card {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.deal-actions-menu-item:hover {
+  background: rgba(0,0,0,0.05);
 }

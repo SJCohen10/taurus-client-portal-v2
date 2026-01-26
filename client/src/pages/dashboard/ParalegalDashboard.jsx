@@ -71,11 +71,7 @@ export default function ParalegalDashboard() {
     const accountId =
         portalContext?.context?.accountId || portalContext?.context?.account_id;
     const accountName = portalContext?.context?.accountName || "";
-    const preferredBank = portalContext?.context?.preferredQuickBridgeBank ||
-        portalContext?.context?.preferred_quick_bridge_bank ||
-        portalContext?.context?.preferredQuickRatesBank ||
-        portalContext?.context?.preferred_quick_rates_bank ||
-        null;
+    
     const [view, setView] = useState("my"); // "my" | "firm"
     const [myDeals, setMyDeals] = useState([]);
     const [firmDeals, setFirmDeals] = useState([]);

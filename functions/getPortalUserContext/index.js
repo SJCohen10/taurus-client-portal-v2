@@ -61,6 +61,44 @@ async function getAccessToken() {
 
 }
 
+async function getAvsBankDetailsForAccount({ accessToken, crmBase, accountId }) {
+  const criteria = `((Account:equals:${accountId}) and (AVS:equals:true))`;
+
+  const url = `${crmBase}/Bank_Details/search?criteria=${encodeURIComponent(criteria)}&per_page=200&page=1`;
+
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
+      Accept: "application/json",
+    },
+  });
+
+  const raw = await res.text();
+  if (!res.ok) {
+    throw new Error(
+      `Zoho CRM Bank_Details search failed (${res.status}): ${raw || "No response body"}`
+    );
+  }
+
+  const json = raw ? JSON.parse(raw) : {};
+  const records = json.data || [];
+
+  return records.map((bd) => {
+    const accountNumber = bd.Account_Number || "";
+    const last4 = accountNumber ? String(accountNumber).slice(-4) : "";
+    return {
+      id: bd.id,               // ✅ CRM Bank Detail record id
+      bank: bd.Bank || "",
+      name: bd.Name || "",
+      accountNumber,           // optional (you’re already sending it today)
+      accountNumberLast4: last4,
+      label: `${bd.Bank || "Bank"} – ${bd.Name || "Account"}${last4 ? ` – ****${last4}` : ""}`,
+    };
+  });
+}
+
+
+
 /**
  * Fetch Contact and Account from Zoho CRM Sandbox by email.
  */
@@ -141,9 +179,22 @@ async function getContactAndAccountByEmail(email) {
   const accountData = accountRaw ? JSON.parse(accountRaw) : {};
   const accountRecord = (accountData.data && accountData.data[0]) || {};
 
+  // ✅ Fetch ALL AVS-verified bank details linked to this firm account
+  const bankDetails = await getAvsBankDetailsForAccount({
+    accessToken,
+    crmBase,
+    accountId,
+  });
+
+
   // Preferred bank lookup
   const preferredLookup = accountRecord.Preferred_Quick_Rates_Bank_Accounts || null;
   const preferredBankId = preferredLookup?.id || null;
+
+  // ✅ Default selection: preferred Quick Rates bank first, else first AVS bank detail
+  const defaultBankDetailId =
+    preferredBankId || (bankDetails.length ? bankDetails[0].id : null);
+
 
   let preferredQuickBridgeBank = null;
 
@@ -225,6 +276,8 @@ async function getContactAndAccountByEmail(email) {
     directorEmail,
     quickBridgeLimit,
     preferredQuickBridgeBank,
+    bankDetails,
+    defaultBankDetailId,
   };
 }
 

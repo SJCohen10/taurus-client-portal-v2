@@ -6,7 +6,7 @@ import React, { useMemo } from "react";
  * @param {string} baseUrl - The Zoho Forms public permalink.
  * @param {object} prefill - Map of fieldLinkName -> value
  */
-export default function QRFormEmbed({ baseUrl, prefill = {} }) {
+export default function QRFormEmbed({ baseUrl, prefill = {}, title = "Application Form" }) {
   const src = useMemo(() => {
     try {
       const url = new URL(baseUrl);
@@ -24,7 +24,7 @@ export default function QRFormEmbed({ baseUrl, prefill = {} }) {
 
   return (
     <iframe
-      title="Quick Rates Application"
+      title={title}
       src={src}
       style={{
         width: "100%",

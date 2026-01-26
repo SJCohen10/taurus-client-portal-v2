@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import QRFormEmbed from "../../../components/QRFormEmbed";
 import { usePortalContext } from "../../../PortalContext";
 
@@ -17,6 +17,36 @@ export default function QuickRatesAdvance({
     crm?.preferredQuickRatesBank ||
     crm?.preferred_quick_rates_bank ||
     null;
+
+  const bankOptions = useMemo(() => {
+    return crm?.bankDetails || [];
+  }, [crm?.bankDetails]);
+
+
+  // Preferred ID comes from preferredQuickBridgeBank.id (from context)
+  const preferredBankDetailId = preferredBank?.id || "";
+
+  const initialDefaultId =
+    preferredBankDetailId ||
+    crm?.defaultBankDetailId ||
+    (bankOptions.length ? bankOptions[0].id : "");
+
+  const [selectedBankDetailId, setSelectedBankDetailId] = useState(initialDefaultId);
+
+  // Ensure default is set once context arrives (but don't overwrite user selection)
+  useEffect(() => {
+    const nextDefault =
+      preferredBankDetailId ||
+      crm?.defaultBankDetailId ||
+      (bankOptions.length ? bankOptions[0].id : "");
+
+    setSelectedBankDetailId((prev) => (prev ? prev : nextDefault));
+  }, [preferredBankDetailId, crm?.defaultBankDetailId, bankOptions]);
+
+
+  const selectedBank = useMemo(() => {
+    return bankOptions.find((b) => b.id === selectedBankDetailId) || null;
+  }, [bankOptions, selectedBankDetailId]);
 
   const baseUrl =
     "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalQuickRatesApplication/formperma/c90HISe4lSZnneCy3A41lVxvxS2OpRCydid_cm6fZ4s";
@@ -37,7 +67,6 @@ export default function QuickRatesAdvance({
   const contactMobile = crm?.contactMobile || "";
   const portalRole = crm?.portalRole || "";
 
-  // ✅ NEW: pull Contact ID from portal context (adjust keys if needed)
   const contactId =
     crm?.contactId ||
     crm?.contact_id ||
@@ -66,36 +95,43 @@ export default function QuickRatesAdvance({
       utm_medium: window.localStorage?.getItem("utm_medium") || "",
       utm_campaign: window.localStorage?.getItem("utm_campaign") || "",
 
-      // ✅ NEW: hidden fields on your Zoho Form
+      // hidden fields
       contact_id: contactId,
       contact_email: contactEmail,
+
+      // ✅ your Zoho Form alias (CRM Bank Details record id)
+      Firm_Bank_Details_id: selectedBankDetailId || "",
 
       contact_name: contactName,
       contact_first_name: contactFirstName,
       contact_last_name: contactLastName,
       contact_mobile: contactMobile,
       portal_role: portalRole,
+
       firm_name: firmName,
       firm_reg_number: firmRegNumber,
       firm_street_address: firmStreetAddress,
       firm_city: firmCity,
       firm_province: firmProvince,
       firm_zip_code: firmZipCode,
+
       account_email: accountEmail,
       account_mobile: accountMobile,
+
       director_first_name: directorName,
       director_email: directorEmail,
       quick_rates_limit: quickRatesLimit,
 
-      // ✅ default firm bank details for Quick Bridge
-      Attorney_Firm_Bank: preferredBank?.bank || "",
-      Attorney_Firm_Account_Name: preferredBank?.name || "",
-      Attorney_Firm_Account_Number: preferredBank?.accountNumber || "",
+      // optional: prefill these display fields too (selected overrides preferred)
+      Attorney_Firm_Bank: selectedBank?.bank || preferredBank?.bank || "",
+      Attorney_Firm_Account_Name: selectedBank?.name || preferredBank?.name || "",
+      Attorney_Firm_Account_Number:
+        selectedBank?.accountNumber || preferredBank?.accountNumber || "",
     }),
     [
       email,
       productType,
-      contactId, // ✅ NEW
+      contactId,
       contactEmail,
       contactName,
       contactFirstName,
@@ -113,15 +149,15 @@ export default function QuickRatesAdvance({
       directorName,
       directorEmail,
       quickRatesLimit,
+      selectedBankDetailId,
+      selectedBank?.bank,
+      selectedBank?.name,
+      selectedBank?.accountNumber,
       preferredBank?.bank,
       preferredBank?.name,
       preferredBank?.accountNumber,
     ]
   );
-
-  const hasPreferredBank =
-    preferredBank &&
-    (preferredBank.bank || preferredBank.name || preferredBank.accountNumber);
 
   return (
     <div>
@@ -138,8 +174,8 @@ export default function QuickRatesAdvance({
 
       {portal?.error && (
         <p className="error" style={{ marginTop: "0.5rem" }}>
-          Unable to load your firm details at the moment. The form will still
-          load without CRM prefill.
+          Unable to load your firm details at the moment. The form will still load
+          without CRM prefill.
         </p>
       )}
 
@@ -151,35 +187,53 @@ export default function QuickRatesAdvance({
 
       <div className="card" style={{ marginBottom: "1.25rem" }}>
         <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-          Preferred Quick Rates Bank Account
+          Desired Firm Bank Account
         </h3>
-        <p className="subtle" style={{ marginTop: 0 }}>
-          Pulled automatically from the firm account’s{" "}
-          <strong>Preferred_Quick_Rates_Bank_Accounts</strong> lookup. These
-          values are passed through to the Zoho form below.
-        </p>
 
-        {hasPreferredBank ? (
-          <div>
-            <div style={{ marginBottom: "0.4rem" }}>
-              <strong>Bank:</strong> {preferredBank?.bank || "—"}
+
+
+        {bankOptions.length ? (
+          <>
+            <select
+              value={selectedBankDetailId}
+              onChange={(e) => setSelectedBankDetailId(e.target.value)}
+              style={{ width: "100%", padding: "0.6rem" }}
+            >
+              {bankOptions.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+
+            <div style={{ marginTop: "0.75rem" }}>
+              <div style={{ marginBottom: "0.4rem" }}>
+                <strong>Bank:</strong> {selectedBank?.bank || "—"}
+              </div>
+              <div style={{ marginBottom: "0.4rem" }}>
+                <strong>Account name:</strong> {selectedBank?.name || "—"}
+              </div>
+              <div style={{ marginBottom: "0.4rem" }}>
+                <strong>Account number:</strong>{" "}
+                {selectedBank?.accountNumber
+                  ? `****${String(selectedBank.accountNumber).slice(-4)}`
+                  : "—"}
+              </div>
             </div>
-            <div style={{ marginBottom: "0.4rem" }}>
-              <strong>Account name:</strong> {preferredBank?.name || "—"}
-            </div>
-            <div style={{ marginBottom: "0.4rem" }}>
-              <strong>Account number:</strong> {preferredBank?.accountNumber || "—"}
-            </div>
-          </div>
+          </>
         ) : (
           <p className="error" style={{ margin: 0 }}>
-            No preferred bank account is configured for your firm yet. The Zoho
-            form will load without these fields prefilled.
+            No AVS-verified bank accounts are configured for your firm yet.
           </p>
         )}
       </div>
 
-      <QRFormEmbed baseUrl={baseUrl} prefill={prefill} />
+      {/* key forces iframe refresh so Zoho prefill updates */}
+      <QRFormEmbed
+        baseUrl={baseUrl}
+        prefill={prefill}
+        key={selectedBankDetailId || "no-bank"}
+      />
     </div>
   );
 }

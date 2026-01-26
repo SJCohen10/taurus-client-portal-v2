@@ -232,6 +232,7 @@ export default function QuickRatesAdvance({
       <QRFormEmbed
         baseUrl={baseUrl}
         prefill={prefill}
+        title={title}
         key={selectedBankDetailId || "no-bank"}
       />
     </div>

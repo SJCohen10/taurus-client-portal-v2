@@ -142,6 +142,12 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         }
     }
 
+    function handleReadvance(event) {
+        event.stopPropagation();
+        setMessage("Readvance option coming soon.");
+        setOpen(false);
+    }
+
     return (
         <div
             ref={rootRef}
@@ -238,6 +244,24 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                             }}
                         >
                             {statementLoading ? "Preparing…" : "Generate Statement"}
+                        </button>
+
+                        <button
+                            type="button"
+                            className="deal-actions-menu-item"
+                            role="menuitem"
+                            onClick={handleReadvance}
+                            style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 10px",
+                                borderRadius: 10,
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Readvance
                         </button>
                     </div>,
                     document.body

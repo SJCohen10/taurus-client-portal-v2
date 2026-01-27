@@ -25,6 +25,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
 
 
     const rootRef = useRef(null);
+    const menuRef = useRef(null);
     const fileInputRef = useRef(null);
 
     const propertyRefNumber =
@@ -48,21 +49,24 @@ export default function DealActions({ deal, portalEmail, accountId }) {
 
     // Close popup on outside click / ESC
     useEffect(() => {
-        function onDocMouseDown(e) {
-            if (!rootRef.current) return;
-            if (!rootRef.current.contains(e.target)) setOpen(false);
+        function onDocClick(e) {
+            const inRoot = rootRef.current?.contains(e.target);
+            const inMenu = menuRef.current?.contains(e.target);
+            if (!inRoot && !inMenu) setOpen(false);
         }
+
         function onEsc(e) {
             if (e.key === "Escape") setOpen(false);
         }
 
-        document.addEventListener("mousedown", onDocMouseDown);
+        document.addEventListener("click", onDocClick);     // ✅ click (not mousedown)
         document.addEventListener("keydown", onEsc);
         return () => {
-            document.removeEventListener("mousedown", onDocMouseDown);
+            document.removeEventListener("click", onDocClick);
             document.removeEventListener("keydown", onEsc);
         };
     }, []);
+
 
     async function handleFileChange(event) {
         event.stopPropagation();
@@ -189,6 +193,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
             {open &&
                 ReactDOM.createPortal(
                     <div
+                        ref={menuRef}
                         className="deal-actions-menu-portal"
                         role="menu"
                         style={{

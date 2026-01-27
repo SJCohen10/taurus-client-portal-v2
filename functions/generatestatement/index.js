@@ -134,6 +134,7 @@ async function fetchTransactions(accessToken, assetId) {
 }
 
 
+
 function pickStatementPage({ transactionTypes }) {
     const lowerTypes = transactionTypes.map((t) => (t || "").toLowerCase());
 
@@ -176,30 +177,45 @@ module.exports = async (req, res) => {
 
         const accessToken = await getAccessToken();
         const asset = await fetchAsset(accessToken, assetId);
-        const transactions = await fetchTransactions(accessToken, assetId);
+        if (!asset || Object.keys(asset).length === 0) {
+            return sendJson(res, 404, { error: `Asset not found: ${assetId}` });
+        }
 
-        const transactionTypes = transactions.map(
-            (t) => t.Transaction_Type || t.transaction_type || ""
-        );
+        //const transactions = await fetchTransactions(accessToken, assetId);
 
-        const statementPage = pickStatementPage({ transactionTypes });
+        // ✅ Pick statement page based on Asset Type (not Transactions)
+        const rawAssetType =
+            asset.Asset_Type ||
+            asset.asset_type ||
+            asset.Asset_Type_Display || // optional, if you have display fields
+            "";
 
-        const statementUrl = statementPage
-            ? buildCreatorUrl(statementPage, assetId)
-            : null;
+        const assetType = String(rawAssetType).trim().toLowerCase();
+
+        let statementPage = null;
+
+        // Map your CRM Asset Type values to Creator pages
+        if (assetType.includes("seller")) statementPage = "Seller_Statements";
+        else if (assetType.includes("agent")) statementPage = "Agent_Statements";
+        else if (assetType.includes("agency")) statementPage = "Agency_Statements";
+        else if (assetType.includes("bond")) statementPage = "Bond_Statements";
+
+        const statementUrl = statementPage ? buildCreatorUrl(statementPage, assetId) : null;
+
 
         return sendJson(res, 200, {
             message: statementUrl
                 ? "Statement URL generated via Creator."
-                : "No matching statement page found for this asset.",
+                : `No matching statement page found for this asset type: ${rawAssetType || "Unknown"}`,
             statementUrl,
             asset: {
                 id: assetId,
-                type: asset.Asset_Type || asset.asset_type || null,
+                type: rawAssetType || null,
                 creatorId: asset.Asset_Creator_ID || asset.asset_creator_id || null,
             },
-            transactionTypes,
+            statementPage,
         });
+
     } catch (err) {
         console.error("Error in generatestatement:", err);
         return sendJson(res, 500, {

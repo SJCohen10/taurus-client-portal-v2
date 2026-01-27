@@ -41,7 +41,20 @@ function getPortalUserDisplay(portalContext) {
 }
 
 
-const NORMALIZED_STATUSES = ["pending review", "active", "due to taurus"];
+const STATUS_BUCKETS = {
+    pending: new Set(["pending review"]),
+    active: new Set(["active", "due to taurus"]),
+    closed: new Set(["closed", "declined"]),
+};
+
+function normalizeStatus(s) {
+    return String(s || "").trim().toLowerCase();
+}
+
+function getDealStatus(deal) {
+    return normalizeStatus(deal?.status ?? deal?.["Status"]);
+}
+
 
 function parseNumber(val) {
     if (val === undefined || val === null || val === "") return null;
@@ -71,15 +84,69 @@ export default function ParalegalDashboard() {
     const accountId =
         portalContext?.context?.accountId || portalContext?.context?.account_id;
     const accountName = portalContext?.context?.accountName || "";
-    
+    const { name: displayName, email: displayEmail } =
+        getPortalUserDisplay(portalContext);
+
     const [view, setView] = useState("my"); // "my" | "firm"
     const [myDeals, setMyDeals] = useState([]);
     const [firmDeals, setFirmDeals] = useState([]);
     const [loadedFirmAccountId, setLoadedFirmAccountId] = useState("");
     const [loading, setLoading] = useState(false);
+    const [agentReferralOpen, setAgentReferralOpen] = useState(false);
     const [error, setError] = useState("");
-    const { name: displayName, email: displayEmail } =
-        getPortalUserDisplay(portalContext);
+    const DEFAULT_OPEN_SECTIONS = {
+        pending: true,
+        active: true,
+        closed: false,
+        other: false,
+    };
+
+    const storageKey = useMemo(() => {
+        // key per user + per view (optional). If you want the SAME state for my/firm, remove `:${view}`
+        const emailKey = (displayEmail || "unknown").toLowerCase();
+        return `paralegalDashboardOpenSections:${emailKey}:${view}`;
+    }, [displayEmail, view]);
+
+    const [openSections, setOpenSections] = useState(() => {
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return DEFAULT_OPEN_SECTIONS;
+            const parsed = JSON.parse(raw);
+            return { ...DEFAULT_OPEN_SECTIONS, ...(parsed || {}) };
+        } catch {
+            return DEFAULT_OPEN_SECTIONS;
+        }
+    });
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(openSections));
+        } catch {
+            // ignore
+        }
+    }, [openSections, storageKey]);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) {
+                setOpenSections(DEFAULT_OPEN_SECTIONS);
+                return;
+            }
+            const parsed = JSON.parse(raw);
+            setOpenSections({ ...DEFAULT_OPEN_SECTIONS, ...(parsed || {}) });
+        } catch {
+            setOpenSections(DEFAULT_OPEN_SECTIONS);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storageKey]);
+
+
+    function toggleSection(key) {
+        setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    }
+
+
 
 
     const activeDeals = view === "my" ? myDeals : firmDeals;
@@ -162,8 +229,10 @@ export default function ParalegalDashboard() {
         const list = activeDeals || [];
         const total = list.length;
         const activeList = list.filter((d) =>
-            NORMALIZED_STATUSES.includes((d.status || "").toLowerCase())
+            STATUS_BUCKETS.active.has(getDealStatus(d)) ||
+            STATUS_BUCKETS.pending.has(getDealStatus(d))
         );
+
         const activeCount = activeList.length;
 
         const totalAmount = activeList.reduce((sum, d) => {
@@ -173,6 +242,128 @@ export default function ParalegalDashboard() {
 
         return { total, activeCount, totalAmount };
     }, [activeDeals]);
+
+    const dealBuckets = useMemo(() => {
+        const list = activeDeals || [];
+
+        const pending = [];
+        const active = [];
+        const closed = [];
+        const other = [];
+
+        for (const d of list) {
+            const st = getDealStatus(d);
+
+            if (STATUS_BUCKETS.pending.has(st)) pending.push(d);
+            else if (STATUS_BUCKETS.active.has(st)) active.push(d);
+            else if (STATUS_BUCKETS.closed.has(st)) closed.push(d);
+            else other.push(d);
+        }
+
+        return { pending, active, closed, other };
+    }, [activeDeals]);
+
+    function DealsTable({ sectionKey, title, deals, defaultOpen = true }) {
+        const isOpen = openSections[sectionKey] ?? defaultOpen;
+
+        return (
+            <section className="dashboard-table-section">
+                <div
+                    className="section-header collapsible"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleSection(sectionKey)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") toggleSection(sectionKey);
+                    }}
+                >
+                    <div className="section-title-row">
+                        <h2 className="section-title">{title}</h2>
+                        <span className="section-count-pill">{deals.length}</span>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="collapse-button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSection(sectionKey);
+                        }}
+                        aria-expanded={isOpen}
+                    >
+                        {isOpen ? "Hide" : "Show"}
+                    </button>
+                </div>
+
+                {isOpen && (
+                    <>
+                        {deals.length === 0 ? (
+                            <div className="dashboard-message">No deals in this category.</div>
+                        ) : (
+                            <div className="deals-table-wrapper">
+                                <table className="deals-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Property Ref Number</th>
+                                            <th>Property Description</th>
+                                            <th>Lodged</th>
+                                            <th>Registered</th>
+                                            <th>Status</th>
+                                            <th>Advanced</th>
+                                            <th>Current Balance</th>
+                                            <th>Upsell Available</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        {deals.map((deal, index) => (
+                                            <tr key={deal.id || deal.deal_id || index} className="deals-row">
+                                                <td>{deal.property_ref_number || deal.matter_name || "—"}</td>
+                                                <td>{deal.property_description || deal["Property Description"] || "—"}</td>
+                                                <td>{deal.lodged ?? deal["Lodged"] ?? "—"}</td>
+                                                <td>{deal.registered ?? deal["Registered"] ?? "—"}</td>
+                                                <td>{deal.status ?? deal["Status"] ?? "—"}</td>
+                                                <td>{formatRand(deal.amount ?? deal["Amount"])}</td>
+                                                <td>{formatRand(deal.current_balance ?? deal["Current Balance"])}</td>
+                                                <td>{formatRand(deal.upsell_available ?? deal["Upsell Available"])}</td>
+                                                <td>{deal.created_time || deal.created_at || "—"}</td>
+                                                <td className="actions-cell">
+                                                    <DealActions deal={deal} portalEmail={displayEmail} accountId={accountId} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </>
+                )}
+            </section>
+        );
+    }
+
+
+
+    function Modal({ open, title, onClose, children }) {
+        if (!open) return null;
+
+        return (
+            <div className="modal-backdrop" onClick={onClose}>
+                <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-header">
+                        <h3 className="modal-title">{title}</h3>
+                        <button type="button" className="modal-close" onClick={onClose}>
+                            ✕
+                        </button>
+                    </div>
+                    <div className="modal-body">{children}</div>
+                </div>
+            </div>
+        );
+    }
+
 
 
     return (
@@ -215,6 +406,16 @@ export default function ParalegalDashboard() {
                         Start Seller Application
                     </Link>
                 </div>
+                <div className="card action-card">
+                    <h3>Agent Referral</h3>
+                    <p className="subtle">
+                        Refer an estate agent deal by completing a quick referral form.
+                    </p>
+                    <button className="button" type="button" onClick={() => setAgentReferralOpen(true)}>
+                        Open Agent Referral Form
+                    </button>
+                </div>
+
             </div>
 
 
@@ -258,114 +459,43 @@ export default function ParalegalDashboard() {
 
             <section className="dashboard-table-section">
                 <div className="section-header">
-                    <h2 className="section-title">
-                        {view === "my" ? "My Deals" : "Firm Deals"}
-                    </h2>
+                    <h2 className="section-title">{view === "my" ? "My Deals" : "Firm Deals"}</h2>
                     <p className="section-subtitle">
                         View Deal Details, Generate Statements and Upload Documents
                     </p>
                 </div>
 
                 {loading && <div className="dashboard-message">Loading deals…</div>}
+                {error && !loading && <div className="dashboard-message error">{error}</div>}
 
-                {error && !loading && (
-                    <div className="dashboard-message error">{error}</div>
-                )}
+                {!loading && !error && (
+                    <>
+                        <DealsTable sectionKey="pending" title="Pending Review" deals={dealBuckets.pending} />
+                        <DealsTable sectionKey="active" title="Active / Due to Taurus" deals={dealBuckets.active} />
+                        <DealsTable sectionKey="closed" title="Closed / Declined" deals={dealBuckets.closed} />
 
-                {!loading && !error && activeDeals.length === 0 && (
-                    <div className="dashboard-message">
-                        No Active Deals Found.
-                    </div>
-                )}
+                        {dealBuckets.other.length > 0 && (
+                            <DealsTable sectionKey="other" title="Other" deals={dealBuckets.other} />
+                        )}
 
-                {!loading && !error && activeDeals.length > 0 && (
-                    <div className="deals-table-wrapper">
-                        <table className="deals-table">
-                            <thead>
-                                <tr>
-                                    <th>Property Ref Number</th>
-                                    <th>Property Description</th>
-                                    <th>Lodged</th>
-                                    <th>Registered</th>
-                                    <th>Status</th>
-                                    <th>Advanced</th>
-                                    <th>Current Balance</th>
-                                    <th>Upsell Available</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {activeDeals.map((deal, index) => (
-                                    <tr
-                                        key={deal.id || deal.deal_id || index}
-                                        className="deals-row"
-                                        onClick={() => {
-                                            // Future: navigate(`/deals/${deal.id}`);
-                                        }}
-                                    >
-                                        {/* Property Ref Number */}
-                                        <td>
-                                            {deal.property_ref_number ||
-                                                deal.matter_name ||
-                                                "—"}
-                                        </td>
-
-                                        {/* Property Description */}
-                                        <td>
-                                            {deal.property_description ||
-                                                deal["Property Description"] ||
-                                                "—"}
-                                        </td>
-
-                                        {/* Lodged */}
-                                        <td>
-                                            {deal.lodged ??
-                                                deal["Lodged"] ??
-                                                "—"}
-                                        </td>
-
-                                        {/* Registered */}
-                                        <td>
-                                            {deal.registered ??
-                                                deal["Registered"] ??
-                                                "—"}
-                                        </td>
-
-                                        {/* Status */}
-                                        <td>
-                                            {deal.status ??
-                                                deal["Status"] ??
-                                                "—"}
-                                        </td>
-
-                                        {/* Amount */}
-                                        <td>{formatRand(deal.amount ?? deal["Amount"])}</td>
-
-                                        {/* Current Balance */}
-                                        <td>{formatRand(deal.current_balance ?? deal["Current Balance"])}</td>
-
-                                        {/* Upsell Available */}
-                                        <td>{formatRand(deal.upsell_available ?? deal["Upsell Available"])}</td>
-
-                                        {/* Created */}
-                                        <td>{deal.created_time || deal.created_at || "—"}</td>
-
-                                        {/* Actions */}
-                                        <td className="actions-cell">
-                                            <DealActions deal={deal} portalEmail={displayEmail} accountId={accountId} />
-                                        </td>
-
-                                    </tr>
-                                ))}
-                            </tbody>
-
-                        </table>
-                    </div>
+                    </>
                 )}
             </section>
+
+            <Modal
+                open={agentReferralOpen}
+                title="Agent Referral"
+                onClose={() => setAgentReferralOpen(false)}
+            >
+                <iframe
+                    title="Agent Referral Form"
+                    src="https://zfrmz.com/TT8sluE728L5jNprA15m"
+                    className="modal-iframe"
+                    frameBorder="0"
+                />
+            </Modal>
+
+
         </div >
     );
 }

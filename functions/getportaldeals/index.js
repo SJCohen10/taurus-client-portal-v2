@@ -204,6 +204,10 @@ async function getDealsForPortal({ email, accountId }) {
             row["Asset Creator Id"] ||
             null;
 
+        const sellerAccountId =
+            row["Seller_Account_Id"] || null;
+
+
         const accountId =
             row["Account_Id"] || row["Account Id"] || row["Account_ID"] || null;
 
@@ -240,6 +244,7 @@ async function getDealsForPortal({ email, accountId }) {
             property_folder_id: propertyFolderId,
             asset_ids: assetIds,
             asset_creator_ids: assetCreatorIds,
+            seller_account_id: sellerAccountId,
         };
 
     });

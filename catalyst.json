@@ -6,7 +6,8 @@
       "getportalusercontext",
       "getportaldeals",
       "uploaddealdocument",
-      "generatestatement"
+      "generatestatement",
+      "getbankdetailsforaccount"
     ],
     "ignore": [],
     "source": "functions"

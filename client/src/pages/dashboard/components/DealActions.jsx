@@ -1,6 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { generateStatement, uploadDealDocument } from "../../../services/portalApi";
+import {
+    generateStatement,
+    uploadDealDocument,
+    fetchBankDetailsForAccount,
+} from "../../../services/portalApi";
+
+import { usePortalContext } from "../../../PortalContext";
+
+const SELLER_READVANCE_FORM_URL =
+    "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalSellerBridgingApplication/formperma/wBiblctfbTBce_jInGEmX_JbaXdWWg5es95hjlEKdx4";
+
+const ADD_BANK_DETAIL_FORM_URL =
+    "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalAddBankDetail/formperma/sMwZkmaaClPpGJ9uLA_jm59z-DBs-l4LoPpWSA3UBr4";
+
+const INITIAL_OR_FURTHER_ADVANCE_ALIAS = "Initial_Advance_Further_Advance";
+
 
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
@@ -16,12 +31,38 @@ function readFileAsBase64(file) {
 }
 
 export default function DealActions({ deal, portalEmail, accountId }) {
+
+    const portal = usePortalContext();
+    const crm = portal?.context || null;
+
+    // Firm bank defaults (same logic as SellerProceedsAdvance)
+    const firmBankOptions = crm?.bankDetails || [];
+    const defaultFirmBankId =
+        crm?.defaultBankDetailId || (firmBankOptions[0]?.id || "");
+
     const [open, setOpen] = useState(false);
     const [message, setMessage] = useState("");
     const [uploading, setUploading] = useState(false);
     const [statementLoading, setStatementLoading] = useState(false);
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 0 });
     const buttonRef = useRef(null);
+    // Readvance flow state
+    const [readvanceChooserOpen, setReadvanceChooserOpen] = useState(false);
+    const [sellerReadvanceOpen, setSellerReadvanceOpen] = useState(false);
+
+    const [partyReceiving, setPartyReceiving] = useState("Conveyancing Firm");
+    const [totalAmount, setTotalAmount] = useState("");
+    const [amountToFirm, setAmountToFirm] = useState("");
+    const [amountToNominated, setAmountToNominated] = useState("");
+
+    const [selectedFirmBankId, setSelectedFirmBankId] = useState(defaultFirmBankId);
+
+    const [sellerBankLoading, setSellerBankLoading] = useState(false);
+    const [sellerBankOptions, setSellerBankOptions] = useState([]);
+    const [selectedSellerBankId, setSelectedSellerBankId] = useState("");
+
+    const [readvanceError, setReadvanceError] = useState("");
+
 
 
     const rootRef = useRef(null);
@@ -37,6 +78,12 @@ export default function DealActions({ deal, portalEmail, accountId }) {
 
     const propertyDescription =
         deal.property_description || deal["Property Description"] || "";
+
+    const sellerAccountId =
+        deal.seller_account_id ||
+        deal["Seller_Account_Id"] ||
+        null;
+
 
     const assetIdsRaw = deal["Asset IDs"] || deal.asset_ids || deal.assetIds || null;
     const assetIds = String(assetIdsRaw || "")
@@ -66,6 +113,10 @@ export default function DealActions({ deal, portalEmail, accountId }) {
             document.removeEventListener("keydown", onEsc);
         };
     }, []);
+
+    useEffect(() => {
+        setSelectedFirmBankId((prev) => prev || defaultFirmBankId);
+    }, [defaultFirmBankId]);
 
 
     async function handleFileChange(event) {
@@ -146,10 +197,55 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         }
     }
 
+    async function loadSellerBanks() {
+        setSellerBankLoading(true);
+        setReadvanceError("");
+
+        try {
+            if (!sellerAccountId) {
+                setSellerBankOptions([]);
+                setSelectedSellerBankId("");
+                setReadvanceError("This deal has no Seller Account linked.");
+                return;
+            }
+
+            const resp = await fetchBankDetailsForAccount({
+                accountId: sellerAccountId,
+                avsOnly: false, // sellers do not require AVS
+            });
+
+            const list = resp?.bankDetails || [];
+            setSellerBankOptions(list);
+
+            setSelectedSellerBankId((prev) => {
+                if (prev && list.some((b) => b.id === prev)) return prev;
+                return list[0]?.id || "";
+            });
+        } catch (err) {
+            setReadvanceError(err.message || "Unable to load seller bank details.");
+            setSellerBankOptions([]);
+            setSelectedSellerBankId("");
+        } finally {
+            setSellerBankLoading(false);
+        }
+    }
+
+
     function handleReadvance(event) {
         event.stopPropagation();
-        setMessage("Readvance option coming soon.");
         setOpen(false);
+        setReadvanceChooserOpen(true);
+    }
+
+    function buildZohoFormUrl(baseUrl, params) {
+        const url = new URL(baseUrl);
+        Object.entries(params || {}).forEach(([k, v]) => {
+            if (v === undefined || v === null) return;
+            const s = String(v);
+            if (!s) return;
+            url.searchParams.set(k, s);
+        });
+        return url.toString();
     }
 
     return (
@@ -278,6 +374,135 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                     {message}
                 </div>
             )}
+
+            {/* Readvance chooser */}
+            {readvanceChooserOpen && (
+                <div className="modal-backdrop" onClick={() => setReadvanceChooserOpen(false)}>
+                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                        <h3>Readvance</h3>
+
+                        <button
+                            className="button"
+                            onClick={async () => {
+                                setReadvanceChooserOpen(false);
+                                setSellerReadvanceOpen(true);
+                                await loadSellerBanks();
+                            }}
+                            style={{ width: "100%", marginBottom: 10 }}
+                        >
+                            Seller Bridging Readvance
+                        </button>
+
+                        <button
+                            className="button"
+                            onClick={() => {
+                                setReadvanceChooserOpen(false);
+                                setMessage("Quick Bridge Readvance coming next.");
+                            }}
+                            style={{ width: "100%" }}
+                        >
+                            Quick Bridge Readvance
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Seller Bridging Readvance */}
+            {sellerReadvanceOpen && (
+                <div className="modal-backdrop" onClick={() => setSellerReadvanceOpen(false)}>
+                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+                        <h3>Seller Bridging Readvance</h3>
+
+                        {readvanceError && <p className="error">{readvanceError}</p>}
+
+                        <label>
+                            Party Receiving Taurus Funds
+                            <select value={partyReceiving} onChange={(e) => setPartyReceiving(e.target.value)}>
+                                <option>Conveyancing Firm</option>
+                                <option>Seller / Nominated Account</option>
+                                <option>Split Between Firm and Seller</option>
+                            </select>
+                        </label>
+
+                        <label>Total Readvance Amount</label>
+                        <input value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} />
+                        <label>Readvance Amount to Attorney Firm</label>
+                        <input
+                            value={amountToFirm}
+                            onChange={(e) => setAmountToFirm(e.target.value)}
+                            disabled={partyReceiving !== "Split Between Firm and Seller"}
+                        />
+
+                        <label>Readvance Amount to Nominated Account</label>
+                        <input
+                            value={amountToNominated}
+                            onChange={(e) => setAmountToNominated(e.target.value)}
+                            disabled={partyReceiving !== "Split Between Firm and Seller"}
+                        />
+
+                        <label>Firm Bank</label>
+                        <select
+                            value={selectedFirmBankId}
+                            onChange={(e) => setSelectedFirmBankId(e.target.value)}
+                            disabled={partyReceiving === "Seller / Nominated Account"}
+                        >
+                            {firmBankOptions.map((b) => (
+                                <option key={b.id} value={b.id}>{b.label}</option>
+                            ))}
+                        </select>
+
+                        <label>Seller Bank</label>
+                        <select
+                            value={selectedSellerBankId}
+                            onChange={(e) => setSelectedSellerBankId(e.target.value)}
+                            disabled={partyReceiving === "Conveyancing Firm" || sellerBankLoading}
+                        >
+                            <option value="">{sellerBankLoading ? "Loading…" : "Select seller bank"}</option>
+                            {sellerBankOptions.map((b) => (
+                                <option key={b.id} value={b.id}>{b.label}</option>
+                            ))}
+                        </select>
+
+
+                        {!sellerBankOptions.length && sellerAccountId && (
+                            <button
+                                className="button"
+                                onClick={() =>
+                                    window.open(
+                                        buildZohoFormUrl(ADD_BANK_DETAIL_FORM_URL, {
+                                            account_name: sellerAccountId,
+                                        }),
+                                        "_blank"
+                                    )
+                                }
+                            >
+                                Add Seller Bank Details
+                            </button>
+                        )}
+
+                        <button
+                            className="button"
+                            onClick={() => {
+                                const formUrl = buildZohoFormUrl(SELLER_READVANCE_FORM_URL, {
+                                    [INITIAL_OR_FURTHER_ADVANCE_ALIAS]: "Further Advance",
+                                    Deal_Reference_Number: propertyRefNumber,
+                                    Party_Receiving_Taurus_Funds_Further_Advance: partyReceiving,
+                                    Readvance_Amount_to_Attorney_Firm: amountToFirm,
+                                    Readvance_Amount_to_Nominated_Account: amountToNominated,
+                                    Readvance_Firm_Bank_Details_id: selectedFirmBankId,
+                                    Readvance_Seller_Bank_Details_id: selectedSellerBankId,
+                                });
+
+                                window.open(formUrl, "_blank");
+                                setSellerReadvanceOpen(false);
+                            }}
+                        >
+                            Open Readvance Form
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

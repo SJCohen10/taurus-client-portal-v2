@@ -39,16 +39,14 @@ async function handleResponse(res) {
 // 👇 Deals for the logged-in portal user (paralegal / conveyancer)
 export async function fetchMyDeals(emailOverride) {
   const email = getPortalUserEmail(emailOverride);
-
-  // Your function expects `email` or `accountId` as QUERY PARAM
   const url = `${API_BASE}/getportaldeals?email=${encodeURIComponent(email)}`;
 
-  const res = await fetch(url, {
-    method: "GET",
-  });
+  console.log("fetchMyDeals URL:", url); // ✅ add this
 
+  const res = await fetch(url, { method: "GET" });
   return handleResponse(res);
 }
+
 
 // 👇 Firm deals – prefer AccountId so one firm can see all contacts' deals
 export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
@@ -81,6 +79,17 @@ export async function uploadDealDocument(payload) {
 
   return handleResponse(res);
 }
+
+export async function fetchBankDetailsForAccount({ accountId, avsOnly = false }) {
+  if (!accountId) throw new Error("Missing accountId");
+  const url = `${API_BASE}/getbankdetailsforaccount?accountId=${encodeURIComponent(
+    accountId
+  )}&avsOnly=${avsOnly ? "true" : "false"}`;
+
+  const res = await fetch(url, { method: "GET" });
+  return handleResponse(res);
+}
+
 
 // 👇 Generate a statement using the Creator-backed logic
 export async function generateStatement({ assetId }) {

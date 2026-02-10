@@ -1,43 +1,90 @@
-
-
-.modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-}
-
-.modal-card {
-    width: min(520px, 92vw);
+.readvance-modal {
+    width: min(760px, 94vw);
     background: #fff;
-    border-radius: 14px;
-    padding: 18px;
-    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.25);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    max-height: min(88vh, 780px);
+    overflow-y: auto;
 }
 
-.modal-card h3 {
-    margin: 0 0 12px 0;
+.readvance-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
 }
 
-.modal-card label {
-    display: block;
-    font-size: 0.9rem;
-    margin-top: 10px;
+.readvance-modal-header h3 {
+    margin: 0;
+    color: #0f172a;
 }
 
-.modal-card input,
-.modal-card select {
+.readvance-modal-logo {
+    width: 170px;
+    max-width: 34%;
+    object-fit: contain;
+}
+
+.readvance-modal-subtitle {
+    margin: 0 0 14px;
+    color: #475569;
+    font-size: 0.92rem;
+}
+
+.readvance-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 14px;
+}
+
+.readvance-form-grid label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.86rem;
+    color: #1e293b;
+    gap: 6px;
+}
+
+.readvance-form-grid input,
+.readvance-form-grid select {
     width: 100%;
-    padding: 10px;
-    border: 1px solid rgba(0, 0, 0, 0.15);
+    min-height: 40px;
+    padding: 9px 10px;
+    border: 1px solid rgba(15, 23, 42, 0.18);
     border-radius: 10px;
-    margin-top: 6px;
+    background: #fff;
 }
 
-.modal-card .button {
+.readvance-form-grid input:disabled,
+.readvance-form-grid select:disabled {
+    background: #f8fafc;
+    color: #64748b;
+}
+
+.readvance-modal-button {
     margin-top: 12px;
     width: 100%;
+}
+
+.readvance-validation-message {
+    margin: 10px 0 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #9a3412;
+    font-size: 0.83rem;
+}
+
+@media (max-width: 700px) {
+    .readvance-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .readvance-modal-logo {
+        width: 130px;
+    }
 }

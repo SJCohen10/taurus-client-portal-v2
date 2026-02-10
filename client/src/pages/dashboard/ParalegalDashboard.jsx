@@ -304,31 +304,31 @@ export default function ParalegalDashboard() {
                                 <table className="deals-table">
                                     <thead>
                                         <tr>
-                                            <th>Property Ref Number</th>
-                                            <th>Property Description</th>
-                                            <th>Lodged</th>
-                                            <th>Registered</th>
-                                            <th>Status</th>
-                                            <th>Advanced</th>
-                                            <th>Current Balance</th>
-                                            <th>Upsell Available</th>
-                                            <th>Created</th>
-                                            <th>Actions</th>
+                                            <th className="col-priority-high col-ref">Property Ref Number</th>
+                                            <th className="col-priority-medium col-description">Property Description</th>
+                                            <th className="col-priority-low">Lodged</th>
+                                            <th className="col-priority-low">Registered</th>
+                                            <th className="col-priority-high">Status</th>
+                                            <th className="col-priority-high">Advanced</th>
+                                            <th className="col-priority-high">Current Balance</th>
+                                            <th className="col-priority-low">Upsell Available</th>
+                                            <th className="col-priority-medium">Created</th>
+                                            <th className="actions-cell actions-header">Actions</th>
                                         </tr>
                                     </thead>
 
                                     <tbody>
                                         {deals.map((deal, index) => (
                                             <tr key={deal.id || deal.deal_id || index} className="deals-row">
-                                                <td>{deal.property_ref_number || deal.matter_name || "—"}</td>
-                                                <td>{deal.property_description || deal["Property Description"] || "—"}</td>
-                                                <td>{deal.lodged ?? deal["Lodged"] ?? "—"}</td>
-                                                <td>{deal.registered ?? deal["Registered"] ?? "—"}</td>
-                                                <td>{deal.status ?? deal["Status"] ?? "—"}</td>
-                                                <td>{formatRand(deal.amount ?? deal["Amount"])}</td>
-                                                <td>{formatRand(deal.current_balance ?? deal["Current Balance"])}</td>
-                                                <td>{formatRand(deal.upsell_available ?? deal["Upsell Available"])}</td>
-                                                <td>{deal.created_time || deal.created_at || "—"}</td>
+                                                <td className="col-priority-high col-ref">{deal.property_ref_number || deal.matter_name || "—"}</td>
+                                                <td className="col-priority-medium col-description">{deal.property_description || deal["Property Description"] || "—"}</td>
+                                                <td className="col-priority-low">{deal.lodged ?? deal["Lodged"] ?? "—"}</td>
+                                                <td className="col-priority-low">{deal.registered ?? deal["Registered"] ?? "—"}</td>
+                                                <td className="col-priority-high">{deal.status ?? deal["Status"] ?? "—"}</td>
+                                                <td className="col-priority-high">{formatRand(deal.amount ?? deal["Amount"])}</td>
+                                                <td className="col-priority-high">{formatRand(deal.current_balance ?? deal["Current Balance"])}</td>
+                                                <td className="col-priority-low">{formatRand(deal.upsell_available ?? deal["Upsell Available"])}</td>
+                                                <td className="col-priority-medium">{deal.created_time || deal.created_at || "—"}</td>
                                                 <td className="actions-cell">
                                                     <DealActions deal={deal} portalEmail={displayEmail} accountId={accountId} />
                                                 </td>

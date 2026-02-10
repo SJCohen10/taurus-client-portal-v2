@@ -97,6 +97,27 @@ body {
   gap: 0.4rem;
 }
 
+.app-header-logo {
+  width: min(220px, 34vw);
+  height: auto;
+  object-fit: contain;
+  align-self: flex-start;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 1rem 1.25rem;
+  }
+
+  .app-header-top {
+    align-items: flex-start;
+  }
+
+  .app-header-logo {
+    width: min(170px, 38vw);
+  }
+}
+
 .app-main {
   flex: 1;
   padding: 2.5rem 2rem 3rem;

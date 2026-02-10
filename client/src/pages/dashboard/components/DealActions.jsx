@@ -5,6 +5,7 @@ import {
     uploadDealDocument,
     fetchBankDetailsForAccount,
 } from "../../../services/portalApi";
+import "./DealActionsModal.css";
 
 import { usePortalContext } from "../../../PortalContext";
 
@@ -248,6 +249,32 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         return url.toString();
     }
 
+    function openExternalUrl(url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    const parsedTotalAmount = Number(totalAmount || 0);
+    const parsedAmountToFirm = Number(amountToFirm || 0);
+    const parsedAmountToNominated = Number(amountToNominated || 0);
+
+    const requiresFirmBank =
+        partyReceiving === "Conveyancing Firm" ||
+        partyReceiving === "Split Between Firm and Seller";
+
+    const requiresSellerBank =
+        partyReceiving === "Seller / Nominated Account" ||
+        partyReceiving === "Split Between Firm and Seller";
+
+    const validTotalAmount = Number.isFinite(parsedTotalAmount) && parsedTotalAmount > 0;
+
+    const canOpenReadvanceForm =
+        validTotalAmount &&
+        (!requiresFirmBank || Boolean(selectedFirmBankId)) &&
+        (!requiresSellerBank || Boolean(selectedSellerBankId)) &&
+        (partyReceiving !== "Split Between Firm and Seller" ||
+            (Math.abs(parsedAmountToFirm + parsedAmountToNominated - parsedTotalAmount) < 0.01));
+
+
     return (
         <div
             ref={rootRef}
@@ -378,17 +405,25 @@ export default function DealActions({ deal, portalEmail, accountId }) {
             {/* Readvance chooser */}
             {readvanceChooserOpen && (
                 <div className="modal-backdrop" onClick={() => setReadvanceChooserOpen(false)}>
-                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-                        <h3>Readvance</h3>
+                    <div className="readvance-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="readvance-modal-header">
+                            <h3>Readvance</h3>
+                            <img
+                                className="readvance-modal-logo"
+                                src="/taurus-capital-logo.png"
+                                alt="Taurus Capital"
+                            />
+                        </div>
+                        <p className="readvance-modal-subtitle">Choose the readvance flow you want to continue with.</p>
 
                         <button
-                            className="button"
+                            className="button readvance-modal-button"
                             onClick={async () => {
                                 setReadvanceChooserOpen(false);
                                 setSellerReadvanceOpen(true);
                                 await loadSellerBanks();
                             }}
-                            style={{ width: "100%", marginBottom: 10 }}
+
                         >
                             Seller Bridging Readvance
                         </button>
@@ -410,69 +445,109 @@ export default function DealActions({ deal, portalEmail, accountId }) {
             {/* Seller Bridging Readvance */}
             {sellerReadvanceOpen && (
                 <div className="modal-backdrop" onClick={() => setSellerReadvanceOpen(false)}>
-                    <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-                        <h3>Seller Bridging Readvance</h3>
+                    <div className="readvance-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="readvance-modal-header">
+                            <h3>Seller Bridging Readvance</h3>
+                            <img
+                                className="readvance-modal-logo"
+                                src="/taurus-capital-logo.png"
+                                alt="Taurus Capital"
+                            />
+                        </div>
+                        <p className="readvance-modal-subtitle">
+                            Complete the details below, then open the pre-filled readvance form.
+                        </p>
 
                         {readvanceError && <p className="error">{readvanceError}</p>}
 
-                        <label>
-                            Party Receiving Taurus Funds
-                            <select value={partyReceiving} onChange={(e) => setPartyReceiving(e.target.value)}>
-                                <option>Conveyancing Firm</option>
-                                <option>Seller / Nominated Account</option>
-                                <option>Split Between Firm and Seller</option>
-                            </select>
-                        </label>
+                        <div className="readvance-form-grid">
+                            <label>
+                                Party Receiving Taurus Funds
+                                <select value={partyReceiving} onChange={(e) => setPartyReceiving(e.target.value)}>
+                                    <option>Conveyancing Firm</option>
+                                    <option>Seller / Nominated Account</option>
+                                    <option>Split Between Firm and Seller</option>
+                                </select>
+                            </label>
 
-                        <label>Total Readvance Amount</label>
-                        <input value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} />
-                        <label>Readvance Amount to Attorney Firm</label>
-                        <input
-                            value={amountToFirm}
-                            onChange={(e) => setAmountToFirm(e.target.value)}
-                            disabled={partyReceiving !== "Split Between Firm and Seller"}
-                        />
+                            <label>
+                                Total Readvance Amount
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={totalAmount}
+                                    onChange={(e) => setTotalAmount(e.target.value)}
+                                />
+                            </label>
 
-                        <label>Readvance Amount to Nominated Account</label>
-                        <input
-                            value={amountToNominated}
-                            onChange={(e) => setAmountToNominated(e.target.value)}
-                            disabled={partyReceiving !== "Split Between Firm and Seller"}
-                        />
+                            <label>
+                                Readvance Amount to Attorney Firm
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={amountToFirm}
+                                    onChange={(e) => setAmountToFirm(e.target.value)}
+                                    disabled={partyReceiving !== "Split Between Firm and Seller"}
+                                />
+                            </label>
 
-                        <label>Firm Bank</label>
-                        <select
-                            value={selectedFirmBankId}
-                            onChange={(e) => setSelectedFirmBankId(e.target.value)}
-                            disabled={partyReceiving === "Seller / Nominated Account"}
-                        >
-                            {firmBankOptions.map((b) => (
-                                <option key={b.id} value={b.id}>{b.label}</option>
-                            ))}
-                        </select>
+                            <label>
+                                Readvance Amount to Nominated Account
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={amountToNominated}
+                                    onChange={(e) => setAmountToNominated(e.target.value)}
+                                    disabled={partyReceiving !== "Split Between Firm and Seller"}
+                                />
+                            </label>
 
-                        <label>Seller Bank</label>
-                        <select
-                            value={selectedSellerBankId}
-                            onChange={(e) => setSelectedSellerBankId(e.target.value)}
-                            disabled={partyReceiving === "Conveyancing Firm" || sellerBankLoading}
-                        >
-                            <option value="">{sellerBankLoading ? "Loading…" : "Select seller bank"}</option>
-                            {sellerBankOptions.map((b) => (
-                                <option key={b.id} value={b.id}>{b.label}</option>
-                            ))}
-                        </select>
+                            <label>
+                                Firm Bank
+                                <select
+                                    value={selectedFirmBankId}
+                                    onChange={(e) => setSelectedFirmBankId(e.target.value)}
+                                    disabled={partyReceiving === "Seller / Nominated Account"}
+                                >
+                                    {firmBankOptions.map((b) => (
+                                        <option key={b.id} value={b.id}>{b.label}</option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label>
+                                Seller Bank
+                                <select
+                                    value={selectedSellerBankId}
+                                    onChange={(e) => setSelectedSellerBankId(e.target.value)}
+                                    disabled={partyReceiving === "Conveyancing Firm" || sellerBankLoading}
+                                >
+                                    <option value="">{sellerBankLoading ? "Loading…" : "Select seller bank"}</option>
+                                    {sellerBankOptions.map((b) => (
+                                        <option key={b.id} value={b.id}>{b.label}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+
+                        {!canOpenReadvanceForm && partyReceiving === "Split Between Firm and Seller" && (
+                            <p className="readvance-validation-message">
+                                For split payments, the firm and nominated amounts must add up to the total readvance amount.
+                            </p>
+                        )}
 
 
                         {!sellerBankOptions.length && sellerAccountId && (
                             <button
-                                className="button"
+                                className="button readvance-modal-button"
                                 onClick={() =>
-                                    window.open(
+                                    openExternalUrl(
                                         buildZohoFormUrl(ADD_BANK_DETAIL_FORM_URL, {
                                             account_name: sellerAccountId,
-                                        }),
-                                        "_blank"
+                                        })
                                     )
                                 }
                             >
@@ -481,7 +556,8 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                         )}
 
                         <button
-                            className="button"
+                            className="button readvance-modal-button"
+                            disabled={!canOpenReadvanceForm}
                             onClick={() => {
                                 const formUrl = buildZohoFormUrl(SELLER_READVANCE_FORM_URL, {
                                     [INITIAL_OR_FURTHER_ADVANCE_ALIAS]: "Further Advance",
@@ -493,7 +569,7 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                                     Readvance_Seller_Bank_Details_id: selectedSellerBankId,
                                 });
 
-                                window.open(formUrl, "_blank");
+                                openExternalUrl(formUrl);
                                 setSellerReadvanceOpen(false);
                             }}
                         >

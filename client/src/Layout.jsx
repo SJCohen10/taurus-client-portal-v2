@@ -37,6 +37,13 @@ export default function Layout() {
               )}
             </small>
           </div>
+
+          <img
+            src="/taurus-capital-logo.png"
+            alt="Taurus Capital"
+            className="app-header-logo"
+          />
+
         </div>
 
         <nav className="app-nav">

@@ -135,7 +135,7 @@ async function getDealsForPortal({ email, accountId }) {
     url.searchParams.set("ZOHO_API_VERSION", "1.0");
     url.searchParams.set("ZOHO_CRITERIA", criteria);
 
-    console.log("Calling Zoho Analytics EXPORT API (CSV):", url.toString());
+
 
     const res = await fetch(url.toString(), {
         method: "GET",
@@ -145,7 +145,7 @@ async function getDealsForPortal({ email, accountId }) {
     });
 
     const text = await res.text();
-    console.log("Analytics raw CSV response:", text);
+
 
     // If Analytics returned JSON error instead of CSV, detect it
     const trimmed = text.trim();
@@ -172,7 +172,7 @@ async function getDealsForPortal({ email, accountId }) {
 
     // Otherwise treat as CSV
     const rows = parseCsv(text);
-    console.log("Parsed Analytics rows sample:", rows[0]);
+
 
     function parseNumber(val) {
         if (val === undefined || val === null || val === "") return null;
@@ -184,12 +184,6 @@ async function getDealsForPortal({ email, accountId }) {
     // Map into a clean shape for the frontend based on your columns:
     // "Property Ref Number","Property Description","Created time","Paralegal","Contact_Email"
     return rows.map((row) => {
-        const rawAmount = row["Amount"] || null;
-        let amount = null;
-        if (rawAmount !== null && rawAmount !== "") {
-            const numeric = Number(String(rawAmount).replace(/[^0-9.-]/g, ""));
-            amount = Number.isNaN(numeric) ? null : numeric;
-        }
 
         const assetId =
             row["Asset Id"] ||
@@ -245,6 +239,7 @@ async function getDealsForPortal({ email, accountId }) {
             asset_ids: assetIds,
             asset_creator_ids: assetCreatorIds,
             seller_account_id: sellerAccountId,
+            deal_id: row["Deal_Id"] || null,
         };
 
     });
@@ -261,7 +256,7 @@ module.exports = async (req, res) => {
         const email = parsedUrl.searchParams.get("email") || "";
         const accountId = parsedUrl.searchParams.get("accountId") || "";
 
-        console.log("getportaldeals called with:", { email, accountId });
+
 
         if (!email && !accountId) {
             return sendJson(res, 400, {

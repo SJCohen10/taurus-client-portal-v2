@@ -3,17 +3,13 @@
 const { URL } = require("url");
 const fetch = require("node-fetch");
 
-/**
- * Send JSON response
- */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
     res.end(JSON.stringify(payload));
 }
 
-/**
- * Get Zoho CRM access token via refresh token
- */
+
 async function getAccessToken() {
     const clientId = process.env.ZOHO_CLIENT_ID;
     const clientSecret = process.env.ZOHO_CLIENT_SECRET;
@@ -46,91 +42,92 @@ async function getAccessToken() {
         throw new Error(`Failed to fetch Zoho access token (${res.status}): ${raw}`);
     }
 
-    const data = JSON.parse(raw);
+    const data = raw ? JSON.parse(raw) : {};
+    if (!data.access_token) {
+        throw new Error("No access token returned by Zoho CRM OAuth token endpoint.");
+    }
     return {
         accessToken: data.access_token,
         apiDomain: process.env.ZOHO_API_DOMAIN || data.api_domain || "https://www.zohoapis.com",
     };
 }
 
-/**
- * Parse incoming assetIds query param
- */
+
 function parseAssetIds(raw) {
     if (!raw) return [];
-    const parts = String(raw)
+    const ids = String(raw)
         .split(",")
-        .map((s) => s.trim())
-        .filter((s) => /^[0-9]+$/.test(s)); // numeric only
-    return Array.from(new Set(parts)).slice(0, 50); // dedupe + limit 50
+        .map((value) => value.trim())
+        .filter((value) => /^[0-9]+$/.test(value));
+
+    return Array.from(new Set(ids)).slice(0, 50);
 }
 
-/**
- * Run COQL query
- */
+function validateEmail(email) {
+    return EMAIL_REGEX.test(email);
+}
+
+
 async function runCoql({ accessToken, crmBase, query }) {
-    const url = `${crmBase}/coql`;
-    const res = await fetch(url, {
+    const coqlUrl = `${crmBase}/coql`;
+
+    const response = await fetch(coqlUrl, {
         method: "POST",
         headers: {
             Authorization: `Zoho-oauthtoken ${accessToken}`,
             "Content-Type": "application/json",
+            Accept: "application/json",
         },
         body: JSON.stringify({ select_query: query }),
     });
-    const text = await res.text();
-    if (!res.ok) {
-        throw new Error(`COQL error (${res.status}): ${text}`);
+    const raw = await response.text();
+    if (!response.ok) {
+        throw new Error(`Zoho CRM COQL error (${response.status}): ${raw}`);
     }
-    const json = JSON.parse(text);
+    const json = raw ? JSON.parse(raw) : {};
     return json.data || [];
 }
 
-/**
- * Get transactions from CRM given assetIds
- */
+
 async function getTransactions({ assetIds }) {
     const { accessToken, apiDomain } = await getAccessToken();
     const crmVersion = process.env.ZOHO_CRM_VERSION || "v6";
     const crmBase = `${apiDomain}/crm/${crmVersion}`;
 
     const inList = assetIds.map((id) => `'${id}'`).join(",");
-    const query = `
-    select id, Name, Transaction_Type, Current_Advance_Amount, Asset
-    from Transactions
-    where Asset in (${inList})
-  `;
+    const query = `select id, Name, Transaction_Type, Current_Advance_Amount, Asset from Transactions where Asset in (${inList})`;
 
     return runCoql({ accessToken, crmBase, query });
 }
 
-/**
- * Entry point
- */
+
 module.exports = async (req, res) => {
     try {
-        const parsedUrl = new URL(req.url, "http://dummy");
+        const parsedUrl = new URL(req.url, "http://dummy-host");
         const email = (parsedUrl.searchParams.get("email") || "").trim();
         const rawAssetIds = parsedUrl.searchParams.get("assetIds") || "";
 
-        if (!email) return sendJson(res, 400, { error: "Missing 'email' param" });
+        if (!email || !validateEmail(email)) {
+            return sendJson(res, 400, {
+                error: "Missing or invalid 'email' query parameter.",
+            });
+        }
 
         const assetIds = parseAssetIds(rawAssetIds);
         if (!assetIds.length) {
             return sendJson(res, 400, {
-                error:
-                    "No valid assetIds provided. Must be comma-separated numeric Zoho IDs.",
+                error: "No valid assetIds provided. Use comma-separated numeric CRM Asset IDs.",
             });
         }
 
         const rows = await getTransactions({ assetIds });
 
-        const transactions = rows.map((t) => ({
-            id: t.id,
-            name: t.Name,
-            type: t.Transaction_Type,
-            advance_amount: t.Current_Advance_Amount,
-            asset_id: t.Asset?.id || null,
+        const transactions = rows.map((record) => ({
+            id: record.id || null,
+            name: record.Name || "",
+            type: record.Transaction_Type || "",
+            advance_amount: record.Current_Advance_Amount ?? null,
+            asset_id: record.Asset?.id || null,
         }));
 
         return sendJson(res, 200, {
@@ -140,6 +137,9 @@ module.exports = async (req, res) => {
         });
     } catch (err) {
         console.error("getdealtransactions error:", err);
-        sendJson(res, 500, { error: err.message });
+        return sendJson(res, 500, {
+            error: "Internal server error in getdealtransactions.",
+            details: err.message,
+        });
     }
 };

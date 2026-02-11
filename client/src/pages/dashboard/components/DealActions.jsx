@@ -4,6 +4,8 @@ import {
     generateStatement,
     uploadDealDocument,
     fetchBankDetailsForAccount,
+    createNote,
+
 } from "../../../services/portalApi";
 import "./DealActionsModal.css";
 
@@ -63,7 +65,10 @@ export default function DealActions({ deal, portalEmail, accountId }) {
     const [selectedSellerBankId, setSelectedSellerBankId] = useState("");
 
     const [readvanceError, setReadvanceError] = useState("");
-
+    const [noteOpen, setNoteOpen] = useState(false);
+    const [noteContent, setNoteContent] = useState("");
+    const [noteSaving, setNoteSaving] = useState(false);
+    const [noteError, setNoteError] = useState("");
 
 
     const rootRef = useRef(null);
@@ -275,6 +280,60 @@ export default function DealActions({ deal, portalEmail, accountId }) {
             (Math.abs(parsedAmountToFirm + parsedAmountToNominated - parsedTotalAmount) < 0.01));
 
 
+    function resolveNoteTarget() {
+        const resolvedDealId = deal.deal_id || deal["Deal_Id"] || deal["Deal Id"] || null;
+        if (resolvedDealId) {
+            return { recordType: "Deal", recordId: String(resolvedDealId) };
+        }
+
+        const fallbackAssetId = assetIds[0] || deal.asset_id || null;
+        if (fallbackAssetId) {
+            return { recordType: "Asset", recordId: String(fallbackAssetId) };
+        }
+
+        return null;
+    }
+
+    async function handleSaveNote(event) {
+        event.stopPropagation();
+
+        const trimmed = noteContent.trim();
+        if (!trimmed) {
+            setNoteError("Note content is required.");
+            return;
+        }
+
+        if (trimmed.length > 5000) {
+            setNoteError("Note content cannot exceed 5000 characters.");
+            return;
+        }
+
+        const target = resolveNoteTarget();
+        if (!target) {
+            setNoteError("No Deal or Asset id is available for this row.");
+            return;
+        }
+
+        try {
+            setNoteSaving(true);
+            setNoteError("");
+            await createNote({
+                email: portalEmail,
+                recordType: target.recordType,
+                recordId: target.recordId,
+                content: trimmed,
+            });
+            setMessage("Note added successfully.");
+            setNoteOpen(false);
+            setNoteContent("");
+            setOpen(false);
+        } catch (error) {
+            setNoteError(error.message || "Unable to save note.");
+        } finally {
+            setNoteSaving(false);
+        }
+    }
+
     return (
         <div
             ref={rootRef}
@@ -378,6 +437,30 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                             type="button"
                             className="deal-actions-menu-item"
                             role="menuitem"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setNoteError("");
+                                setNoteOpen(true);
+                                setOpen(false);
+                            }}
+                            style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 10px",
+                                borderRadius: 10,
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Add Note
+                        </button>
+
+
+                        <button
+                            type="button"
+                            className="deal-actions-menu-item"
+                            role="menuitem"
                             onClick={handleReadvance}
                             style={{
                                 width: "100%",
@@ -395,6 +478,35 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                     document.body
                 )}
 
+            {noteOpen && (
+                <div className="modal-backdrop" onClick={() => setNoteOpen(false)}>
+                    <div className="readvance-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="readvance-modal-header">
+                            <h3>Add Note</h3>
+                        </div>
+                        <label>
+                            Note
+                            <textarea
+                                value={noteContent}
+                                onChange={(event) => setNoteContent(event.target.value)}
+                                maxLength={5000}
+                                rows={6}
+                                style={{ width: "100%", marginTop: 8 }}
+                            />
+                        </label>
+                        <div style={{ marginTop: 8, fontSize: 12 }}>{noteContent.length}/5000</div>
+                        {noteError && <p className="error">{noteError}</p>}
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                            <button type="button" className="button" onClick={handleSaveNote} disabled={noteSaving}>
+                                {noteSaving ? "Saving…" : "Save"}
+                            </button>
+                            <button type="button" className="button" onClick={() => setNoteOpen(false)}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {message && (
                 <div className="deal-action-message" style={{ marginTop: 6 }}>

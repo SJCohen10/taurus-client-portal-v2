@@ -65,7 +65,7 @@ export function PortalProvider({ children }) {
         const ctx = await loadContext(resolvedEmail);
         setContext(ctx);
 
-        console.log("[portal] user context loaded:", ctx);
+      
       } catch (e) {
         console.error(e);
         setError(e.message || "Failed to load portal context");

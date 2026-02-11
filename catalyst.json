@@ -8,7 +8,8 @@
       "uploaddealdocument",
       "generatestatement",
       "getbankdetailsforaccount",
-      "getdealtransactions"
+      "getdealtransactions",
+      "createnote"
     ],
     "ignore": [],
     "source": "functions"

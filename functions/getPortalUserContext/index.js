@@ -151,6 +151,12 @@ async function getContactAndAccountByEmail(email) {
   const portalRole = contact.Portal_Role || null;
   const contactEmail = contact.Email || "";
   const contactMobile = contact.Mobile || contact.Phone || "";
+  const canViewFirmDealsRaw = contact.Can_View_Firm_Deals;
+  const canViewFirmDeals =
+    canViewFirmDealsRaw === true ||
+    canViewFirmDealsRaw === "true" ||
+    canViewFirmDealsRaw === "Yes";
+
 
   const accountLookup = contact.Account_Name || contact.Account || {};
   const accountId = accountLookup.id;
@@ -271,6 +277,7 @@ async function getContactAndAccountByEmail(email) {
     firmProvince,
     firmZipCode,
     accountEmail,
+    canViewFirmDeals,
     accountMobile,
     directorName,
     directorEmail,

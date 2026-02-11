@@ -41,7 +41,6 @@ export async function fetchMyDeals(emailOverride) {
   const email = getPortalUserEmail(emailOverride);
   const url = `${API_BASE}/getportaldeals?email=${encodeURIComponent(email)}`;
 
-  console.log("fetchMyDeals URL:", url); // ✅ add this
 
   const res = await fetch(url, { method: "GET" });
   return handleResponse(res);
@@ -56,7 +55,9 @@ export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
 
   if (accountId) {
     params.set("accountId", accountId);
-  } else if (email) {
+  }
+
+  if (email) {
     params.set("email", email);
   }
 
@@ -64,6 +65,26 @@ export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
 
   const res = await fetch(url, {
     method: "GET",
+  });
+
+  return handleResponse(res);
+}
+
+export async function fetchDealTransactions({ email, assetIds }) {
+  const safeEmail = getPortalUserEmail(email);
+  const url = `${API_BASE}/getdealtransactions?email=${encodeURIComponent(
+    safeEmail
+  )}&assetIds=${encodeURIComponent(assetIds)}`;
+
+  const res = await fetch(url, { method: "GET" });
+  return handleResponse(res);
+}
+
+export async function createNote(payload) {
+  const res = await fetch(`${API_BASE}/createnote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 
   return handleResponse(res);
@@ -101,7 +122,3 @@ export async function generateStatement({ assetId }) {
 
   return handleResponse(res);
 }
-
-
-
-

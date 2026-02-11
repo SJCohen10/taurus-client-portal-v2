@@ -3,18 +3,14 @@
 const { URL } = require("url");
 const fetch = require("node-fetch");
 
-/**
- * Helper to send JSON responses using Node's HTTP API.
- */
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, { "Content-Type": "application/json" });
   res.end(JSON.stringify(payload));
 }
 
 
-/**
- * Fetch a fresh access token from Zoho using the refresh token.
- */
+
 async function getAccessToken() {
   const clientId = process.env.ZOHO_CLIENT_ID;
   const clientSecret = process.env.ZOHO_CLIENT_SECRET;
@@ -119,9 +115,6 @@ async function getContactAndAccountByEmail(email) {
   });
 
   const raw = await searchRes.text();
-
-  console.log("[getPortalUserContext] Contact search status =", searchRes.status);
-  console.log("[getPortalUserContext] Contact search raw (first 300) =", raw?.slice(0, 300));
 
   if (!searchRes.ok) {
     throw new Error(

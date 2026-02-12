@@ -79,6 +79,16 @@ function normalizeRecordType(recordType) {
     return null;
 }
 
+async function debugTokenScopes(accessToken) {
+    const accountsBase = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
+    const infoUrl = `${accountsBase}/oauth/v2/token/info?access_token=${encodeURIComponent(accessToken)}`;
+
+    const r = await fetch(infoUrl);
+    const t = await r.text();
+    console.log("TOKEN INFO:", r.status, t);
+}
+
+
 module.exports = async (req, res) => {
     try {
         if (req.method !== "POST") {
@@ -113,18 +123,17 @@ module.exports = async (req, res) => {
         }
 
         const { accessToken, apiDomain } = await getAccessToken();
-        const crmVersion = process.env.ZOHO_CRM_VERSION || "v6";
-        const url = `${apiDomain}/crm/${crmVersion}/Notes`;
+        await debugTokenScopes(accessToken);
+        const crmVersion = process.env.ZOHO_CRM_VERSION || "v8";
+
+        // Use "related notes" endpoint: /{Module}/{RecordId}/Notes
+        const url = `${apiDomain}/crm/${crmVersion}/${seModule}/${recordId}/Notes`;
 
         const payload = {
             data: [
                 {
                     Note_Title: `Portal note (${email})`,
                     Note_Content: content,
-                    Parent_Id: {
-                        id: recordId,
-                    },
-                    se_module: seModule,
                 },
             ],
         };
@@ -138,6 +147,7 @@ module.exports = async (req, res) => {
             },
             body: JSON.stringify(payload),
         });
+
 
         const raw = await response.text();
         if (!response.ok) {

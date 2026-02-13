@@ -9,7 +9,8 @@
       "generatestatement",
       "getbankdetailsforaccount",
       "getdealtransactions",
-      "createnote"
+      "createnote",
+      "updateexpectedlodgementdate"
     ],
     "ignore": [],
     "source": "functions"

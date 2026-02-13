@@ -240,6 +240,7 @@ async function getDealsForPortal({ email, accountId }) {
             asset_creator_ids: assetCreatorIds,
             seller_account_id: sellerAccountId,
             deal_id: row["Deal_Id"] || null,
+            expectedLodgementDate: row["Expected_Lodgement_Date"] || null,
         };
 
     });

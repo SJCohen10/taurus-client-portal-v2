@@ -8,7 +8,7 @@ import "./ParalegalDashboard.css";
 
 const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
 const DEV_DEFAULT_NAME = "Sandbox Paralegal";
-
+const DEFAULT_OPEN_SECTIONS = { pending: true, active: true, closed: false, other: false };
 const STATUS_BUCKETS = {
     pending: new Set(["pending review"]),
     active: new Set(["active", "due to taurus"]),
@@ -24,12 +24,9 @@ const DEAL_DETAIL_FIELDS = [
     ["Advanced", "amount"],
     ["Current Balance", "current_balance"],
     ["Upsell Available", "upsell_available"],
+    ["Expected Lodgement Date", "expectedLodgementDate"],
     ["Created", "created_time"],
-    ["Deal Id", "deal_id"],
     ["Seller", "seller"],
-    ["Seller Account Id", "seller_account_id"],
-    ["Asset Id", "asset_id"],
-    ["Asset Ids", "asset_ids"],
 ];
 
 function normalizeStatus(value) {
@@ -91,6 +88,7 @@ function valueFor(deal, key) {
         current_balance: deal?.["Current Balance"],
         upsell_available: deal?.["Upsell Available"],
         deal_id: deal?.["Deal_Id"] || deal?.["Deal Id"],
+        expectedLodgementDate: deal?.["Expected_Lodgement_Date"],
     };
     const raw = deal?.[key] ?? fallback[key];
     if (key === "amount" || key === "current_balance" || key === "upsell_available") {
@@ -180,7 +178,7 @@ export default function ParalegalDashboard() {
     const [transactionsError, setTransactionsError] = useState("");
     const [transactions, setTransactions] = useState([]);
 
-    const DEFAULT_OPEN_SECTIONS = { pending: true, active: true, closed: false, other: false };
+
 
     const storageKey = useMemo(() => {
 
@@ -198,10 +196,9 @@ export default function ParalegalDashboard() {
                 return;
             }
             setOpenSections({ ...DEFAULT_OPEN_SECTIONS, ...JSON.parse(raw) });
-        } catch {
+        } catch (error) {
             setOpenSections(DEFAULT_OPEN_SECTIONS);
         }
-
     }, [storageKey]);
 
 
@@ -280,6 +277,25 @@ export default function ParalegalDashboard() {
         return { total, activeCount: activeList.length, totalAmount };
     }, [visibleDeals]);
 
+    function handleDealUpdate(updatedDeal) {
+        const existingDealId = String(updatedDeal?.deal_id || updatedDeal?.dealId || "");
+        if (!existingDealId) return;
+
+        setDeals((prev) =>
+            prev.map((deal) => {
+                const currentDealId = String(deal?.deal_id || deal?.dealId || "");
+                return currentDealId === existingDealId ? { ...deal, ...updatedDeal } : deal;
+            })
+        );
+
+        setSelectedDeal((prev) => {
+            if (!prev) return prev;
+            const selectedDealId = String(prev?.deal_id || prev?.dealId || "");
+            return selectedDealId === existingDealId ? { ...prev, ...updatedDeal } : prev;
+        });
+    }
+
+
     async function openDealDetails(deal) {
         setSelectedDeal(deal);
         setTransactions([]);
@@ -332,12 +348,10 @@ export default function ParalegalDashboard() {
                                         <tr>
                                             <th className="col-priority-high sticky-first-col col-ref">Property Ref Number</th>
                                             <th className="col-priority-medium col-description">Property Description</th>
-                                            <th className="col-priority-low">Lodged</th>
-                                            <th className="col-priority-low">Registered</th>
                                             <th className="col-priority-high">Status</th>
                                             <th className="col-priority-high">Advanced</th>
                                             <th className="col-priority-high">Current Balance</th>
-                                            <th className="col-priority-low">Upsell Available</th>
+                                            <th className="col-priority-medium">Upsell Available</th>
                                             <th className="col-priority-medium">Created</th>
                                             <th className="actions-cell actions-header">Actions</th>
                                         </tr>
@@ -359,15 +373,18 @@ export default function ParalegalDashboard() {
                                             >
                                                 <td className="col-priority-high sticky-first-col col-ref" title={valueFor(deal, "property_ref_number")}>{valueFor(deal, "property_ref_number")}</td>
                                                 <td className="col-priority-medium col-description" title={valueFor(deal, "property_description")}>{valueFor(deal, "property_description")}</td>
-                                                <td className="col-priority-low" title={valueFor(deal, "lodged")}>{valueFor(deal, "lodged")}</td>
-                                                <td className="col-priority-low" title={valueFor(deal, "registered")}>{valueFor(deal, "registered")}</td>
                                                 <td className="col-priority-high" title={valueFor(deal, "status")}>{valueFor(deal, "status")}</td>
                                                 <td className="col-priority-high" title={valueFor(deal, "amount")}>{valueFor(deal, "amount")}</td>
                                                 <td className="col-priority-high" title={valueFor(deal, "current_balance")}>{valueFor(deal, "current_balance")}</td>
-                                                <td className="col-priority-low" title={valueFor(deal, "upsell_available")}>{valueFor(deal, "upsell_available")}</td>
+                                                <td className="col-priority-medium" title={valueFor(deal, "upsell_available")}>{valueFor(deal, "upsell_available")}</td>
                                                 <td className="col-priority-medium" title={valueFor(deal, "created_time")}>{valueFor(deal, "created_time")}</td>
-                                                <td className="actions-cell">
-                                                    <DealActions deal={deal} portalEmail={displayEmail} accountId={accountId} />
+                                                <td className="actions-cell" onClick={(event) => event.stopPropagation()}>
+                                                    <DealActions
+                                                        deal={deal}
+                                                        portalEmail={displayEmail}
+                                                        accountId={accountId}
+                                                        onDealUpdate={handleDealUpdate}
+                                                    />
                                                 </td>
                                             </tr>
                                         ))}

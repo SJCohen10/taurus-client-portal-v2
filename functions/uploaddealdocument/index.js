@@ -15,6 +15,15 @@ const WORKDRIVE_BASE =
 // ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------
+
+const ALLOWED_MIME_TYPES = new Set([
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+]);
+const MAX_UPLOAD_BYTES = Number(process.env.PORTAL_UPLOAD_MAX_BYTES || 10 * 1024 * 1024);
+const MAX_BODY_BYTES = Number(process.env.PORTAL_UPLOAD_MAX_BODY_BYTES || 14 * 1024 * 1024);
+const CRM_ID_REGEX = /^[0-9]{6,30}$/;
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
     res.end(JSON.stringify(payload));
@@ -23,7 +32,14 @@ function sendJson(res, statusCode, payload) {
 function readJsonBody(req) {
     return new Promise((resolve, reject) => {
         let data = "";
+        let bodyBytes = 0;
         req.on("data", (chunk) => {
+            bodyBytes += chunk.length;
+            if (bodyBytes > MAX_BODY_BYTES) {
+                reject(new Error("Request body too large"));
+                req.destroy();
+                return;
+            }
             data += chunk;
         });
         req.on("end", () => {
@@ -245,17 +261,6 @@ async function ensurePortalUploadsFolder({
     return parentFolderId;
 }
 
-async function probeFolderAccess(accessToken, folderId) {
-    const res = await fetch(`${WORKDRIVE_BASE}/files/${folderId}`, {
-        method: "GET",
-        headers: buildAuthHeaders(accessToken),
-    });
-
-    const text = await res.text();
-    console.log("probeFolderAccess:", { status: res.status, body: text });
-
-    return { status: res.status, body: text };
-}
 
 // ----------------------------------------------------------------------
 // Upload file to WorkDrive (official upload API)
@@ -345,6 +350,35 @@ module.exports = async (req, res) => {
             });
         }
 
+        if (typeof mimeType !== "string" || !ALLOWED_MIME_TYPES.has(mimeType)) {
+            return sendJson(res, 400, {
+                error: "Unsupported mimeType. Allowed: application/pdf, image/jpeg, image/png.",
+            });
+        }
+
+        const base64Payload = String(fileBase64).includes(",")
+            ? String(fileBase64).split(",").pop()
+            : String(fileBase64);
+
+        if (!/^[A-Za-z0-9+/=\s]+$/.test(base64Payload)) {
+            return sendJson(res, 400, {
+                error: "Invalid fileBase64 payload.",
+            });
+        }
+
+        const uploadBytes = Buffer.byteLength(base64Payload.replace(/\s/g, ""), "base64");
+        if (!Number.isFinite(uploadBytes) || uploadBytes <= 0 || uploadBytes > MAX_UPLOAD_BYTES) {
+            return sendJson(res, 400, {
+                error: `File exceeds max allowed size of ${MAX_UPLOAD_BYTES} bytes.`,
+            });
+        }
+
+        if (propertyFolderId && !CRM_ID_REGEX.test(String(propertyFolderId).trim())) {
+            return sendJson(res, 400, {
+                error: "Invalid propertyFolderId.",
+            });
+        }
+
         const accessToken = await getWorkDriveAccessToken();
 
         const envParentFolderId =
@@ -375,16 +409,12 @@ module.exports = async (req, res) => {
             parentFolderId: baseFolderId,
         });
 
-        // 🔍 DEBUG: confirm we can access the folder before uploading
-        await probeFolderAccess(accessToken, portalFolderId);
-
-
         const uploadResult = await uploadFileToFolder({
             accessToken,
             folderId: portalFolderId,
             fileName,
             mimeType,
-            fileBase64,
+            fileBase64: base64Payload,
         });
 
         return sendJson(res, 200, {
@@ -406,7 +436,7 @@ module.exports = async (req, res) => {
         console.error("Error in uploaddealdocument:", err);
         return sendJson(res, 500, {
             error: "Internal server error in uploaddealdocument.",
-            details: err.message,
+
         });
     }
 };

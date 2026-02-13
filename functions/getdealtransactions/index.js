@@ -1,7 +1,7 @@
 "use strict";
 
 const { URL } = require("url");
-const fetch = require("node-fetch");
+
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function sendJson(res, statusCode, payload) {
@@ -9,6 +9,13 @@ function sendJson(res, statusCode, payload) {
     res.end(JSON.stringify(payload));
 }
 
+function safeJsonParse(raw) {
+    try {
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return { _raw: raw };
+    }
+}
 
 async function getAccessToken() {
     const clientId = process.env.ZOHO_CLIENT_ID;
@@ -42,16 +49,18 @@ async function getAccessToken() {
         throw new Error(`Failed to fetch Zoho access token (${res.status}): ${raw}`);
     }
 
-    const data = raw ? JSON.parse(raw) : {};
+    const data = safeJsonParse(raw);
     if (!data.access_token) {
-        throw new Error("No access token returned by Zoho CRM OAuth token endpoint.");
+        throw new Error(
+            `No access token returned by Zoho token endpoint. Response: ${raw}`
+        );
     }
+
     return {
         accessToken: data.access_token,
         apiDomain: process.env.ZOHO_API_DOMAIN || data.api_domain || "https://www.zohoapis.com",
     };
 }
-
 
 function parseAssetIds(raw) {
     if (!raw) return [];
@@ -67,7 +76,6 @@ function validateEmail(email) {
     return EMAIL_REGEX.test(email);
 }
 
-
 async function runCoql({ accessToken, crmBase, query }) {
     const coqlUrl = `${crmBase}/coql`;
 
@@ -80,14 +88,15 @@ async function runCoql({ accessToken, crmBase, query }) {
         },
         body: JSON.stringify({ select_query: query }),
     });
+
     const raw = await response.text();
     if (!response.ok) {
         throw new Error(`Zoho CRM COQL error (${response.status}): ${raw}`);
     }
-    const json = raw ? JSON.parse(raw) : {};
+
+    const json = safeJsonParse(raw);
     return json.data || [];
 }
-
 
 async function getTransactions({ assetIds }) {
     const { accessToken, apiDomain } = await getAccessToken();
@@ -95,14 +104,22 @@ async function getTransactions({ assetIds }) {
     const crmBase = `${apiDomain}/crm/${crmVersion}`;
 
     const inList = assetIds.map((id) => `'${id}'`).join(",");
-    const query = `select id, Name, Transaction_Type, Current_Advance_Amount, Asset from Transactions where Asset in (${inList})`;
+
+    // NOTE: Asset is a lookup; Asset.id is usually the correct COQL syntax
+    const query =
+        `select id, Name, Transaction_Type, Current_Advance_Amount, Asset ` +
+        `from Transactions ` +
+        `where Asset.id in (${inList})`;
 
     return runCoql({ accessToken, crmBase, query });
 }
 
-
 module.exports = async (req, res) => {
     try {
+        if (req.method !== "GET") {
+            return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+        }
+
         const parsedUrl = new URL(req.url, "http://dummy-host");
         const email = (parsedUrl.searchParams.get("email") || "").trim();
         const rawAssetIds = parsedUrl.searchParams.get("assetIds") || "";
@@ -139,7 +156,7 @@ module.exports = async (req, res) => {
         console.error("getdealtransactions error:", err);
         return sendJson(res, 500, {
             error: "Internal server error in getdealtransactions.",
-            details: err.message,
+            details: err?.message || String(err),
         });
     }
 };

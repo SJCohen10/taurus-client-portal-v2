@@ -287,13 +287,21 @@ async function getContactAndAccountByEmail(email) {
  */
 module.exports = async (req, res) => {
   try {
+
+    if (req.method !== "GET") {
+      return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+    }
     const parsedUrl = new URL(req.url, "http://dummy-host");
-    const email = parsedUrl.searchParams.get("email");
+    const email = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
 
     if (!email) {
       return sendJson(res, 400, {
         error: "Missing 'email' query parameter.",
       });
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      return sendJson(res, 400, { error: "Invalid 'email' query parameter." });
     }
 
     const context = await getContactAndAccountByEmail(email);
@@ -304,7 +312,6 @@ module.exports = async (req, res) => {
 
     return sendJson(res, 500, {
       error: "Internal server error in getPortalUserContext.",
-      details: err.message,
     });
   }
 };

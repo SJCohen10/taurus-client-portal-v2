@@ -2,6 +2,7 @@
 
 const { URL } = require("url");
 
+const ACCOUNT_ID_REGEX = /^[A-Za-z0-9_-]{6,100}$/;
 
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
@@ -83,12 +84,16 @@ async function searchBankDetails({ accessToken, crmBase, accountId, avsOnly }) {
 module.exports = async (req, res) => {
     try {
         const parsedUrl = new URL(req.url, "http://dummy-host");
-        const accountId = parsedUrl.searchParams.get("accountId") || "";
+        const accountId = (parsedUrl.searchParams.get("accountId") || "").trim();
         const avsOnlyRaw = parsedUrl.searchParams.get("avsOnly") || "false";
         const avsOnly = String(avsOnlyRaw).toLowerCase() === "true";
 
         if (!accountId) {
             return sendJson(res, 400, { error: "Missing 'accountId' query parameter." });
+        }
+
+        if (!ACCOUNT_ID_REGEX.test(accountId)) {
+            return sendJson(res, 400, { error: "Invalid 'accountId' query parameter." });
         }
 
         const { accessToken, apiDomain } = await getAccessToken();
@@ -102,7 +107,7 @@ module.exports = async (req, res) => {
         console.error("Error in getbankdetailsforaccount:", err);
         return sendJson(res, 500, {
             error: "Internal server error in getbankdetailsforaccount.",
-            details: err.message,
+
         });
     }
 };

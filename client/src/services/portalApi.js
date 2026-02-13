@@ -90,7 +90,18 @@ export async function createNote(payload) {
   return handleResponse(res);
 }
 
-// 👇 Upload a document for a specific deal/property
+export async function updateExpectedLodgementDate(payload) {
+  const res = await fetch(`${API_BASE}/updateexpectedlodgementdate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse(res);
+}
+
+
+//Upload a document for a specific deal/property
 export async function uploadDealDocument(payload) {
   const res = await fetch(`${API_BASE}/uploaddealdocument`, {
     method: "POST",
@@ -112,7 +123,7 @@ export async function fetchBankDetailsForAccount({ accountId, avsOnly = false })
 }
 
 
-// 👇 Generate a statement using the Creator-backed logic
+// Generate a statement using the Creator-backed logic
 export async function generateStatement({ assetId }) {
   const res = await fetch(`${API_BASE}/generatestatement`, {
     method: "POST",

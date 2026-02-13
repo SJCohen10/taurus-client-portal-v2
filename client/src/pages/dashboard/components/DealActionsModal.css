@@ -88,3 +88,53 @@
         width: 130px;
     }
 }
+
+.deal-notification-button {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    cursor: pointer;
+}
+
+.deal-notification-button.active::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    right: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: #ef4444;
+}
+
+.deal-notification-popover {
+    position: absolute;
+    right: 0;
+    top: 40px;
+    width: 260px;
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.15);
+    border-radius: 10px;
+    padding: 10px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+    z-index: 12;
+}
+
+.deal-notification-popover p {
+    margin: 0;
+    font-size: 0.83rem;
+    color: #1f2937;
+}
+
+.deal-notification-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.expected-date-modal {
+    width: min(420px, 94vw);
+}

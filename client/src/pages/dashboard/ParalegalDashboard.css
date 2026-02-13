@@ -202,8 +202,8 @@
 
 
 .actions-cell {
-    min-width: 188px;
-    width: 188px;
+    min-width: 150px;
+    width: 150px;
     position: sticky;
     right: 0;
     background: #ffffff;
@@ -427,6 +427,7 @@
 .modal-body {
     flex: 1;
     padding: 0;
+    overflow: hidden;
 }
 
 .modal-iframe {
@@ -437,7 +438,8 @@
 
 .deal-detail-modal-content {
     padding: 16px;
-    overflow: auto;
+    max-height: 75vh;
+    overflow-y: auto;
 }
 
 .deal-detail-grid {

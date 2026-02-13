@@ -5,6 +5,7 @@ import {
     uploadDealDocument,
     fetchBankDetailsForAccount,
     createNote,
+    updateExpectedLodgementDate,
 
 } from "../../../services/portalApi";
 import "./DealActionsModal.css";
@@ -18,6 +19,28 @@ const ADD_BANK_DETAIL_FORM_URL =
     "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalAddBankDetail/formperma/sMwZkmaaClPpGJ9uLA_jm59z-DBs-l4LoPpWSA3UBr4";
 
 const INITIAL_OR_FURTHER_ADVANCE_ALIAS = "Initial_Advance_Further_Advance";
+
+function normalizeDateValue(value) {
+    if (!value) return "";
+    const raw = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString().slice(0, 10);
+}
+
+function hasExpectedLodgementAttention(deal) {
+    const expectedDate = normalizeDateValue(deal?.expectedLodgementDate);
+    if (!expectedDate) return false;
+    const status = String(deal?.status || deal?.Status || "").trim().toLowerCase();
+    if (["closed", "declined", "registered"].includes(status)) return false;
+    const today = new Date();
+    const todayIso = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()))
+        .toISOString()
+        .slice(0, 10);
+    return todayIso > expectedDate;
+}
+
 
 
 function readFileAsBase64(file) {
@@ -33,7 +56,7 @@ function readFileAsBase64(file) {
     });
 }
 
-export default function DealActions({ deal, portalEmail, accountId }) {
+export default function DealActions({ deal, portalEmail, accountId, onDealUpdate, onOpenExpectedLodgementDate }) {
 
     const portal = usePortalContext();
     const crm = portal?.context || null;
@@ -69,6 +92,11 @@ export default function DealActions({ deal, portalEmail, accountId }) {
     const [noteContent, setNoteContent] = useState("");
     const [noteSaving, setNoteSaving] = useState(false);
     const [noteError, setNoteError] = useState("");
+    const [expectedLodgementOpen, setExpectedLodgementOpen] = useState(false);
+    const [expectedLodgementDate, setExpectedLodgementDate] = useState(normalizeDateValue(deal?.expectedLodgementDate));
+    const [expectedLodgementSaving, setExpectedLodgementSaving] = useState(false);
+    const [expectedLodgementError, setExpectedLodgementError] = useState("");
+    const [notificationOpen, setNotificationOpen] = useState(false);
 
 
     const rootRef = useRef(null);
@@ -123,6 +151,10 @@ export default function DealActions({ deal, portalEmail, accountId }) {
     useEffect(() => {
         setSelectedFirmBankId((prev) => prev || defaultFirmBankId);
     }, [defaultFirmBankId]);
+
+    useEffect(() => {
+        setExpectedLodgementDate(normalizeDateValue(deal?.expectedLodgementDate));
+    }, [deal?.expectedLodgementDate]);
 
 
     async function handleFileChange(event) {
@@ -294,6 +326,59 @@ export default function DealActions({ deal, portalEmail, accountId }) {
         return null;
     }
 
+
+    function openExpectedLodgementModal() {
+        setExpectedLodgementError("");
+        setExpectedLodgementDate(normalizeDateValue(deal?.expectedLodgementDate));
+        setExpectedLodgementOpen(true);
+        setOpen(false);
+        setNotificationOpen(false);
+        if (onOpenExpectedLodgementDate) {
+            onOpenExpectedLodgementDate();
+        }
+    }
+
+    async function handleExpectedLodgementSave(event) {
+        event.stopPropagation();
+
+        const selectedDate = normalizeDateValue(expectedLodgementDate);
+        if (!selectedDate) {
+            setExpectedLodgementError("Please select a valid date in YYYY-MM-DD format.");
+            return;
+        }
+
+        if (!portalEmail) {
+            setExpectedLodgementError("Missing portal user email.");
+            return;
+        }
+
+        if (!/^\d+$/.test(String(dealId || ""))) {
+            setExpectedLodgementError("No CRM deal id is available for this row.");
+            return;
+        }
+
+        try {
+            setExpectedLodgementSaving(true);
+            setExpectedLodgementError("");
+            await updateExpectedLodgementDate({
+                email: portalEmail,
+                dealId: String(dealId),
+                expectedLodgementDate: selectedDate,
+            });
+            if (onDealUpdate) {
+                onDealUpdate({ ...deal, expectedLodgementDate: selectedDate });
+            }
+            setExpectedLodgementOpen(false);
+            setMessage("Expected Lodgement Date updated.");
+        } catch (error) {
+            setExpectedLodgementError(error.message || "Unable to update Expected Lodgement Date.");
+        } finally {
+            setExpectedLodgementSaving(false);
+        }
+    }
+
+    const needsExpectedLodgementAttention = hasExpectedLodgementAttention(deal);
+
     async function handleSaveNote(event) {
         event.stopPropagation();
 
@@ -347,6 +432,16 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                 style={{ display: "none" }}
                 onChange={handleFileChange}
             />
+
+            <button
+                type="button"
+                className={`deal-notification-button ${needsExpectedLodgementAttention ? "active" : ""}`}
+                aria-label="Deal notifications"
+                title={needsExpectedLodgementAttention ? "Expected Lodgement Date needs attention" : "No pending notifications"}
+                onClick={() => setNotificationOpen((prev) => !prev)}
+            >
+                🔔
+            </button>
 
             <button
                 type="button"
@@ -433,6 +528,28 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                             {statementLoading ? "Preparing…" : "Generate Statement"}
                         </button>
 
+
+                        <button
+                            type="button"
+                            className="deal-actions-menu-item"
+                            role="menuitem"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                openExpectedLodgementModal();
+                            }}
+                            style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "10px 10px",
+                                borderRadius: 10,
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Update Expected Lodgement Date
+                        </button>
+
                         <button
                             type="button"
                             className="deal-actions-menu-item"
@@ -477,6 +594,64 @@ export default function DealActions({ deal, portalEmail, accountId }) {
                     </div>,
                     document.body
                 )}
+
+            {notificationOpen && (
+                <div className="deal-notification-popover" onClick={(event) => event.stopPropagation()}>
+                    {needsExpectedLodgementAttention ? (
+                        <>
+                            <p>Expected Lodgement Date has passed. Please update it.</p>
+                            <div className="deal-notification-actions">
+                                <button type="button" className="button" onClick={openExpectedLodgementModal}>
+                                    Update Expected Lodgement Date
+                                </button>
+                                <button
+                                    type="button"
+                                    className="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        setNotificationOpen(false);
+                                        setNoteError("");
+                                        setNoteContent("Expected Lodgement Date has passed. Requested updated lodgement date.");
+                                        setNoteOpen(true);
+                                    }}
+                                >
+                                    Create Note
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <p>No notifications for this deal.</p>
+                    )}
+                </div>
+            )}
+
+            {expectedLodgementOpen && (
+                <div className="modal-backdrop" onClick={() => setExpectedLodgementOpen(false)}>
+                    <div className="readvance-modal expected-date-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="readvance-modal-header">
+                            <h3>Update Expected Lodgement Date</h3>
+                        </div>
+                        <label>
+                            Expected Lodgement Date
+                            <input
+                                type="date"
+                                value={expectedLodgementDate}
+                                onChange={(event) => setExpectedLodgementDate(event.target.value)}
+                                max="9999-12-31"
+                            />
+                        </label>
+                        {expectedLodgementError && <p className="error">{expectedLodgementError}</p>}
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                            <button type="button" className="button" onClick={handleExpectedLodgementSave} disabled={expectedLodgementSaving}>
+                                {expectedLodgementSaving ? "Saving…" : "Save"}
+                            </button>
+                            <button type="button" className="button" onClick={() => setExpectedLodgementOpen(false)}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {noteOpen && (
                 <div className="modal-backdrop" onClick={() => setNoteOpen(false)}>

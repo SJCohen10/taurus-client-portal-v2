@@ -2,6 +2,9 @@
 
 const { URL } = require("url");
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACCOUNT_ID_REGEX = /^[A-Za-z0-9_-]{6,100}$/;
+
 // Helper to send JSON responses
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
@@ -115,10 +118,12 @@ async function getDealsForPortal({ email, accountId }) {
     // Build criteria based on email/accountId
     const criteriaParts = [];
     if (email) {
-        criteriaParts.push(`"Contact_Email"='${email}'`);
+        const escapedEmail = email.replace(/'/g, "\\'");
+        criteriaParts.push(`"Contact_Email"='${escapedEmail}'`);
     }
     if (accountId) {
-        criteriaParts.push(`"Account_Id"='${accountId}'`);
+        const escapedAccountId = accountId.replace(/'/g, "\\'");
+        criteriaParts.push(`"Account_Id"='${escapedAccountId}'`);
     }
     const criteria = criteriaParts.length ? criteriaParts.join(" OR ") : "1=0";
 
@@ -254,14 +259,26 @@ async function getDealsForPortal({ email, accountId }) {
 module.exports = async (req, res) => {
     try {
         const parsedUrl = new URL(req.url, "http://dummy-host");
-        const email = parsedUrl.searchParams.get("email") || "";
-        const accountId = parsedUrl.searchParams.get("accountId") || "";
+        const email = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
+        const accountId = (parsedUrl.searchParams.get("accountId") || "").trim();
 
 
 
         if (!email && !accountId) {
             return sendJson(res, 400, {
                 error: "Missing 'email' or 'accountId' query parameter.",
+            });
+        }
+
+        if (email && !EMAIL_REGEX.test(email)) {
+            return sendJson(res, 400, {
+                error: "Invalid email query parameter.",
+            });
+        }
+
+        if (accountId && !ACCOUNT_ID_REGEX.test(accountId)) {
+            return sendJson(res, 400, {
+                error: "Invalid accountId query parameter.",
             });
         }
 
@@ -275,7 +292,7 @@ module.exports = async (req, res) => {
         console.error("Error in getportaldeals:", err);
         return sendJson(res, 500, {
             error: "Internal server error in getportaldeals.",
-            details: err.message,
+
         });
     }
 };

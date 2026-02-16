@@ -11,9 +11,16 @@ module.exports = async (req, res) => {
         const catalyst = require("zcatalyst-sdk-node");
         const app = catalyst.initialize(req);
 
-        const dealId = String(req.query?.dealId || "").trim();
-        const email = String(req.query?.email || "").trim().toLowerCase();
-        const includeRead = String(req.query?.includeRead || "false") === "true";
+        const parsedUrl = new URL(req.url, "http://dummy-host");
+        const dealId = String(
+            req.query?.dealId || req.params?.dealId || parsedUrl.searchParams.get("dealId") || ""
+        ).trim();
+        const email = String(
+            req.query?.email || req.params?.email || parsedUrl.searchParams.get("email") || ""
+        ).trim().toLowerCase();
+        const includeRead = String(
+            req.query?.includeRead || req.params?.includeRead || parsedUrl.searchParams.get("includeRead") || "false"
+        ) === "true";
 
         if (!dealId) {
             return sendJson(res, 400, { error: "Missing dealId" });

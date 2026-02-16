@@ -208,6 +208,8 @@
     right: 0;
     background: #ffffff;
     z-index: 1;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .actions-header {

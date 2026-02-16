@@ -415,7 +415,7 @@ export default function ParalegalDashboard() {
             </header>
 
             <div className="dashboard-actions">
-                <div className="card action-card"><h3>Quick Bridge Application</h3><p className="subtle">Start a new request with your firm’s preferred quick rates bank details.</p><Link className="button" to="/quick-rates">Start Quick Bridge Application</Link></div>
+                <div className="card action-card"><h3>Quick Bridge Application</h3><p className="subtle">Start a new application with your firm’s preferred Quick Bridge bank details.</p><Link className="button" to="/quick-rates">Start Quick Bridge Application</Link></div>
                 <div className="card action-card"><h3>Seller Application</h3><p className="subtle">Create a seller proceeds request and keep your pipeline moving.</p><Link className="button" to="/seller-proceeds">Start Seller Application</Link></div>
                 <div className="card action-card"><h3>Agent Referral</h3><p className="subtle">Refer an estate agent deal by completing a quick referral form.</p><button className="button" type="button" onClick={() => setAgentReferralOpen(true)}>Open Agent Referral Form</button></div>
             </div>
@@ -441,7 +441,7 @@ export default function ParalegalDashboard() {
             <section className="dashboard-table-section">
                 <div className="section-header">
                     <h2 className="section-title">{view === "my" ? "My Deals" : "Firm Deals"}</h2>
-                    <p className="section-subtitle">View Deal Details, Generate Statements and Upload Documents</p>
+                    <p className="section-subtitle">View & Update Deals, Generate Statements and Upload Documents</p>
                 </div>
 
                 {loading && <div className="dashboard-message">Loading deals…</div>}

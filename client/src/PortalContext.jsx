@@ -2,7 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 const PortalContext = createContext(null);
 
-const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
+function getDevImpersonationEmail() {
+  if (process.env.NODE_ENV !== "development") return "";
+  return (process.env.REACT_APP_DEV_IMPERSONATE_EMAIL || "").trim().toLowerCase();
+}
 
 export function PortalProvider({ children }) {
   const [user, setUser] = useState(null);         // optional
@@ -13,12 +16,13 @@ export function PortalProvider({ children }) {
 
   function resolveEmail() {
     const pu = window.portalUser || {};
+    const devImpersonationEmail = getDevImpersonationEmail();
     return (
       pu.email ||
       pu.email_id ||
       pu.user_mailid ||
       pu.user_email ||
-      (process.env.NODE_ENV === "development" ? DEV_DEFAULT_EMAIL : "")
+      devImpersonationEmail
     );
   }
 
@@ -65,7 +69,7 @@ export function PortalProvider({ children }) {
         const ctx = await loadContext(resolvedEmail);
         setContext(ctx);
 
-      
+
       } catch (e) {
         console.error(e);
         setError(e.message || "Failed to load portal context");

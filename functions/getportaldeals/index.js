@@ -225,6 +225,7 @@ async function getDealsForPortal({ email, accountId }) {
         const currentBalance = parseNumber(row["Current Balance"]);
         const upsellAvailable = parseNumber(row["Upsell Available"]);
 
+        const seller = row["Seller"] || row["seller"] || row["Seller Name"] || null;
 
         return {
             property_ref_number: row["Property Ref Number"] || null,
@@ -246,6 +247,7 @@ async function getDealsForPortal({ email, accountId }) {
             seller_account_id: sellerAccountId,
             deal_id: row["Deal_Id"] || null,
             expectedLodgementDate: row["Expected_Lodgement_Date"] || null,
+            seller,
         };
 
     });

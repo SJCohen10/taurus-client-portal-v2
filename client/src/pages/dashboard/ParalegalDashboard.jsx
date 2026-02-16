@@ -6,8 +6,12 @@ import DealActions from "./components/DealActions";
 import "./ParalegalDashboard.css";
 
 
-const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
-const DEV_DEFAULT_NAME = "Sandbox Paralegal";
+const DEV_DEFAULT_NAME = "Developer Impersonation";
+
+function getDevImpersonationEmail() {
+    if (process.env.NODE_ENV !== "development") return "";
+    return (process.env.REACT_APP_DEV_IMPERSONATE_EMAIL || "").trim().toLowerCase();
+}
 const DEFAULT_OPEN_SECTIONS = { pending: true, active: true, closed: false, other: false };
 const STATUS_BUCKETS = {
     pending: new Set(["pending review"]),
@@ -58,9 +62,9 @@ function getPortalUserDisplay(portalContext) {
         };
     }
 
-    if (process.env.NODE_ENV === "development") {
-
-        return { name: DEV_DEFAULT_NAME, email: DEV_DEFAULT_EMAIL };
+    const devEmail = getDevImpersonationEmail();
+    if (devEmail) {
+        return { name: DEV_DEFAULT_NAME, email: devEmail };
     }
 
     return { name: "Portal User", email: "" };
@@ -89,6 +93,7 @@ function valueFor(deal, key) {
         upsell_available: deal?.["Upsell Available"],
         deal_id: deal?.["Deal_Id"] || deal?.["Deal Id"],
         expectedLodgementDate: deal?.["Expected_Lodgement_Date"],
+        seller: deal?.Seller ?? deal?.["Seller"],
     };
     const raw = deal?.[key] ?? fallback[key];
     if (key === "amount" || key === "current_balance" || key === "upsell_available") {

@@ -132,7 +132,14 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         .filter(Boolean);
 
     const propertyFolderId = deal.property_folder_id || deal["Property Folder Id"] || null;
-     const dealId = deal.deal_id || deal.id || deal["Deal Id"] || deal["Id"] || null;
+    const dealId =
+        deal.deal_id ||
+        deal.dealId ||
+        deal["Deal_Id"] ||
+        deal["Deal Id"] ||
+        deal.id ||
+        deal["Id"] ||
+        null;
 
 
     // Close popup on outside click / ESC
@@ -688,6 +695,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 >
                     {notificationsLoading ? (
                         <p>Loading notifications…</p>
+                    ) : !dealId ? (
+                        <p>Missing deal ID</p>
                     ) : notificationCount > 0 ? (
                         <>
                             {mergedNotifications.map((n) => (

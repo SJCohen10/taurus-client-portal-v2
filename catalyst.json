@@ -10,7 +10,10 @@
       "getbankdetailsforaccount",
       "getdealtransactions",
       "createnote",
-      "updateexpectedlodgementdate"
+      "updateexpectedlodgementdate",
+      "createnotification",
+      "marknotificationread",
+      "listnotifications"
     ],
     "ignore": [],
     "source": "functions"

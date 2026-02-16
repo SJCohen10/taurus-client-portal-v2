@@ -4,11 +4,13 @@
 // In prod: use relative /server (works when app is hosted on Catalyst)
 const API_BASE =
   process.env.NODE_ENV === "development"
-    ? "https://taurus-client-portal-889090616.development.catalystserverless.com/server"
+    ? (process.env.REACT_APP_API_BASE || "https://taurus-client-portal-889090616.development.catalystserverless.com") + "/server"
     : "/server";
 
-// Dev-only fallback email for local testing
-const DEV_DEFAULT_EMAIL = "paralegal.sandbox@lawfirm.co.za";
+function getDevImpersonationEmail() {
+  if (process.env.NODE_ENV !== "development") return "";
+  return (process.env.REACT_APP_DEV_IMPERSONATE_EMAIL || "").trim().toLowerCase();
+}
 
 function getPortalUserEmail(explicitEmail) {
   if (explicitEmail) {
@@ -19,9 +21,10 @@ function getPortalUserEmail(explicitEmail) {
     return window.portalUser.email;
   }
 
-  // 2) In development, fall back to sandbox paralegal
-  if (process.env.NODE_ENV === "development") {
-    return DEV_DEFAULT_EMAIL;
+  // 2) In development, optional impersonation for local testing
+  const devEmail = getDevImpersonationEmail();
+  if (devEmail) {
+    return devEmail;
   }
 
   // 3) In production, fail if no user
@@ -36,14 +39,30 @@ async function handleResponse(res) {
   return res.json();
 }
 
-// 👇 Deals for the logged-in portal user (paralegal / conveyancer)
+function normalizeDeal(deal = {}) {
+  const seller = deal.seller ?? deal.Seller ?? deal["Seller"] ?? deal["seller"] ?? null;
+  return {
+    ...deal,
+    seller,
+  };
+}
+
+function normalizeDealsPayload(payload = {}) {
+  return {
+    ...payload,
+    deals: Array.isArray(payload.deals) ? payload.deals.map(normalizeDeal) : [],
+  };
+}
+
+// Deals for the logged-in portal user (paralegal / conveyancer)
 export async function fetchMyDeals(emailOverride) {
   const email = getPortalUserEmail(emailOverride);
   const url = `${API_BASE}/getportaldeals?email=${encodeURIComponent(email)}`;
 
 
   const res = await fetch(url, { method: "GET" });
-  return handleResponse(res);
+  const data = await handleResponse(res);
+  return normalizeDealsPayload(data);
 }
 
 
@@ -67,7 +86,8 @@ export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
     method: "GET",
   });
 
-  return handleResponse(res);
+  const data = await handleResponse(res);
+  return normalizeDealsPayload(data);
 }
 
 export async function fetchDealTransactions({ email, assetIds }) {
@@ -101,6 +121,8 @@ export async function updateExpectedLodgementDate(payload) {
 }
 
 
+
+
 //Upload a document for a specific deal/property
 export async function uploadDealDocument(payload) {
   const res = await fetch(`${API_BASE}/uploaddealdocument`, {
@@ -119,7 +141,8 @@ export async function fetchBankDetailsForAccount({ accountId, avsOnly = false })
   )}&avsOnly=${avsOnly ? "true" : "false"}`;
 
   const res = await fetch(url, { method: "GET" });
-  return handleResponse(res);
+  const data = await handleResponse(res);
+  return normalizeDealsPayload(data);
 }
 
 
@@ -133,3 +156,44 @@ export async function generateStatement({ assetId }) {
 
   return handleResponse(res);
 }
+
+// --- Notifications (Catalyst Data Store) ---
+
+export async function listNotifications({ email, dealId, includeRead = false } = {}) {
+  const safeEmail = getPortalUserEmail(email);
+
+  if (!dealId) throw new Error("Missing dealId");
+
+  const params = new URLSearchParams();
+  if (safeEmail) params.set("email", safeEmail);
+  params.set("dealId", String(dealId));
+  params.set("includeRead", includeRead ? "true" : "false");
+
+  const url = `${API_BASE}/listnotifications?${params.toString()}`;
+
+  const res = await fetch(url, { method: "GET" });
+  return handleResponse(res);
+}
+
+export async function createNotification(payload) {
+  const res = await fetch(`${API_BASE}/createnotification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  return handleResponse(res);
+}
+
+export async function markNotificationRead({ id }) {
+  if (!id) throw new Error("Missing id");
+
+  const res = await fetch(`${API_BASE}/marknotificationread`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+
+  return handleResponse(res);
+}
+

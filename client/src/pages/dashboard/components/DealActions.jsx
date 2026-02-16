@@ -6,6 +6,8 @@ import {
     fetchBankDetailsForAccount,
     createNote,
     updateExpectedLodgementDate,
+    listNotifications,
+    markNotificationRead,
 
 } from "../../../services/portalApi";
 import "./DealActionsModal.css";
@@ -99,6 +101,10 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const [notificationOpen, setNotificationOpen] = useState(false);
 
 
+    const [persistedNotifications, setPersistedNotifications] = useState([]);
+    const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+
     const rootRef = useRef(null);
     const menuRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -126,15 +132,21 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         .filter(Boolean);
 
     const propertyFolderId = deal.property_folder_id || deal["Property Folder Id"] || null;
-    const dealId = deal.deal_id || deal.id || deal["Deal Id"] || deal["Id"] || null;
+     const dealId = deal.deal_id || deal.id || deal["Deal Id"] || deal["Id"] || null;
+
 
     // Close popup on outside click / ESC
     useEffect(() => {
         function onDocClick(e) {
             const inRoot = rootRef.current?.contains(e.target);
             const inMenu = menuRef.current?.contains(e.target);
-            if (!inRoot && !inMenu) setOpen(false);
+
+            if (!inRoot && !inMenu) {
+                setOpen(false);
+                setNotificationOpen(false);
+            }
         }
+
 
         function onEsc(e) {
             if (e.key === "Escape") setOpen(false);
@@ -379,6 +391,26 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
     const needsExpectedLodgementAttention = hasExpectedLodgementAttention(deal);
 
+    const computedNotifications = needsExpectedLodgementAttention
+        ? [
+            {
+                id: "expected-lodgement-overdue",
+                message: "Expected Lodgement Date has passed. Please update it.",
+                source: "computed",
+            },
+        ]
+        : [];
+
+    const mergedNotifications = [
+        ...(Array.isArray(persistedNotifications)
+            ? persistedNotifications.map((n) => ({ ...n, source: "persisted" }))
+            : []),
+        ...computedNotifications,
+    ];
+
+    const notificationCount = mergedNotifications.length;
+
+
     async function handleSaveNote(event) {
         event.stopPropagation();
 
@@ -419,12 +451,36 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         }
     }
 
+    function handleNotificationClick(notification) {
+        if (!notification) return;
+
+        // your computed notification
+        if (notification.id === "expected-lodgement-overdue") {
+            openExpectedLodgementModal();
+            return;
+        }
+
+        // future persisted types
+        if (notification.type === "UPDATE_EXPECTED_LODGEMENT_DATE") {
+            openExpectedLodgementModal();
+            return;
+        }
+
+        // fallback: open note with message
+        setNotificationOpen(false);
+        setNoteError("");
+        setNoteContent(notification.message || "");
+        setNoteOpen(true);
+    }
+
+
+
     return (
         <div
             ref={rootRef}
             className="deal-actions"
             onClick={(e) => e.stopPropagation()}
-            style={{ position: "relative", display: "inline-block" }}
+
         >
             <input
                 type="file"
@@ -435,12 +491,42 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
             <button
                 type="button"
-                className={`deal-notification-button ${needsExpectedLodgementAttention ? "active" : ""}`}
-                aria-label="Deal notifications"
-                title={needsExpectedLodgementAttention ? "Expected Lodgement Date needs attention" : "No pending notifications"}
-                onClick={() => setNotificationOpen((prev) => !prev)}
+                className={`deal-notification-button ${notificationCount > 0 ? "active" : ""}`}
+                aria-label={`Deal notifications (${notificationCount})`}
+                title={notificationCount > 0 ? `${notificationCount} pending notification${notificationCount > 1 ? "s" : ""}` : "No pending notifications"}
+                onClick={async (e) => {
+                    e.stopPropagation();
+                    const nextOpen = !notificationOpen;
+                    setNotificationOpen(nextOpen);
+
+                    // only fetch on open
+                    if (nextOpen) {
+                        const resolvedDealId = String(dealId || "").trim();
+                        if (!resolvedDealId) {
+                            // Optional: show a friendly message instead of a console error
+                            setPersistedNotifications([]);
+                            setNotificationsLoading(false);
+                            return;
+                        }
+
+                        try {
+                            setNotificationsLoading(true);
+                            const resp = await listNotifications({
+                                email: portalEmail,
+                                dealId: String(dealId),
+                            });
+                            setPersistedNotifications(resp?.notifications || []);
+                        } catch (err) {
+                            console.error("Failed to load notifications", err);
+                            setPersistedNotifications([]);
+                        } finally {
+                            setNotificationsLoading(false);
+                        }
+                    }
+                }}
+
             >
-                🔔
+                🔔 {notificationCount > 0 ? `(${notificationCount})` : ""}
             </button>
 
             <button
@@ -596,34 +682,47 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 )}
 
             {notificationOpen && (
-                <div className="deal-notification-popover" onClick={(event) => event.stopPropagation()}>
-                    {needsExpectedLodgementAttention ? (
+                <div
+                    className="deal-notification-popover"
+                    onClick={(event) => event.stopPropagation()}
+                >
+                    {notificationsLoading ? (
+                        <p>Loading notifications…</p>
+                    ) : notificationCount > 0 ? (
                         <>
-                            <p>Expected Lodgement Date has passed. Please update it.</p>
-                            <div className="deal-notification-actions">
-                                <button type="button" className="button" onClick={openExpectedLodgementModal}>
-                                    Update Expected Lodgement Date
-                                </button>
+                            {mergedNotifications.map((n) => (
                                 <button
+                                    key={String(n.id)}
                                     type="button"
-                                    className="button"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        setNotificationOpen(false);
-                                        setNoteError("");
-                                        setNoteContent("Expected Lodgement Date has passed. Requested updated lodgement date.");
-                                        setNoteOpen(true);
+                                    className="deal-notification-item"
+                                    onClick={async (e) => {
+                                        e.stopPropagation();
+
+                                        if (n.source === "persisted") {
+                                            try {
+                                                await markNotificationRead({ id: String(n.id) });
+                                                setPersistedNotifications((prev) =>
+                                                    prev.filter((x) => String(x.id) !== String(n.id))
+                                                );
+                                            } catch (err) {
+                                                console.warn("Failed to mark notification read", err);
+                                            }
+                                        }
+
+                                        handleNotificationClick(n);
                                     }}
                                 >
-                                    Create Note
+                                    {n.message}
                                 </button>
-                            </div>
+                            ))}
                         </>
                     ) : (
                         <p>No notifications for this deal.</p>
                     )}
                 </div>
             )}
+
+
 
             {expectedLodgementOpen && (
                 <div className="modal-backdrop" onClick={() => setExpectedLodgementOpen(false)}>

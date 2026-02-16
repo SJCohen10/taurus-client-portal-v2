@@ -89,21 +89,35 @@
     }
 }
 
+.deal-actions {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .deal-notification-button {
     position: relative;
-    width: 32px;
+    min-width: 46px;
     height: 32px;
+    padding: 0 8px;
     border-radius: 999px;
     border: 1px solid #d1d5db;
     background: #f8fafc;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    font-size: 0.78rem;
+    line-height: 1;
 }
 
 .deal-notification-button.active::after {
     content: "";
     position: absolute;
-    top: 6px;
-    right: 7px;
+    top: 5px;
+    right: 6px;
     width: 7px;
     height: 7px;
     border-radius: 999px;

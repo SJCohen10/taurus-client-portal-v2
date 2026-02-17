@@ -186,14 +186,12 @@ export async function createNotification(payload) {
 }
 
 export async function markNotificationRead({ id }) {
-  if (!id) throw new Error("Missing id");
-
   const res = await fetch(`${API_BASE}/marknotificationread`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id }),
   });
-
   return handleResponse(res);
 }
+
 

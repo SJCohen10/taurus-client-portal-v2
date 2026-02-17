@@ -43,7 +43,17 @@ function hasExpectedLodgementAttention(deal) {
     return todayIso > expectedDate;
 }
 
+function resolveNotificationId(notification) {
+    if (!notification || typeof notification !== "object") return "";
 
+    return String(
+        notification.id ||
+        notification.ID ||
+        notification.ROWID ||
+        notification.rowid ||
+        ""
+    ).trim();
+}
 
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
@@ -103,11 +113,13 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
     const [persistedNotifications, setPersistedNotifications] = useState([]);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
-
+    const [notificationsError, setNotificationsError] = useState("");
+    const [notificationPopoverPos, setNotificationPopoverPos] = useState({ top: 0, left: 0 });
 
     const rootRef = useRef(null);
     const menuRef = useRef(null);
     const fileInputRef = useRef(null);
+    const notificationButtonRef = useRef(null);
 
     const propertyRefNumber =
         deal.property_ref_number ||
@@ -417,6 +429,39 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
     const notificationCount = mergedNotifications.length;
 
+    async function fetchPersistedNotifications({ showLoading = false, suppressError = false } = {}) {
+        const resolvedDealId = String(dealId || "").trim();
+        if (!resolvedDealId) {
+            setPersistedNotifications([]);
+            return;
+        }
+
+        try {
+            if (showLoading) setNotificationsLoading(true);
+            console.log("[DealActions] Notifications fetch start", { resolvedDealId, source: showLoading ? "click" : "preload" });
+            const resp = await listNotifications({
+                email: portalEmail,
+                dealId: resolvedDealId,
+            });
+            const fetchedNotifications = Array.isArray(resp?.notifications) ? resp.notifications : [];
+            console.log("[DealActions] Notifications fetch success", { count: fetchedNotifications.length, source: showLoading ? "click" : "preload" });
+            setPersistedNotifications(fetchedNotifications);
+        } catch (err) {
+            console.error("[DealActions] Notifications fetch failure", err);
+            if (!suppressError) {
+                setNotificationsError(err?.message || "Unable to load notifications right now.");
+            }
+            setPersistedNotifications([]);
+        } finally {
+            if (showLoading) setNotificationsLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        setNotificationsError("");
+        fetchPersistedNotifications({ suppressError: true });
+    }, [dealId, portalEmail]);
+
 
     async function handleSaveNote(event) {
         event.stopPropagation();
@@ -501,35 +546,34 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 className={`deal-notification-button ${notificationCount > 0 ? "active" : ""}`}
                 aria-label={`Deal notifications (${notificationCount})`}
                 title={notificationCount > 0 ? `${notificationCount} pending notification${notificationCount > 1 ? "s" : ""}` : "No pending notifications"}
+                ref={notificationButtonRef}
                 onClick={async (e) => {
                     e.stopPropagation();
                     const nextOpen = !notificationOpen;
+                    console.log("[DealActions] Notification bell clicked", { nextOpen, dealId, portalEmail });
                     setNotificationOpen(nextOpen);
+                    if (!nextOpen) return;
 
-                    // only fetch on open
-                    if (nextOpen) {
-                        const resolvedDealId = String(dealId || "").trim();
-                        if (!resolvedDealId) {
-                            // Optional: show a friendly message instead of a console error
-                            setPersistedNotifications([]);
-                            setNotificationsLoading(false);
-                            return;
-                        }
-
-                        try {
-                            setNotificationsLoading(true);
-                            const resp = await listNotifications({
-                                email: portalEmail,
-                                dealId: String(dealId),
-                            });
-                            setPersistedNotifications(resp?.notifications || []);
-                        } catch (err) {
-                            console.error("Failed to load notifications", err);
-                            setPersistedNotifications([]);
-                        } finally {
-                            setNotificationsLoading(false);
-                        }
+                    const bellRect = notificationButtonRef.current?.getBoundingClientRect();
+                    if (bellRect) {
+                        setNotificationPopoverPos({
+                            top: bellRect.bottom + 8,
+                            left: Math.max(12, bellRect.right - 260),
+                        });
                     }
+
+                    setNotificationsError("");
+
+
+                    const resolvedDealId = String(dealId || "").trim();
+                    if (!resolvedDealId) {
+                        // Root cause identified: some rows do not carry a deal id, so API fetch cannot run.
+                        // Keep the popover open anyway and fall back to the explicit empty-state message.
+                        console.log("[DealActions] No deal id found for this row, showing empty notification state.");
+                        return;
+                    }
+
+                    await fetchPersistedNotifications({ showLoading: true });
                 }}
 
             >
@@ -692,38 +736,51 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 <div
                     className="deal-notification-popover"
                     onClick={(event) => event.stopPropagation()}
+                    style={{
+                        position: "fixed",
+                        top: notificationPopoverPos.top,
+                        left: notificationPopoverPos.left,
+                        right: "auto",
+                    }}
                 >
                     {notificationsLoading ? (
                         <p>Loading notifications…</p>
-                    ) : !dealId ? (
-                        <p>Missing deal ID</p>
+                    ) : notificationsError ? (
+                        <p>{notificationsError}</p>
                     ) : notificationCount > 0 ? (
                         <>
-                            {mergedNotifications.map((n) => (
-                                <button
-                                    key={String(n.id)}
-                                    type="button"
-                                    className="deal-notification-item"
-                                    onClick={async (e) => {
-                                        e.stopPropagation();
+                            {mergedNotifications.map((n) => {
+                                const notificationId = resolveNotificationId(n);
+                                const notificationKey = notificationId || String(n.message || n.type || "notification");
 
-                                        if (n.source === "persisted") {
-                                            try {
-                                                await markNotificationRead({ id: String(n.id) });
-                                                setPersistedNotifications((prev) =>
-                                                    prev.filter((x) => String(x.id) !== String(n.id))
-                                                );
-                                            } catch (err) {
-                                                console.warn("Failed to mark notification read", err);
+                                return (
+                                    <button
+                                        key={notificationKey}
+                                        type="button"
+                                        className="deal-notification-item"
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+
+                                            if (n.source === "persisted" && notificationId) {
+                                                try {
+                                                    await markNotificationRead({ id: notificationId });
+                                                    setPersistedNotifications((prev) =>
+                                                        prev.filter((x) => resolveNotificationId(x) !== notificationId)
+                                                    );
+                                                } catch (err) {
+                                                    console.warn("Failed to mark notification read", err);
+                                                }
+                                            } else if (n.source === "persisted") {
+                                                console.warn("Skipping mark read: persisted notification has no id", n);
                                             }
-                                        }
 
-                                        handleNotificationClick(n);
-                                    }}
-                                >
-                                    {n.message}
-                                </button>
-                            ))}
+                                            handleNotificationClick(n);
+                                        }}
+                                    >
+                                        {n.message}
+                                    </button>
+                                );
+                            })}
                         </>
                     ) : (
                         <p>No notifications for this deal.</p>

@@ -144,6 +144,37 @@
     color: #b91c1c;
 }
 
+.table-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.table-filter-input,
+.table-filter-select {
+    min-height: 36px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    padding: 6px 10px;
+    background: #fff;
+}
+
+.table-filter-input {
+    flex: 1;
+    min-width: 260px;
+}
+
+.table-filter-clear {
+    min-height: 36px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    background: #f8fafc;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
 .deals-table-wrapper {
     overflow-x: hidden;
 }

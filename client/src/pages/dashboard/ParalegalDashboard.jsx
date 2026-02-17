@@ -182,6 +182,8 @@ export default function ParalegalDashboard() {
     const [transactionsLoading, setTransactionsLoading] = useState(false);
     const [transactionsError, setTransactionsError] = useState("");
     const [transactions, setTransactions] = useState([]);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
 
 
 
@@ -252,6 +254,41 @@ export default function ParalegalDashboard() {
 
     }, [accountId, deals, displayEmail, view]);
 
+    const statusOptions = useMemo(() => {
+        const options = new Set();
+        visibleDeals.forEach((deal) => {
+            const status = String(deal?.status ?? deal?.Status ?? "").trim();
+            if (status) options.add(status);
+        });
+        return Array.from(options).sort((a, b) => a.localeCompare(b));
+    }, [visibleDeals]);
+
+    const filteredDeals = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        const selectedStatus = statusFilter.trim().toLowerCase();
+
+        return visibleDeals.filter((deal) => {
+            const rawStatus = String(deal?.status ?? deal?.Status ?? "").trim();
+            if (selectedStatus !== "all" && rawStatus.toLowerCase() !== selectedStatus) {
+                return false;
+            }
+
+            if (!query) return true;
+
+            const searchCandidates = [
+                deal?.property_ref_number,
+                deal?.["Property Ref Number"],
+                deal?.property_description,
+                deal?.["Property Description"],
+                rawStatus,
+                deal?.seller,
+                deal?.Seller,
+                deal?.contact_email,
+            ];
+
+            return searchCandidates.some((value) => String(value || "").toLowerCase().includes(query));
+        });
+    }, [searchQuery, statusFilter, visibleDeals]);
 
     const dealBuckets = useMemo(() => {
 
@@ -261,7 +298,7 @@ export default function ParalegalDashboard() {
         const closed = [];
         const other = [];
 
-        for (const deal of visibleDeals) {
+        for (const deal of filteredDeals) {
             const status = normalizeStatus(deal?.status ?? deal?.Status);
             if (STATUS_BUCKETS.pending.has(status)) pending.push(deal);
             else if (STATUS_BUCKETS.active.has(status)) active.push(deal);
@@ -270,7 +307,7 @@ export default function ParalegalDashboard() {
         }
 
         return { pending, active, closed, other };
-    }, [visibleDeals]);
+    }, [filteredDeals]);
 
     const stats = useMemo(() => {
         const total = visibleDeals.length;
@@ -278,9 +315,17 @@ export default function ParalegalDashboard() {
             const status = normalizeStatus(deal?.status ?? deal?.Status);
             return STATUS_BUCKETS.active.has(status) || STATUS_BUCKETS.pending.has(status);
         });
-        const totalAmount = activeList.reduce((sum, deal) => sum + (parseNumber(deal.amount) || 0), 0);
-        return { total, activeCount: activeList.length, totalAmount };
+        const currentExposure = visibleDeals.reduce((sum, deal) => {
+            const currentBalance = parseNumber(deal.current_balance ?? deal["Current Balance"]);
+            return sum + (currentBalance || 0);
+        }, 0);
+        return { total, activeCount: activeList.length, currentExposure };
     }, [visibleDeals]);
+
+    function clearFilters() {
+        setSearchQuery("");
+        setStatusFilter("all");
+    }
 
     function handleDealUpdate(updatedDeal) {
         const existingDealId = String(updatedDeal?.deal_id || updatedDeal?.dealId || "");
@@ -440,13 +485,36 @@ export default function ParalegalDashboard() {
             <section className="dashboard-stats">
                 <div className="stat-card"><div className="stat-label">Deals in view</div><div className="stat-value">{stats.total}</div></div>
                 <div className="stat-card"><div className="stat-label">Active / In-Process</div><div className="stat-value">{stats.activeCount}</div></div>
-                <div className="stat-card"><div className="stat-label">Total Amount</div><div className="stat-value">R {stats.totalAmount.toLocaleString("en-ZA")}</div></div>
+                <div className="stat-card"><div className="stat-label">Current Exposure</div><div className="stat-value">{new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(stats.currentExposure)}</div></div>
             </section>
 
             <section className="dashboard-table-section">
                 <div className="section-header">
                     <h2 className="section-title">{view === "my" ? "My Deals" : "Firm Deals"}</h2>
                     <p className="section-subtitle">View & Update Deals, Generate Statements and Upload Documents</p>
+                </div>
+
+                <div className="table-filter-bar">
+                    <input
+                        type="search"
+                        className="table-filter-input"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Search Property Ref, Description, Status, Seller..."
+                        aria-label="Search deals"
+                    />
+                    <select
+                        className="table-filter-select"
+                        value={statusFilter}
+                        onChange={(event) => setStatusFilter(event.target.value)}
+                        aria-label="Filter deals by status"
+                    >
+                        <option value="all">All statuses</option>
+                        {statusOptions.map((status) => (
+                            <option key={status} value={status.toLowerCase()}>{status}</option>
+                        ))}
+                    </select>
+                    <button type="button" className="table-filter-clear" onClick={clearFilters}>Clear filters</button>
                 </div>
 
                 {loading && <div className="dashboard-message">Loading deals…</div>}

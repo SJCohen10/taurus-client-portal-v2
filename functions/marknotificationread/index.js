@@ -7,14 +7,32 @@ function sendJson(res, statusCode, payload) {
 }
 
 function parseBody(req) {
-    if (!req.body) return {};
-    if (typeof req.body === "object") return req.body;
-    try {
-        return JSON.parse(req.body);
-    } catch {
-        return {};
+    if (req.body == null) return {};
+
+    // Catalyst / Node may provide Buffer
+    if (Buffer.isBuffer(req.body)) {
+        try {
+            return JSON.parse(req.body.toString("utf8"));
+        } catch {
+            return {};
+        }
     }
+
+    // If already parsed
+    if (typeof req.body === "object") return req.body;
+
+    // If string
+    if (typeof req.body === "string") {
+        try {
+            return JSON.parse(req.body);
+        } catch {
+            return {};
+        }
+    }
+
+    return {};
 }
+
 
 module.exports = async (req, res) => {
     try {
@@ -29,7 +47,8 @@ module.exports = async (req, res) => {
         const table = app.datastore().table("portal_notifications");
 
         // UpdateRow requires id plus changed fields
-        const updated = await table.updateRow({ id, is_read: true });
+        const updated = await table.updateRow({ ROWID: id, is_read: true });
+
 
         return sendJson(res, 200, { notification: updated });
     } catch (err) {

@@ -1,5 +1,7 @@
 "use strict";
 
+const { _internals: portalDealsInternals } = require("../getportaldeals/index.js");
+
 function sendJson(res, statusCode, payload) {
     res.statusCode = statusCode;
     res.setHeader("Content-Type", "application/json");
@@ -8,6 +10,9 @@ function sendJson(res, statusCode, payload) {
 
 module.exports = async (req, res) => {
     try {
+        if (req.method !== "GET") {
+            return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+        }
         const catalyst = require("zcatalyst-sdk-node");
         const app = catalyst.initialize(req);
 
@@ -15,15 +20,32 @@ module.exports = async (req, res) => {
         const dealId = String(
             req.query?.dealId || req.params?.dealId || parsedUrl.searchParams.get("dealId") || ""
         ).trim();
-        const email = String(
+        const requestedEmail = String(
             req.query?.email || req.params?.email || parsedUrl.searchParams.get("email") || ""
         ).trim().toLowerCase();
+        const callerEmail = portalDealsInternals.getCallerEmail(req);
+        const email = callerEmail || requestedEmail;
+        if (!email) {
+            return sendJson(res, 401, { error: "Missing authenticated user email context." });
+        }
+
         const includeRead = String(
             req.query?.includeRead || req.params?.includeRead || parsedUrl.searchParams.get("includeRead") || "false"
         ) === "true";
 
         if (!dealId) {
             return sendJson(res, 400, { error: "Missing dealId" });
+        }
+
+        if (!/^[0-9]{6,30}$/.test(dealId)) {
+            return sendJson(res, 400, { error: "Invalid dealId" });
+        }
+
+
+        const visibleDeals = await portalDealsInternals.getDealsForPortal({ email, accountId: "" });
+        const visibleDealIds = new Set((visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean));
+        if (!visibleDealIds.has(dealId)) {
+            return sendJson(res, 403, { error: "Deal is not authorized for this user." });
         }
 
         const zcql = app.zcql();

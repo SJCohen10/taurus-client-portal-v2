@@ -360,7 +360,6 @@ export default function ParalegalDashboard() {
         try {
             setTransactionsLoading(true);
             const response = await fetchDealTransactions({
-                email: displayEmail,
                 assetIds: assetIds.join(","),
             });
             setTransactions(response.transactions || []);

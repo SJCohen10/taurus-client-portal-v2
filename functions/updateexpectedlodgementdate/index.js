@@ -99,7 +99,8 @@ module.exports = async (req, res) => {
         }
 
         const { accessToken, apiDomain } = await getAccessToken();
-        const url = `${apiDomain}/crm/v8/Deals/${dealId}`;
+        const crmVersion = process.env.ZOHO_CRM_VERSION || "v8";
+        const url = `${apiDomain}/crm/${crmVersion}/Deals/${dealId}`;
 
         const payload = {
             data: [

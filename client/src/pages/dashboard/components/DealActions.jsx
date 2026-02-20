@@ -438,13 +438,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
         try {
             if (showLoading) setNotificationsLoading(true);
-            console.log("[DealActions] Notifications fetch start", { resolvedDealId, source: showLoading ? "click" : "preload" });
             const resp = await listNotifications({
                 email: portalEmail,
                 dealId: resolvedDealId,
             });
             const fetchedNotifications = Array.isArray(resp?.notifications) ? resp.notifications : [];
-            console.log("[DealActions] Notifications fetch success", { count: fetchedNotifications.length, source: showLoading ? "click" : "preload" });
             setPersistedNotifications(fetchedNotifications);
         } catch (err) {
             console.error("[DealActions] Notifications fetch failure", err);
@@ -456,11 +454,6 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             if (showLoading) setNotificationsLoading(false);
         }
     }
-
-    useEffect(() => {
-        setNotificationsError("");
-        fetchPersistedNotifications({ suppressError: true });
-    }, [dealId, portalEmail]);
 
 
     async function handleSaveNote(event) {
@@ -550,7 +543,6 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 onClick={async (e) => {
                     e.stopPropagation();
                     const nextOpen = !notificationOpen;
-                    console.log("[DealActions] Notification bell clicked", { nextOpen, dealId, portalEmail });
                     setNotificationOpen(nextOpen);
                     if (!nextOpen) return;
 
@@ -569,7 +561,6 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                     if (!resolvedDealId) {
                         // Root cause identified: some rows do not carry a deal id, so API fetch cannot run.
                         // Keep the popover open anyway and fall back to the explicit empty-state message.
-                        console.log("[DealActions] No deal id found for this row, showing empty notification state.");
                         return;
                     }
 
@@ -763,7 +754,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
                                             if (n.source === "persisted" && notificationId) {
                                                 try {
-                                                    await markNotificationRead({ id: notificationId });
+                                                    await markNotificationRead({ id: notificationId, email: portalEmail });
                                                     setPersistedNotifications((prev) =>
                                                         prev.filter((x) => resolveNotificationId(x) !== notificationId)
                                                     );

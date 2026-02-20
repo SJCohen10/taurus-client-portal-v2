@@ -39,7 +39,7 @@ export default function Layout() {
           </div>
 
           <img
-            src="/taurus-capital-logo.png"
+            src={`${process.env.PUBLIC_URL}/taurus-capital-logo.png`}
             alt="Taurus Capital"
             className="app-header-logo"
           />

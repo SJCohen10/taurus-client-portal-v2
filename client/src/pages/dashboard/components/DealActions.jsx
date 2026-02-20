@@ -852,9 +852,9 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                         <div className="readvance-modal-header">
                             <h3>Readvance</h3>
                             <img
-                                className="readvance-modal-logo"
-                                src="/taurus-capital-logo.png"
+                                src={`${process.env.PUBLIC_URL}/taurus-capital-logo.png`}
                                 alt="Taurus Capital"
+                                className="app-header-logo"
                             />
                         </div>
                         <p className="readvance-modal-subtitle">Choose the readvance flow you want to continue with.</p>

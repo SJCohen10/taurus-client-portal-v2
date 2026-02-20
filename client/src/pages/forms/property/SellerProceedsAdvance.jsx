@@ -178,12 +178,10 @@ export default function SellerProceedsAdvance({
 
             <div className="card notice-card" style={{ marginBottom: "1.25rem" }}>
                 <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-                    What happens after you submit?
+                    What Happens After You Submit?
                 </h3>
                 <p style={{ margin: 0 }}>
-                    This application automatically generates a contract to be signed by the
-                    Seller(s) and an undertaking to be completed and signed by an authorized
-                    signatory of the Firm.
+                    This application will be submitted to Taurus for review. If approved, the relevant agreements will be prepared and provided to the Seller(s) and an undertaking will be provided to the Conveyancing Law Firm for signature by an authorised signatory of the Firm.
                 </p>
             </div>
 

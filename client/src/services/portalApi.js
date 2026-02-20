@@ -41,9 +41,25 @@ async function handleResponse(res) {
 
 function normalizeDeal(deal = {}) {
   const seller = deal.seller ?? deal.Seller ?? deal["Seller"] ?? deal["seller"] ?? null;
+  const propertyFolderId =
+    deal.propertyFolderId ??
+    deal.property_folder_id ??
+    deal["Property Folder Id"] ??
+    deal["Property Folder ID"] ??
+    deal["Workdrive Folder ID"] ??
+    deal["WorkDrive Folder ID"] ??
+    null;
+  const normalizedDealId = deal.dealId ?? deal.deal_id ?? deal["Deal_Id"] ?? deal["Deal Id"] ?? null;
+  const normalizedPropertyRef = deal.propertyRefNumber ?? deal.property_ref_number ?? deal["Property Ref Number"] ?? null;
+  const normalizedDescription = deal.propertyDescription ?? deal.property_description ?? deal["Property Description"] ?? null;
+
   return {
     ...deal,
     seller,
+    propertyFolderId,
+    dealId: normalizedDealId,
+    propertyRefNumber: normalizedPropertyRef,
+    propertyDescription: normalizedDescription,
   };
 }
 

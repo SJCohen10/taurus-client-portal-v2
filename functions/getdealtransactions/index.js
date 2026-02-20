@@ -1,8 +1,7 @@
 "use strict";
 
 const { URL } = require("url");
-const { _internals: portalDealsInternals } = require("../getportaldeals/index.js");
-
+const portalDeals = require("./lib/portalDeals");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function sendJson(res, statusCode, payload) {
@@ -18,15 +17,17 @@ function safeJsonParse(raw) {
     }
 }
 
+function shortError(message) {
+    return String(message || "Unknown error").slice(0, 220);
+}
+
 async function getAccessToken() {
     const clientId = process.env.ZOHO_CLIENT_ID;
     const clientSecret = process.env.ZOHO_CLIENT_SECRET;
     const refreshToken = process.env.ZOHO_REFRESH_TOKEN;
 
     if (!clientId || !clientSecret || !refreshToken) {
-        throw new Error(
-            "Missing Zoho CRM OAuth env vars: ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN"
-        );
+        throw new Error("Missing Zoho CRM OAuth env vars");
     }
 
     const params = new URLSearchParams({
@@ -47,14 +48,12 @@ async function getAccessToken() {
 
     const raw = await res.text();
     if (!res.ok) {
-        throw new Error(`Failed to fetch Zoho access token (${res.status}): ${raw}`);
+        throw new Error(`Failed to fetch Zoho access token (${res.status})`);
     }
 
     const data = safeJsonParse(raw);
     if (!data.access_token) {
-        throw new Error(
-            `No access token returned by Zoho token endpoint. Response: ${raw}`
-        );
+        throw new Error("No access token returned by Zoho token endpoint");
     }
 
     return {
@@ -64,10 +63,13 @@ async function getAccessToken() {
 }
 
 function parseAssetIds(raw) {
-    if (!raw) return [];
-    const ids = String(raw)
+    if (raw == null) return [];
+    const input = Array.isArray(raw) ? raw.join(",") : String(raw);
+
+    const ids = input
         .split(",")
         .map((value) => value.trim())
+        .filter(Boolean)
         .filter((value) => /^[0-9]+$/.test(value));
 
     return Array.from(new Set(ids)).slice(0, 50);
@@ -92,7 +94,7 @@ async function runCoql({ accessToken, crmBase, query }) {
 
     const raw = await response.text();
     if (!response.ok) {
-        throw new Error(`Zoho CRM COQL error (${response.status}): ${raw}`);
+        throw new Error(`Zoho CRM COQL error (${response.status})`);
     }
 
     const json = safeJsonParse(raw);
@@ -105,8 +107,6 @@ async function getTransactions({ assetIds }) {
     const crmBase = `${apiDomain}/crm/${crmVersion}`;
 
     const inList = assetIds.map((id) => `'${id}'`).join(",");
-
-    // NOTE: Asset is a lookup; Asset.id is usually the correct COQL syntax
     const query =
         `select id, Name, Transaction_Type, Current_Advance_Amount, Asset ` +
         `from Transactions ` +
@@ -122,9 +122,10 @@ module.exports = async (req, res) => {
         }
 
         const parsedUrl = new URL(req.url, "http://dummy-host");
-        const rawAssetIds = parsedUrl.searchParams.get("assetIds") || "";
+        const rawAssetIds =
+            parsedUrl.searchParams.get("assetIds") || req.query?.assetIds || req.params?.assetIds || "";
 
-        const callerEmail = portalDealsInternals.getCallerEmail(req);
+        const callerEmail = portalDeals.getCallerEmail(req);
         const fallbackEmail = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
         const email = callerEmail || fallbackEmail;
 
@@ -135,14 +136,13 @@ module.exports = async (req, res) => {
         }
 
         const assetIds = parseAssetIds(rawAssetIds);
+        console.log("[getdealtransactions] parsed assetIds count", assetIds.length);
+
         if (!assetIds.length) {
-            return sendJson(res, 400, {
-                error: "No valid assetIds provided. Use comma-separated numeric CRM Asset IDs.",
-            });
+            return sendJson(res, 400, { error: "Missing assetIds" });
         }
 
-        // Verify the requested asset ids belong to deals visible to this user
-        const visibleDeals = await portalDealsInternals.getDealsForPortal({ email, accountId: "" });
+        const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
         const allowedAssetIds = new Set();
         for (const deal of visibleDeals || []) {
             String(deal.asset_ids || deal.asset_id || "")
@@ -157,7 +157,16 @@ module.exports = async (req, res) => {
             return sendJson(res, 403, { error: "One or more assetIds are not authorized for this user." });
         }
 
-        const rows = await getTransactions({ assetIds });
+        let rows;
+        try {
+            rows = await getTransactions({ assetIds });
+        } catch (upstreamError) {
+            console.error("getdealtransactions upstream error", upstreamError?.message || upstreamError);
+            return sendJson(res, 502, {
+                error: "Upstream failure",
+                details: shortError(upstreamError?.message),
+            });
+        }
 
         const transactions = rows.map((record) => ({
             id: record.id || null,
@@ -173,10 +182,9 @@ module.exports = async (req, res) => {
             transactions,
         });
     } catch (err) {
-        console.error("getdealtransactions error:", err);
+        console.error("getdealtransactions error:", err?.message || err);
         return sendJson(res, 500, {
             error: "Internal server error in getdealtransactions.",
-            details: err?.message || String(err),
         });
     }
 };

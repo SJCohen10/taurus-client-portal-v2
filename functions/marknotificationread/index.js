@@ -1,6 +1,6 @@
 "use strict";
 
-const { _internals: portalDealsInternals } = require("../getportaldeals/index.js");
+const portalDeals = require("./lib/portalDeals");
 
 function sendJson(res, statusCode, payload) {
     res.statusCode = statusCode;
@@ -47,7 +47,7 @@ module.exports = async (req, res) => {
         const body = parseBody(req);
         const id = String(body.id || "").trim();
         const requestedEmail = String(body.email || "").trim().toLowerCase();
-        const callerEmail = portalDealsInternals.getCallerEmail(req);
+        const callerEmail = portalDeals.getCallerEmail(req);
         const email = callerEmail || requestedEmail;
 
         if (!email) return sendJson(res, 401, { error: "Missing authenticated user email context." });

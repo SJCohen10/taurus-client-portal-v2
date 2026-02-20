@@ -122,6 +122,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const notificationButtonRef = useRef(null);
 
     const propertyRefNumber =
+        deal.propertyRefNumber ||
         deal.property_ref_number ||
         deal.matter_name ||
         deal.deal_ref ||
@@ -129,7 +130,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         "";
 
     const propertyDescription =
-        deal.property_description || deal["Property Description"] || "";
+        deal.propertyDescription || deal.property_description || deal["Property Description"] || "";
 
     const sellerAccountId =
         deal.seller_account_id ||
@@ -143,15 +144,29 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         .map((s) => s.trim())
         .filter(Boolean);
 
-    const propertyFolderId = deal.property_folder_id || deal["Property Folder Id"] || null;
+    const propertyFolderId =
+        deal.propertyFolderId ||
+        deal.property_folder_id ||
+        deal["Property Folder Id"] ||
+        deal["Property Folder ID"] ||
+        deal["Workdrive Folder ID"] ||
+        deal["WorkDrive Folder ID"] ||
+        null;
     const dealId =
-        deal.deal_id ||
         deal.dealId ||
+        deal.deal_id ||
         deal["Deal_Id"] ||
         deal["Deal Id"] ||
         deal.id ||
         deal["Id"] ||
         null;
+
+    const hasUploadFallbackIdentifiers = Boolean(
+        String(dealId || "").trim() ||
+        String(propertyRefNumber || "").trim() ||
+        String(propertyDescription || "").trim()
+    );
+    const canUploadDocument = Boolean(String(propertyFolderId || "").trim()) || hasUploadFallbackIdentifiers;
 
 
     // Close popup on outside click / ESC
@@ -203,13 +218,21 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 fileName: file.name,
                 mimeType: file.type,
                 fileBase64: base64Data,
-                propertyRefNumber,
-                propertyDescription,
-                accountId,
-                contactEmail: portalEmail,
                 propertyFolderId,
                 dealId,
+                propertyRefNumber,
+                propertyDescription,
+                dealReferenceNumber: propertyRefNumber,
+                accountId,
+                contactEmail: portalEmail,
             };
+
+            console.log("[DealActions] upload payload folder source", {
+                propertyFolderId,
+                folderSource: deal.propertyFolderId ? "normalized" : "analytics-row-fallback",
+                dealId,
+                propertyRefNumber,
+            });
 
             const response = await uploadDealDocument(payload);
             setMessage(
@@ -620,7 +643,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                             className="deal-actions-menu-item"
                             role="menuitem"
                             onClick={() => fileInputRef.current?.click()}
-                            disabled={uploading}
+                            disabled={uploading || !canUploadDocument}
+                            title={!canUploadDocument ? "Missing WorkDrive folder or identifiers. Ask support to create a folder / fix Analytics mapping." : "Upload document"}
                             style={{
                                 width: "100%",
                                 textAlign: "left",
@@ -628,7 +652,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 borderRadius: 10,
                                 border: "none",
                                 background: "transparent",
-                                cursor: uploading ? "not-allowed" : "pointer",
+                                cursor: uploading || !canUploadDocument ? "not-allowed" : "pointer",
+                                opacity: uploading || !canUploadDocument ? 0.6 : 1,
                             }}
                         >
                             {uploading ? "Uploading…" : "Upload Document"}

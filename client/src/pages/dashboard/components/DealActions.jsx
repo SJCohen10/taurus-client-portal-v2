@@ -754,7 +754,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
                                             if (n.source === "persisted" && notificationId) {
                                                 try {
-                                                    await markNotificationRead({ id: notificationId });
+                                                    await markNotificationRead({ id: notificationId, email: portalEmail });
                                                     setPersistedNotifications((prev) =>
                                                         prev.filter((x) => resolveNotificationId(x) !== notificationId)
                                                     );

@@ -90,11 +90,8 @@ export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
   return normalizeDealsPayload(data);
 }
 
-export async function fetchDealTransactions({ email, assetIds }) {
-  const safeEmail = getPortalUserEmail(email);
-  const url = `${API_BASE}/getdealtransactions?email=${encodeURIComponent(
-    safeEmail
-  )}&assetIds=${encodeURIComponent(assetIds)}`;
+export async function fetchDealTransactions({ assetIds }) {
+  const url = `${API_BASE}/getdealtransactions?assetIds=${encodeURIComponent(assetIds)}`;
 
   const res = await fetch(url, { method: "GET" });
   return handleResponse(res);
@@ -185,11 +182,11 @@ export async function createNotification(payload) {
   return handleResponse(res);
 }
 
-export async function markNotificationRead({ id }) {
+export async function markNotificationRead({ id, email }) {
   const res = await fetch(`${API_BASE}/marknotificationread`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ id, email: email || "" }),
   });
   return handleResponse(res);
 }

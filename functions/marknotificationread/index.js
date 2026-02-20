@@ -1,5 +1,7 @@
 "use strict";
 
+const { _internals: portalDealsInternals } = require("../getportaldeals/index.js");
+
 function sendJson(res, statusCode, payload) {
     res.statusCode = statusCode;
     res.setHeader("Content-Type", "application/json");
@@ -44,9 +46,27 @@ module.exports = async (req, res) => {
 
         const body = parseBody(req);
         const id = String(body.id || "").trim();
+        const requestedEmail = String(body.email || "").trim().toLowerCase();
+        const callerEmail = portalDealsInternals.getCallerEmail(req);
+        const email = callerEmail || requestedEmail;
+
+        if (!email) return sendJson(res, 401, { error: "Missing authenticated user email context." });
 
         if (!id) return sendJson(res, 400, { error: "Missing id" });
         if (!/^[0-9]{1,30}$/.test(id)) return sendJson(res, 400, { error: "Invalid id" });
+
+
+        const zcql = app.zcql();
+        const esc = (v) => String(v).replace(/'/g, "''");
+        const rows = await zcql.executeZCQLQuery(`SELECT * FROM portal_notifications WHERE ROWID='${esc(id)}' LIMIT 1`);
+        const existing = (rows && rows[0] && (rows[0].portal_notifications || rows[0])) || null;
+        if (!existing) return sendJson(res, 404, { error: "Notification not found" });
+
+        const audienceEmail = String(existing.audience_email || "").trim().toLowerCase();
+        if (audienceEmail && audienceEmail !== email) {
+            return sendJson(res, 403, { error: "Notification is not authorized for this user." });
+        }
+
 
         const table = app.datastore().table("portal_notifications");
 

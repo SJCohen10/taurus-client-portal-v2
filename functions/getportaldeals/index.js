@@ -5,6 +5,41 @@ const { URL } = require("url");
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACCOUNT_ID_REGEX = /^[A-Za-z0-9_-]{6,100}$/;
 
+
+function getCallerEmail(req) {
+    const headers = req?.headers || {};
+    const direct =
+        req?.user?.email ||
+        headers["x-zc-user-email"] ||
+        headers["x-zc-useremail"] ||
+        headers["x-catalyst-user-email"] ||
+        headers["x-user-email"] ||
+        headers["x-forwarded-user-email"] ||
+        "";
+    return String(direct || "").trim().toLowerCase();
+}
+
+function resolveEmailForRequest(req, requestedEmail) {
+    const callerEmail = getCallerEmail(req);
+    const requested = String(requestedEmail || "").trim().toLowerCase();
+
+    if (callerEmail && requested && callerEmail !== requested) {
+        const err = new Error("Requested email does not match authenticated user");
+        err.statusCode = 403;
+        throw err;
+    }
+
+    if (callerEmail) return callerEmail;
+
+    if (process.env.NODE_ENV === "production") {
+        const err = new Error("Missing authenticated user context");
+        err.statusCode = 401;
+        throw err;
+    }
+
+    return requested;
+}
+
 // Helper to send JSON responses
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
@@ -63,38 +98,62 @@ async function getAnalyticsAccessToken() {
 }
 
 /**
- * Very simple CSV parser:
- * - splits lines on newline
- * - splits columns on comma
- * - strips surrounding double-quotes
- * Assumes your data does NOT contain commas inside values.
+ * CSV parser with quoted-field support:
+ * - handles commas/newlines inside quoted values
+ * - handles escaped double quotes ("")
  */
 function parseCsv(text) {
-    const lines = text
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
+    const rows = [];
+    let current = "";
+    let row = [];
+    let inQuotes = false;
 
-    if (lines.length < 2) {
-        return [];
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+
+        if (ch === '"') {
+            if (inQuotes && text[i + 1] === '"') {
+                current += '"';
+                i += 1;
+            } else {
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+
+        if (ch === ',' && !inQuotes) {
+            row.push(current);
+            current = "";
+            continue;
+        }
+
+        if ((ch === "\n" || ch === "\r") && !inQuotes) {
+            if (ch === "\r" && text[i + 1] === "\n") i += 1;
+            row.push(current);
+            current = "";
+            if (row.some((cell) => String(cell).trim() !== "")) rows.push(row);
+            row = [];
+            continue;
+        }
+
+        current += ch;
     }
 
-    const stripQuotes = (s) =>
-        s.replace(/^"(.*)"$/, "$1"); // remove surrounding quotes if present
+    if (current.length || row.length) {
+        row.push(current);
+        if (row.some((cell) => String(cell).trim() !== "")) rows.push(row);
+    }
 
-    const headers = lines[0].split(",").map(stripQuotes);
+    if (!rows.length) return [];
 
-    const rows = lines.slice(1).map((line) => {
-        const values = line.split(",");
+    const headers = rows[0].map((h) => String(h || "").trim());
+    return rows.slice(1).map((values) => {
         const obj = {};
         headers.forEach((h, idx) => {
-            const raw = values[idx] || "";
-            obj[h] = stripQuotes(raw);
+            obj[h] = (values[idx] || "").trim();
         });
         return obj;
     });
-
-    return rows;
 }
 
 /**
@@ -266,7 +325,8 @@ module.exports = async (req, res) => {
         }
 
         const parsedUrl = new URL(req.url, "http://dummy-host");
-        const email = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
+        const requestedEmail = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
+        const email = resolveEmailForRequest(req, requestedEmail);
         const accountId = (parsedUrl.searchParams.get("accountId") || "").trim();
 
 
@@ -297,9 +357,14 @@ module.exports = async (req, res) => {
         });
     } catch (err) {
         console.error("Error in getportaldeals:", err);
+        if (err?.statusCode) {
+            return sendJson(res, err.statusCode, { error: err.message });
+        }
         return sendJson(res, 500, {
             error: "Internal server error in getportaldeals.",
 
         });
     }
 };
+
+module.exports._internals = { getDealsForPortal, getCallerEmail, resolveEmailForRequest };

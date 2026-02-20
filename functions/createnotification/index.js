@@ -1,5 +1,7 @@
 "use strict";
 
+const { _internals: portalDealsInternals } = require("../getportaldeals/index.js");
+
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
@@ -30,17 +32,26 @@ module.exports = async (req, res) => {
 
     const dealId = String(body.dealId || "").trim();
     const message = String(body.message || "").trim();
+    const requestedEmail = String(body.email || body.audienceEmail || "").trim().toLowerCase();
+    const callerEmail = portalDealsInternals.getCallerEmail(req);
+    const email = callerEmail || requestedEmail;
+
+    if (!email) return sendJson(res, 401, { error: "Missing authenticated user email context." });
 
     if (!dealId) return sendJson(res, 400, { error: "Missing dealId" });
     if (!/^[0-9]{6,30}$/.test(dealId)) return sendJson(res, 400, { error: "Invalid dealId" });
     if (!message) return sendJson(res, 400, { error: "Missing message" });
+
+    const visibleDeals = await portalDealsInternals.getDealsForPortal({ email, accountId: "" });
+    const visibleDealIds = new Set((visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean));
+    if (!visibleDealIds.has(dealId)) return sendJson(res, 403, { error: "Deal is not authorized for this user." });
 
     const table = app.datastore().table("portal_notifications");
 
     const row = {
       deal_id: dealId,
       account_id: body.accountId ? String(body.accountId) : null,
-      audience_email: body.audienceEmail ? String(body.audienceEmail).toLowerCase() : null,
+      audience_email: email,
       message,
       type: String(body.type || "INFO"),
       severity: String(body.severity || "info"),

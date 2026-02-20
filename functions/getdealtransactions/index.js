@@ -1,6 +1,7 @@
 "use strict";
 
 const { URL } = require("url");
+const { _internals: portalDealsInternals } = require("../getportaldeals/index.js");
 
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -121,12 +122,15 @@ module.exports = async (req, res) => {
         }
 
         const parsedUrl = new URL(req.url, "http://dummy-host");
-        const email = (parsedUrl.searchParams.get("email") || "").trim();
         const rawAssetIds = parsedUrl.searchParams.get("assetIds") || "";
 
+        const callerEmail = portalDealsInternals.getCallerEmail(req);
+        const fallbackEmail = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
+        const email = callerEmail || fallbackEmail;
+
         if (!email || !validateEmail(email)) {
-            return sendJson(res, 400, {
-                error: "Missing or invalid 'email' query parameter.",
+            return sendJson(res, 401, {
+                error: "Missing authenticated user email context.",
             });
         }
 
@@ -135,6 +139,22 @@ module.exports = async (req, res) => {
             return sendJson(res, 400, {
                 error: "No valid assetIds provided. Use comma-separated numeric CRM Asset IDs.",
             });
+        }
+
+        // Verify the requested asset ids belong to deals visible to this user
+        const visibleDeals = await portalDealsInternals.getDealsForPortal({ email, accountId: "" });
+        const allowedAssetIds = new Set();
+        for (const deal of visibleDeals || []) {
+            String(deal.asset_ids || deal.asset_id || "")
+                .split(",")
+                .map((x) => x.trim())
+                .filter((x) => /^\d+$/.test(x))
+                .forEach((x) => allowedAssetIds.add(x));
+        }
+
+        const unauthorized = assetIds.filter((id) => !allowedAssetIds.has(id));
+        if (unauthorized.length) {
+            return sendJson(res, 403, { error: "One or more assetIds are not authorized for this user." });
         }
 
         const rows = await getTransactions({ assetIds });

@@ -79,15 +79,6 @@ function normalizeRecordType(recordType) {
     return null;
 }
 
-async function debugTokenScopes(accessToken) {
-    const accountsBase = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
-    const infoUrl = `${accountsBase}/oauth/v2/token/info?access_token=${encodeURIComponent(accessToken)}`;
-
-    const r = await fetch(infoUrl);
-    const t = await r.text();
-    console.log("TOKEN INFO:", r.status, t);
-}
-
 
 module.exports = async (req, res) => {
     try {
@@ -123,7 +114,6 @@ module.exports = async (req, res) => {
         }
 
         const { accessToken, apiDomain } = await getAccessToken();
-        await debugTokenScopes(accessToken);
         const crmVersion = process.env.ZOHO_CRM_VERSION || "v8";
 
         // Use "related notes" endpoint: /{Module}/{RecordId}/Notes

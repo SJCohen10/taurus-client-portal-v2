@@ -8,6 +8,9 @@ function sendJson(res, statusCode, payload) {
 
 module.exports = async (req, res) => {
     try {
+        if (req.method !== "GET") {
+            return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+        }
         const catalyst = require("zcatalyst-sdk-node");
         const app = catalyst.initialize(req);
 
@@ -24,6 +27,10 @@ module.exports = async (req, res) => {
 
         if (!dealId) {
             return sendJson(res, 400, { error: "Missing dealId" });
+        }
+
+        if (!/^[0-9]{6,30}$/.test(dealId)) {
+            return sendJson(res, 400, { error: "Invalid dealId" });
         }
 
         const zcql = app.zcql();

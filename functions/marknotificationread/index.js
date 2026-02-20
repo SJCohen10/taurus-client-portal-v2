@@ -36,6 +36,9 @@ function parseBody(req) {
 
 module.exports = async (req, res) => {
     try {
+        if (req.method !== "POST") {
+            return sendJson(res, 405, { error: "Method not allowed. Use POST." });
+        }
         const catalyst = require("zcatalyst-sdk-node");
         const app = catalyst.initialize(req);
 
@@ -43,6 +46,7 @@ module.exports = async (req, res) => {
         const id = String(body.id || "").trim();
 
         if (!id) return sendJson(res, 400, { error: "Missing id" });
+        if (!/^[0-9]{1,30}$/.test(id)) return sendJson(res, 400, { error: "Invalid id" });
 
         const table = app.datastore().table("portal_notifications");
 

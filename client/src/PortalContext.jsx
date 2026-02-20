@@ -32,7 +32,7 @@ export function PortalProvider({ children }) {
     // In production (Catalyst), leave this blank.
     // In local dev, set REACT_APP_API_BASE to your Catalyst domain.
     const apiBase = process.env.REACT_APP_API_BASE || "";
-    const url = `${apiBase}/server/getPortalUserContext?email=${encodeURIComponent(resolvedEmail)}`;
+    const url = `${apiBase}/server/getportalusercontext?email=${encodeURIComponent(resolvedEmail)}`;
 
     const res = await fetch(url, { method: "GET" });
 

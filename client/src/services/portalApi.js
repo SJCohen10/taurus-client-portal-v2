@@ -4,7 +4,7 @@
 // In prod: use relative /server (works when app is hosted on Catalyst)
 const API_BASE =
   process.env.NODE_ENV === "development"
-    ? (process.env.REACT_APP_API_BASE || "https://taurus-client-portal-889090616.development.catalystserverless.com") + "/server"
+    ? (process.env.REACT_APP_API_BASE || "") + "/server"
     : "/server";
 
 function getDevImpersonationEmail() {

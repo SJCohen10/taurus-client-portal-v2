@@ -33,7 +33,8 @@ async function getAnalyticsAccessToken() {
         grant_type: "refresh_token",
     });
 
-    const tokenUrl = "https://accounts.zoho.com/oauth/v2/token";
+    const accountsBase = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
+    const tokenUrl = `${accountsBase}/oauth/v2/token`;
 
     const res = await fetch(tokenUrl, {
         method: "POST",
@@ -260,6 +261,10 @@ async function getDealsForPortal({ email, accountId }) {
  */
 module.exports = async (req, res) => {
     try {
+        if (req.method !== "GET") {
+            return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+        }
+
         const parsedUrl = new URL(req.url, "http://dummy-host");
         const email = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
         const accountId = (parsedUrl.searchParams.get("accountId") || "").trim();

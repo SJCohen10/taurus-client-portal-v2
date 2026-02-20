@@ -112,43 +112,6 @@ async function fetchAsset(accessToken, assetId) {
     return (data.data && data.data[0]) || {};
 }
 
-async function fetchTransactions(accessToken, assetId) {
-    const crmBase = getCrmBase();
-    const url = `${crmBase}/Assets/${assetId}/Transactions`;
-
-    const res = await fetch(url, {
-        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
-    });
-
-    const raw = await res.text();
-    let data = {};
-    try { data = raw ? JSON.parse(raw) : {}; } catch { }
-
-    if (!res.ok) {
-        throw new Error(
-            `Failed to fetch related Transactions for Asset ${assetId}: ${data?.message || raw || res.status}`
-        );
-    }
-
-    return data.data || [];
-}
-
-
-
-function pickStatementPage({ transactionTypes }) {
-    const lowerTypes = transactionTypes.map((t) => (t || "").toLowerCase());
-
-    if (lowerTypes.includes("rafpay")) return "RAFPAY_Statements";
-    if (lowerTypes.includes("aa")) return "AA_Statements";
-    if (lowerTypes.includes("seller") || lowerTypes.includes("quick-rates"))
-        return "Seller_Statements";
-    if (lowerTypes.includes("agent")) return "Agent_Statements";
-    if (lowerTypes.includes("agency")) return "Agency_Statements";
-    if (lowerTypes.includes("bond")) return "Bond_Statements";
-    if (lowerTypes.includes("lwb")) return "LWB_Statements";
-
-    return null;
-}
 
 function buildCreatorUrl(pageName, assetId) {
     const base =

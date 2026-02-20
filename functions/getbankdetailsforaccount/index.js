@@ -83,6 +83,10 @@ async function searchBankDetails({ accessToken, crmBase, accountId, avsOnly }) {
 
 module.exports = async (req, res) => {
     try {
+        if (req.method !== "GET") {
+            return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+        }
+
         const parsedUrl = new URL(req.url, "http://dummy-host");
         const accountId = (parsedUrl.searchParams.get("accountId") || "").trim();
         const avsOnlyRaw = parsedUrl.searchParams.get("avsOnly") || "false";

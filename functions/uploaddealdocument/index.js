@@ -169,34 +169,62 @@ async function ensurePropertyFolder({ accessToken, parentId, folderName, propert
     return data?.data?.id || null;
 }
 
+function normalizeFolderCompareName(name) {
+    return sanitizeFolderName(String(name || ""), "").toLowerCase().trim();
+}
+
 async function searchForChildFolder({ accessToken, parentFolderId, folderName }) {
     const headers = {
         ...buildAuthHeaders(accessToken),
         Accept: "application/vnd.api+json",
     };
 
-    const safeName = sanitizeFolderName(folderName || "Folder");
-    const url =
-        `${WORKDRIVE_BASE}/files/${encodeURIComponent(parentFolderId)}/files` +
-        `?page[limit]=50&page[offset]=0&filter[type]=folders`;
+    const target = normalizeFolderCompareName(folderName);
+    if (!target) return null;
 
-    try {
+    // Page through results (some folders have >50 children)
+    const limit = 200;
+    let offset = 0;
+
+    while (offset < 2000) { // hard stop to avoid infinite loops
+        const url =
+            `${WORKDRIVE_BASE}/files/${encodeURIComponent(parentFolderId)}/files` +
+            `?page[limit]=${limit}&page[offset]=${offset}`;
+
         const res = await fetch(url, { method: "GET", headers });
         const text = await res.text();
-        const data = JSON.parse(text);
+
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            return null;
+        }
 
         if (!res.ok) return null;
 
         const items = Array.isArray(data?.data) ? data.data : [];
-        const match = items.find((item) => {
-            const n = item?.attributes?.name || "";
-            return String(n).trim() === safeName;
-        });
 
-        return match?.id || null;
-    } catch {
-        return null;
+        // Only consider folders
+        for (const item of items) {
+            const isFolder =
+                item?.attributes?.is_folder === true ||
+                String(item?.attributes?.type || "").toLowerCase() === "folder" ||
+                String(item?.type || "").toLowerCase().includes("folder");
+
+            if (!isFolder) continue;
+
+            const name = normalizeFolderCompareName(item?.attributes?.name || "");
+            if (name === target) return item?.id || null;
+        }
+
+        // If fewer than limit returned, we’re done
+        if (items.length < limit) break;
+
+        offset += limit;
     }
+
+    return null;
 }
 
 async function ensureFolder({ accessToken, parentFolderId, folderName }) {
@@ -209,7 +237,6 @@ async function ensureFolder({ accessToken, parentFolderId, folderName }) {
     });
     if (existingId) return existingId;
 
-    // create
     const createdId = await ensurePropertyFolder({
         accessToken,
         parentId: parentFolderId,
@@ -217,7 +244,6 @@ async function ensureFolder({ accessToken, parentFolderId, folderName }) {
     });
     if (createdId) return createdId;
 
-    // last re-check
     const existingAfterCreate = await searchForChildFolder({
         accessToken,
         parentFolderId,
@@ -225,7 +251,7 @@ async function ensureFolder({ accessToken, parentFolderId, folderName }) {
     });
     if (existingAfterCreate) return existingAfterCreate;
 
-    throw new Error("WorkDrive folder create failed (unknown)");
+    throw new Error("WorkDrive folder create failed (unable to resolve existing)");
 }
 
 async function uploadFileToFolder({

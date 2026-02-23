@@ -122,30 +122,30 @@ function looksLikeInvalidFolderError(err) {
     return msg.includes("invalid") && msg.includes("folder");
 }
 
-async function ensurePropertyFolder({
-    accessToken,
-    parentId,
-    folderName,
-    propertyDescription,
-}) {
+async function ensurePropertyFolder({ accessToken, parentId, folderName, propertyDescription }) {
     const headers = {
         ...buildAuthHeaders(accessToken),
-        "Content-Type": "application/json",
+        Accept: "application/vnd.api+json",
+        "Content-Type": "application/vnd.api+json",
     };
 
-    const body = {
-        name: folderName,
-        parent_id: parentId,
+    const safeFolderName = sanitizeFolderName(folderName || "Folder");
+
+    const payload = {
+        data: {
+            type: "files",
+            attributes: {
+                name: safeFolderName,
+                parent_id: parentId,
+                ...(propertyDescription ? { description: String(propertyDescription).slice(0, 500) } : {}),
+            },
+        },
     };
 
-    if (propertyDescription) {
-        body.description = propertyDescription;
-    }
-
-    const res = await fetch(`${WORKDRIVE_BASE}/folders`, {
+    const res = await fetch(`${WORKDRIVE_BASE}/files`, {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
     });
 
     const text = await res.text();
@@ -153,7 +153,10 @@ async function ensurePropertyFolder({
     try {
         data = JSON.parse(text);
     } catch {
-        throw new Error(`WorkDrive folder response was not JSON (${res.status})`);
+        const err = new Error(`WorkDrive folder response was not JSON (${res.status})`);
+        err.status = res.status;
+        err.raw = text;
+        throw err;
     }
 
     if (!res.ok) {
@@ -169,85 +172,60 @@ async function ensurePropertyFolder({
 async function searchForChildFolder({ accessToken, parentFolderId, folderName }) {
     const headers = {
         ...buildAuthHeaders(accessToken),
-        "Content-Type": "application/json",
+        Accept: "application/vnd.api+json",
     };
 
-    try {
-        const res = await fetch(`${WORKDRIVE_BASE}/search`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-                search_text: folderName,
-                type: "folder",
-                parent_id: parentFolderId,
-            }),
-        });
+    const safeName = sanitizeFolderName(folderName || "Folder");
+    const url =
+        `${WORKDRIVE_BASE}/files/${encodeURIComponent(parentFolderId)}/files` +
+        `?page[limit]=50&page[offset]=0&filter[type]=folders`;
 
+    try {
+        const res = await fetch(url, { method: "GET", headers });
         const text = await res.text();
         const data = JSON.parse(text);
 
         if (!res.ok) return null;
 
-        if (Array.isArray(data?.data)) {
-            const match = data.data.find((item) => item.attributes?.name === folderName);
-            return match?.id || null;
-        }
+        const items = Array.isArray(data?.data) ? data.data : [];
+        const match = items.find((item) => {
+            const n = item?.attributes?.name || "";
+            return String(n).trim() === safeName;
+        });
 
-        return null;
+        return match?.id || null;
     } catch {
         return null;
     }
 }
 
-async function ensureFolder({
-    accessToken,
-    parentFolderId,
-    folderName,
-}) {
+async function ensureFolder({ accessToken, parentFolderId, folderName }) {
     const safeFolderName = sanitizeFolderName(folderName || "Folder");
-    const headers = {
-        ...buildAuthHeaders(accessToken),
-        "Content-Type": "application/json",
-    };
 
     const existingId = await searchForChildFolder({
         accessToken,
         parentFolderId,
         folderName: safeFolderName,
     });
-
     if (existingId) return existingId;
 
-    const res = await fetch(`${WORKDRIVE_BASE}/folders`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ name: safeFolderName, parent_id: parentFolderId }),
+    // create
+    const createdId = await ensurePropertyFolder({
+        accessToken,
+        parentId: parentFolderId,
+        folderName: safeFolderName,
     });
+    if (createdId) return createdId;
 
-    const text = await res.text();
-    let data;
-    try {
-        data = JSON.parse(text);
-    } catch {
-        data = null;
-    }
-
-    if (res.ok) {
-        return data?.data?.id || null;
-    }
-
+    // last re-check
     const existingAfterCreate = await searchForChildFolder({
         accessToken,
         parentFolderId,
         folderName: safeFolderName,
     });
-
     if (existingAfterCreate) return existingAfterCreate;
 
-    const err = new Error(`WorkDrive folder create failed (${res.status})`);
-    err.status = res.status;
-    err.raw = text;
-    throw err;
+    throw new Error("WorkDrive folder create failed (unknown)");
 }
 
 async function uploadFileToFolder({

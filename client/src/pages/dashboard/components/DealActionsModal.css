@@ -127,8 +127,10 @@
 .deal-notification-popover {
     position: absolute;
     right: 0;
-    top: 40px;
-    width: 260px;
+    top: calc(100% + 6px);
+    width: min(300px, 46vw);
+    max-height: 260px;
+    overflow-y: auto;
     background: #ffffff;
     border: 1px solid rgba(15, 23, 42, 0.15);
     border-radius: 10px;

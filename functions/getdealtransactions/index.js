@@ -4,6 +4,11 @@ const { URL } = require("url");
 const portalDeals = require("./lib/portalDeals");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function createRequestId() {
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
     res.end(JSON.stringify(payload));
@@ -116,9 +121,12 @@ async function getTransactions({ assetIds }) {
 }
 
 module.exports = async (req, res) => {
+    const requestId = createRequestId();
+    const endpoint = "/server/getdealtransactions";
+
     try {
         if (req.method !== "GET") {
-            return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+            return sendJson(res, 405, { error: "Method not allowed. Use GET.", requestId, details: "invalid method", endpoint });
         }
 
         const parsedUrl = new URL(req.url, "http://dummy-host");
@@ -132,14 +140,17 @@ module.exports = async (req, res) => {
         if (!email || !validateEmail(email)) {
             return sendJson(res, 401, {
                 error: "Missing authenticated user email context.",
+                requestId,
+                endpoint,
+                details: "missing email",
             });
         }
 
         const assetIds = parseAssetIds(rawAssetIds);
-        console.log("[getdealtransactions] parsed assetIds count", assetIds.length);
+        console.log("[getdealtransactions] parsed assetIds", { requestId, email, count: assetIds.length });
 
         if (!assetIds.length) {
-            return sendJson(res, 400, { error: "Missing assetIds" });
+            return sendJson(res, 400, { error: "Missing assetIds", requestId, endpoint, details: "missing assetIds" });
         }
 
         const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
@@ -154,16 +165,27 @@ module.exports = async (req, res) => {
 
         const unauthorized = assetIds.filter((id) => !allowedAssetIds.has(id));
         if (unauthorized.length) {
-            return sendJson(res, 403, { error: "One or more assetIds are not authorized for this user." });
+            return sendJson(res, 403, {
+                error: "One or more assetIds are not authorized for this user.",
+                requestId,
+                endpoint,
+                details: "asset authorization failed",
+            });
         }
 
         let rows;
         try {
             rows = await getTransactions({ assetIds });
         } catch (upstreamError) {
-            console.error("getdealtransactions upstream error", upstreamError?.message || upstreamError);
+            console.error("[getdealtransactions] upstream error", {
+                requestId,
+                endpoint,
+                message: upstreamError?.message || String(upstreamError),
+            });
             return sendJson(res, 502, {
                 error: "Upstream failure",
+                requestId,
+                endpoint,
                 details: shortError(upstreamError?.message),
             });
         }
@@ -182,9 +204,16 @@ module.exports = async (req, res) => {
             transactions,
         });
     } catch (err) {
-        console.error("getdealtransactions error:", err?.message || err);
+        console.error("[getdealtransactions] error", {
+            requestId,
+            endpoint,
+            message: err?.message || String(err),
+        });
         return sendJson(res, 500, {
             error: "Internal server error in getdealtransactions.",
+            requestId,
+            endpoint,
+            details: "transaction lookup failed",
         });
     }
 };

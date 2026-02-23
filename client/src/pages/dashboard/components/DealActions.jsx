@@ -114,12 +114,13 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const [persistedNotifications, setPersistedNotifications] = useState([]);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsError, setNotificationsError] = useState("");
-    const [notificationPopoverPos, setNotificationPopoverPos] = useState({ top: 0, left: 0 });
 
     const rootRef = useRef(null);
     const menuRef = useRef(null);
     const fileInputRef = useRef(null);
     const notificationButtonRef = useRef(null);
+    const notificationPopoverRef = useRef(null);
+    const instanceIdRef = useRef(`deal-actions-${Math.random().toString(36).slice(2, 10)}`);
 
     const propertyRefNumber =
         deal.propertyRefNumber ||
@@ -174,8 +175,9 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         function onDocClick(e) {
             const inRoot = rootRef.current?.contains(e.target);
             const inMenu = menuRef.current?.contains(e.target);
+            const inNotificationPopover = notificationPopoverRef.current?.contains(e.target);
 
-            if (!inRoot && !inMenu) {
+            if (!inRoot && !inMenu && !inNotificationPopover) {
                 setOpen(false);
                 setNotificationOpen(false);
             }
@@ -183,16 +185,42 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
 
         function onEsc(e) {
-            if (e.key === "Escape") setOpen(false);
+            if (e.key === "Escape") {
+                setOpen(false);
+                setNotificationOpen(false);
+            }
+        }
+
+        function onOtherNotificationOpened(e) {
+            if (e.detail?.sourceId !== instanceIdRef.current) {
+                setNotificationOpen(false);
+            }
         }
 
         document.addEventListener("click", onDocClick);     // ✅ click (not mousedown)
         document.addEventListener("keydown", onEsc);
+        window.addEventListener("deal-notification-opened", onOtherNotificationOpened);
         return () => {
             document.removeEventListener("click", onDocClick);
             document.removeEventListener("keydown", onEsc);
+            window.removeEventListener("deal-notification-opened", onOtherNotificationOpened);
         };
     }, []);
+
+    useEffect(() => {
+        if (!notificationOpen) return undefined;
+
+        const scrollContainer = rootRef.current?.closest(".deals-table-wrapper");
+        const closeNotifications = () => setNotificationOpen(false);
+
+        scrollContainer?.addEventListener("scroll", closeNotifications, { passive: true });
+        window.addEventListener("scroll", closeNotifications, { passive: true });
+
+        return () => {
+            scrollContainer?.removeEventListener("scroll", closeNotifications);
+            window.removeEventListener("scroll", closeNotifications);
+        };
+    }, [notificationOpen]);
 
     useEffect(() => {
         setSelectedFirmBankId((prev) => prev || defaultFirmBankId);
@@ -569,13 +597,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                     setNotificationOpen(nextOpen);
                     if (!nextOpen) return;
 
-                    const bellRect = notificationButtonRef.current?.getBoundingClientRect();
-                    if (bellRect) {
-                        setNotificationPopoverPos({
-                            top: bellRect.bottom + 8,
-                            left: Math.max(12, bellRect.right - 260),
-                        });
-                    }
+                    window.dispatchEvent(
+                        new CustomEvent("deal-notification-opened", {
+                            detail: { sourceId: instanceIdRef.current },
+                        })
+                    );
 
                     setNotificationsError("");
 
@@ -750,14 +776,9 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
             {notificationOpen && (
                 <div
+                    ref={notificationPopoverRef}
                     className="deal-notification-popover"
                     onClick={(event) => event.stopPropagation()}
-                    style={{
-                        position: "fixed",
-                        top: notificationPopoverPos.top,
-                        left: notificationPopoverPos.left,
-                        right: "auto",
-                    }}
                 >
                     {notificationsLoading ? (
                         <p>Loading notifications…</p>
@@ -845,6 +866,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                             <textarea
                                 value={noteContent}
                                 onChange={(event) => setNoteContent(event.target.value)}
+                                onKeyDown={(event) => event.stopPropagation()}
                                 maxLength={5000}
                                 rows={6}
                                 style={{ width: "100%", marginTop: 8 }}

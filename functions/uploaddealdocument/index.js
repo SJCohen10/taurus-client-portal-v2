@@ -17,6 +17,11 @@ const ALLOWED_MIME_TYPES = new Set([
 const MAX_UPLOAD_BYTES = Number(process.env.PORTAL_UPLOAD_MAX_BYTES || 10 * 1024 * 1024);
 const MAX_BODY_BYTES = Number(process.env.PORTAL_UPLOAD_MAX_BODY_BYTES || 14 * 1024 * 1024);
 const CRM_ID_REGEX = /^[0-9]{6,30}$/;
+const WORKDRIVE_ID_REGEX = /^[A-Za-z0-9]{8,120}$/;
+
+function createRequestId() {
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function sendJson(res, statusCode, payload) {
     res.writeHead(statusCode, { "Content-Type": "application/json" });
@@ -194,20 +199,29 @@ async function searchForChildFolder({ accessToken, parentFolderId, folderName })
     }
 }
 
-async function ensurePortalUploadsFolder({
+async function ensureFolder({
     accessToken,
     parentFolderId,
-    folderName = DEFAULT_PORTAL_UPLOAD_FOLDER_NAME,
+    folderName,
 }) {
+    const safeFolderName = sanitizeFolderName(folderName || "Folder");
     const headers = {
         ...buildAuthHeaders(accessToken),
         "Content-Type": "application/json",
     };
 
+    const existingId = await searchForChildFolder({
+        accessToken,
+        parentFolderId,
+        folderName: safeFolderName,
+    });
+
+    if (existingId) return existingId;
+
     const res = await fetch(`${WORKDRIVE_BASE}/folders`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ name: folderName, parent_id: parentFolderId }),
+        body: JSON.stringify({ name: safeFolderName, parent_id: parentFolderId }),
     });
 
     const text = await res.text();
@@ -219,20 +233,18 @@ async function ensurePortalUploadsFolder({
     }
 
     if (res.ok) {
-        return data?.data?.id || parentFolderId;
+        return data?.data?.id || null;
     }
 
-    const existingId = await searchForChildFolder({
+    const existingAfterCreate = await searchForChildFolder({
         accessToken,
         parentFolderId,
-        folderName,
+        folderName: safeFolderName,
     });
 
-    if (existingId) {
-        return existingId;
-    }
+    if (existingAfterCreate) return existingAfterCreate;
 
-    const err = new Error(`Portal folder creation failed (${res.status})`);
+    const err = new Error(`WorkDrive folder create failed (${res.status})`);
     err.status = res.status;
     err.raw = text;
     throw err;
@@ -329,9 +341,14 @@ async function resolveOrCreateDealFolder({
 }
 
 async function uploadIntoFolderTree({ accessToken, baseFolderId, fileName, mimeType, fileBase64 }) {
-    const portalFolderId = await ensurePortalUploadsFolder({
+    if (!WORKDRIVE_ID_REGEX.test(String(baseFolderId || "").trim())) {
+        throw new Error("invalid parent folder id");
+    }
+
+    const portalFolderId = await ensureFolder({
         accessToken,
         parentFolderId: baseFolderId,
+        folderName: DEFAULT_PORTAL_UPLOAD_FOLDER_NAME,
     });
 
     const uploadResult = await uploadFileToFolder({
@@ -346,9 +363,12 @@ async function uploadIntoFolderTree({ accessToken, baseFolderId, fileName, mimeT
 }
 
 module.exports = async (req, res) => {
+    const requestId = createRequestId();
+    const endpoint = "/server/uploaddealdocument";
+
     try {
         if (req.method !== "POST") {
-            return sendJson(res, 405, { error: "Method not allowed. Use POST." });
+            return sendJson(res, 405, { error: "Method not allowed. Use POST.", requestId, endpoint, details: "invalid method" });
         }
 
         const body = await readJsonBody(req);
@@ -368,12 +388,18 @@ module.exports = async (req, res) => {
         if (!fileName || !fileBase64) {
             return sendJson(res, 400, {
                 error: "Missing fileName or fileBase64 in request body.",
+                requestId,
+                endpoint,
+                details: "missing file payload",
             });
         }
 
         if (typeof mimeType !== "string" || !ALLOWED_MIME_TYPES.has(mimeType)) {
             return sendJson(res, 400, {
                 error: "Unsupported mimeType. Allowed: application/pdf, image/jpeg, image/png.",
+                requestId,
+                endpoint,
+                details: "invalid mimeType",
             });
         }
 
@@ -384,6 +410,9 @@ module.exports = async (req, res) => {
         if (!/^[A-Za-z0-9+/=\s]+$/.test(base64Payload)) {
             return sendJson(res, 400, {
                 error: "Invalid fileBase64 payload.",
+                requestId,
+                endpoint,
+                details: "invalid base64",
             });
         }
 
@@ -391,11 +420,14 @@ module.exports = async (req, res) => {
         if (!Number.isFinite(uploadBytes) || uploadBytes <= 0 || uploadBytes > MAX_UPLOAD_BYTES) {
             return sendJson(res, 400, {
                 error: `File exceeds max allowed size of ${MAX_UPLOAD_BYTES} bytes.`,
+                requestId,
+                endpoint,
+                details: "file too large",
             });
         }
 
         const providedFolderId =
-            typeof propertyFolderId === "string" && CRM_ID_REGEX.test(propertyFolderId.trim())
+            typeof propertyFolderId === "string" && WORKDRIVE_ID_REGEX.test(propertyFolderId.trim())
                 ? propertyFolderId.trim()
                 : null;
 
@@ -407,6 +439,7 @@ module.exports = async (req, res) => {
             "";
 
         console.log("[uploaddealdocument] incoming", {
+            requestId,
             hasProvidedFolderId: Boolean(providedFolderId),
             hasRootFolderId: Boolean(rootFolderId),
             dealId: dealId ? String(dealId) : "",
@@ -460,6 +493,9 @@ module.exports = async (req, res) => {
         if (!rootFolderId) {
             return sendJson(res, 400, {
                 error: "Invalid propertyFolderId",
+                requestId,
+                endpoint,
+                details: "missing root folder id fallback",
                 hint: "Missing/invalid per-deal WorkDrive folder id. Provide Analytics Property Folder Id or enable folder creation under root.",
             });
         }
@@ -475,6 +511,9 @@ module.exports = async (req, res) => {
         if (!resolved.folderId) {
             return sendJson(res, 400, {
                 error: "Invalid propertyFolderId",
+                requestId,
+                endpoint,
+                details: "unable to resolve deal folder",
                 hint: "Missing/invalid per-deal WorkDrive folder id. Provide Analytics Property Folder Id or enable folder creation under root.",
             });
         }
@@ -515,9 +554,15 @@ module.exports = async (req, res) => {
             },
         });
     } catch (err) {
-        console.error("Error in uploaddealdocument:", err?.message || err);
+        console.error("[uploaddealdocument] error", {
+            requestId,
+            endpoint,
+            message: err?.message || String(err),
+        });
         return sendJson(res, 500, {
             error: "Internal server error in uploaddealdocument.",
+            requestId,
+            endpoint,
             details: shortError(err?.message),
         });
     }

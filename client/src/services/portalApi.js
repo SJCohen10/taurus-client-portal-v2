@@ -106,8 +106,13 @@ export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
   return normalizeDealsPayload(data);
 }
 
-export async function fetchDealTransactions({ assetIds }) {
-  const url = `${API_BASE}/getdealtransactions?assetIds=${encodeURIComponent(assetIds)}`;
+export async function fetchDealTransactions({ assetIds, email }) {
+  const safeEmail = getPortalUserEmail(email);
+  const params = new URLSearchParams();
+  params.set("assetIds", String(assetIds || ""));
+  if (safeEmail) params.set("email", safeEmail);
+
+  const url = `${API_BASE}/getdealtransactions?${params.toString()}`;
 
   const res = await fetch(url, { method: "GET" });
   return handleResponse(res);

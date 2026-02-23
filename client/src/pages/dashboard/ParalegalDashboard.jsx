@@ -361,6 +361,7 @@ export default function ParalegalDashboard() {
             setTransactionsLoading(true);
             const response = await fetchDealTransactions({
                 assetIds: assetIds.join(","),
+                email: displayEmail,
             });
             setTransactions(response.transactions || []);
         } catch {
@@ -414,6 +415,13 @@ export default function ParalegalDashboard() {
                                                 tabIndex={0}
                                                 onClick={() => openDealDetails(deal)}
                                                 onKeyDown={(event) => {
+                                                    const tagName = String(event.target?.tagName || "").toLowerCase();
+                                                    const isInteractive =
+                                                        ["input", "textarea", "select", "button"].includes(tagName) ||
+                                                        Boolean(event.target?.closest?.("a,button,input,textarea,select,[contenteditable=\'true\']"));
+
+                                                    if (isInteractive) return;
+
                                                     if (event.key === "Enter" || event.key === " ") {
                                                         event.preventDefault();
                                                         openDealDetails(deal);
@@ -482,7 +490,7 @@ export default function ParalegalDashboard() {
             )}
 
             <section className="dashboard-stats">
-                <div className="stat-card"><div className="stat-label">Deals in view</div><div className="stat-value">{stats.total}</div></div>
+                <div className="stat-card"><div className="stat-label">Total Number of Deals</div><div className="stat-value">{stats.total}</div></div>
                 <div className="stat-card"><div className="stat-label">Active / In-Process</div><div className="stat-value">{stats.activeCount}</div></div>
                 <div className="stat-card"><div className="stat-label">Current Exposure</div><div className="stat-value">{new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(stats.currentExposure)}</div></div>
             </section>

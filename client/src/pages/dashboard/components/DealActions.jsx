@@ -55,6 +55,13 @@ function resolveNotificationId(notification) {
     ).trim();
 }
 
+function formatNotificationTimestamp(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+}
+
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -121,6 +128,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const notificationButtonRef = useRef(null);
     const notificationPopoverRef = useRef(null);
     const instanceIdRef = useRef(`deal-actions-${Math.random().toString(36).slice(2, 10)}`);
+    const [notificationPopoverPos, setNotificationPopoverPos] = useState({ top: 0, left: 0 });
 
     const propertyRefNumber =
         deal.propertyRefNumber ||
@@ -210,17 +218,43 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     useEffect(() => {
         if (!notificationOpen) return undefined;
 
+        const recalcNotificationPopoverPosition = () => {
+            const buttonRect = notificationButtonRef.current?.getBoundingClientRect();
+            if (!buttonRect) return;
+
+            const maxLeft = window.innerWidth - 340;
+            const nextLeft = Math.max(8, Math.min(buttonRect.right - 320, maxLeft));
+
+            setNotificationPopoverPos({
+                top: buttonRect.bottom + 8,
+                left: nextLeft,
+            });
+        };
+
+        recalcNotificationPopoverPosition();
+
         const scrollContainer = rootRef.current?.closest(".deals-table-wrapper");
         const closeNotifications = () => setNotificationOpen(false);
 
         scrollContainer?.addEventListener("scroll", closeNotifications, { passive: true });
         window.addEventListener("scroll", closeNotifications, { passive: true });
+        window.addEventListener("resize", recalcNotificationPopoverPosition);
 
         return () => {
             scrollContainer?.removeEventListener("scroll", closeNotifications);
             window.removeEventListener("scroll", closeNotifications);
+            window.removeEventListener("resize", recalcNotificationPopoverPosition);
         };
     }, [notificationOpen]);
+
+    useEffect(() => {
+        const resolvedDealId = String(dealId || "").trim();
+        const resolvedEmail = String(portalEmail || "").trim();
+        if (!resolvedDealId || !resolvedEmail) return;
+
+        setNotificationsError("");
+        fetchPersistedNotifications({ showLoading: false, suppressError: true });
+    }, [dealId, portalEmail]);
 
     useEffect(() => {
         setSelectedFirmBankId((prev) => prev || defaultFirmBankId);
@@ -495,10 +529,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             });
             const fetchedNotifications = Array.isArray(resp?.notifications) ? resp.notifications : [];
             setPersistedNotifications(fetchedNotifications);
+            if (!suppressError) setNotificationsError("");
         } catch (err) {
             console.error("[DealActions] Notifications fetch failure", err);
             if (!suppressError) {
-                setNotificationsError(err?.message || "Unable to load notifications right now.");
+                setNotificationsError(err?.message || "Failed to load notifications");
             }
             setPersistedNotifications([]);
         } finally {
@@ -774,10 +809,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                     document.body
                 )}
 
-            {notificationOpen && (
+            {notificationOpen && ReactDOM.createPortal(
                 <div
                     ref={notificationPopoverRef}
                     className="deal-notification-popover"
+                    style={{ top: notificationPopoverPos.top, left: notificationPopoverPos.left }}
                     onClick={(event) => event.stopPropagation()}
                 >
                     {notificationsLoading ? (
@@ -789,6 +825,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                             {mergedNotifications.map((n) => {
                                 const notificationId = resolveNotificationId(n);
                                 const notificationKey = notificationId || String(n.message || n.type || "notification");
+                                const createdAt = n.created_at || n.Created_At || n.createdAt;
+                                const notificationDealRef = n.deal_ref || n.Deal_Ref || n.deal_id || n.Deal_Id || propertyRefNumber;
 
                                 return (
                                     <button
@@ -814,15 +852,23 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                             handleNotificationClick(n);
                                         }}
                                     >
-                                        {n.message}
+                                        <span className="deal-notification-item-title">
+                                            {n.title || n.type || "Notification"}
+                                        </span>
+                                        <span className="deal-notification-item-message">{n.message || "No message"}</span>
+                                        <span className="deal-notification-item-meta">
+                                            {notificationDealRef ? `Deal ${notificationDealRef}` : "Deal notification"}
+                                            {formatNotificationTimestamp(createdAt) ? ` • ${formatNotificationTimestamp(createdAt)}` : ""}
+                                        </span>
                                     </button>
                                 );
                             })}
                         </>
                     ) : (
-                        <p>No notifications for this deal.</p>
+                        <p>No notifications.</p>
                     )}
-                </div>
+                </div>,
+                document.body
             )}
 
 
@@ -944,127 +990,161 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 alt="Taurus Capital"
                             />
                         </div>
-                        <p className="readvance-modal-subtitle">
-                            Complete the details below, then open the pre-filled readvance form.
-                        </p>
-
-                        {readvanceError && <p className="error">{readvanceError}</p>}
-
-                        <div className="readvance-form-grid">
-                            <label>
-                                Party Receiving Taurus Funds
-                                <select value={partyReceiving} onChange={(e) => setPartyReceiving(e.target.value)}>
-                                    <option>Conveyancing Firm</option>
-                                    <option>Seller / Nominated Account</option>
-                                    <option>Split Between Firm and Seller</option>
-                                </select>
-                            </label>
-
-                            <label>
-                                Total Readvance Amount
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={totalAmount}
-                                    onChange={(e) => setTotalAmount(e.target.value)}
-                                />
-                            </label>
-
-                            <label>
-                                Readvance Amount to Attorney Firm
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={amountToFirm}
-                                    onChange={(e) => setAmountToFirm(e.target.value)}
-                                    disabled={partyReceiving !== "Split Between Firm and Seller"}
-                                />
-                            </label>
-
-                            <label>
-                                Readvance Amount to Nominated Account
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={amountToNominated}
-                                    onChange={(e) => setAmountToNominated(e.target.value)}
-                                    disabled={partyReceiving !== "Split Between Firm and Seller"}
-                                />
-                            </label>
-
-                            <label>
-                                Firm Bank
-                                <select
-                                    value={selectedFirmBankId}
-                                    onChange={(e) => setSelectedFirmBankId(e.target.value)}
-                                    disabled={partyReceiving === "Seller / Nominated Account"}
-                                >
-                                    {firmBankOptions.map((b) => (
-                                        <option key={b.id} value={b.id}>{b.label}</option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label>
-                                Seller Bank
-                                <select
-                                    value={selectedSellerBankId}
-                                    onChange={(e) => setSelectedSellerBankId(e.target.value)}
-                                    disabled={partyReceiving === "Conveyancing Firm" || sellerBankLoading}
-                                >
-                                    <option value="">{sellerBankLoading ? "Loading…" : "Select seller bank"}</option>
-                                    {sellerBankOptions.map((b) => (
-                                        <option key={b.id} value={b.id}>{b.label}</option>
-                                    ))}
-                                </select>
-                            </label>
-                        </div>
-
-                        {!canOpenReadvanceForm && partyReceiving === "Split Between Firm and Seller" && (
-                            <p className="readvance-validation-message">
-                                For split payments, the firm and nominated amounts must add up to the total readvance amount.
+                        <div className="readvance-modal-body">
+                            <p className="readvance-modal-subtitle">
+                                Complete the details below, then open the pre-filled readvance form.
                             </p>
-                        )}
 
+                            {readvanceError && <p className="error">{readvanceError}</p>}
 
-                        {!sellerBankOptions.length && sellerAccountId && (
-                            <button
-                                className="button readvance-modal-button"
-                                onClick={() =>
-                                    openExternalUrl(
-                                        buildZohoFormUrl(ADD_BANK_DETAIL_FORM_URL, {
-                                            account_name: sellerAccountId,
-                                        })
-                                    )
-                                }
-                            >
-                                Add Seller Bank Details
-                            </button>
-                        )}
+                            <section className="readvance-section-card">
+                                <h4 className="readvance-section-title">Current Position</h4>
+                                <div className="readvance-summary-grid">
+                                    <div className="readvance-summary-item">
+                                        <div className="readvance-summary-label">Deal Reference</div>
+                                        <div className="readvance-summary-value">{propertyRefNumber || "—"}</div>
+                                    </div>
+                                    <div className="readvance-summary-item">
+                                        <div className="readvance-summary-label">Current Balance</div>
+                                        <div className="readvance-summary-value">{deal.current_balance || deal["Current Balance"] || "—"}</div>
+                                    </div>
+                                    <div className="readvance-summary-item">
+                                        <div className="readvance-summary-label">Upsell Potential</div>
+                                        <div className="readvance-summary-value">{deal.upsell_available || deal["Upsell Available"] || "—"}</div>
+                                    </div>
+                                    <div className="readvance-summary-item">
+                                        <div className="readvance-summary-label">Seller Account</div>
+                                        <div className="readvance-summary-value">{sellerAccountId || "—"}</div>
+                                    </div>
+                                </div>
+                            </section>
 
-                        <button
-                            className="button readvance-modal-button"
-                            disabled={!canOpenReadvanceForm}
-                            onClick={() => {
-                                const formUrl = buildZohoFormUrl(SELLER_READVANCE_FORM_URL, {
-                                    [INITIAL_OR_FURTHER_ADVANCE_ALIAS]: "Further Advance",
-                                    Deal_Reference_Number: propertyRefNumber,
-                                    Party_Receiving_Taurus_Funds_Further_Advance: partyReceiving,
-                                    Readvance_Amount_to_Attorney_Firm: amountToFirm,
-                                    Readvance_Amount_to_Nominated_Account: amountToNominated,
-                                    Readvance_Firm_Bank_Details_id: selectedFirmBankId,
-                                    Readvance_Seller_Bank_Details_id: selectedSellerBankId,
-                                });
+                            <section className="readvance-section-card">
+                                <h4 className="readvance-section-title">Readvance Options</h4>
+                                <div className="readvance-form-grid">
+                                    <label>
+                                        Party Receiving Taurus Funds
+                                        <select value={partyReceiving} onChange={(e) => setPartyReceiving(e.target.value)}>
+                                            <option>Conveyancing Firm</option>
+                                            <option>Seller / Nominated Account</option>
+                                            <option>Split Between Firm and Seller</option>
+                                        </select>
+                                    </label>
 
-                                openExternalUrl(formUrl);
-                                setSellerReadvanceOpen(false);
-                            }}
-                        >
-                            Open Readvance Form
-                        </button>
+                                    <label>
+                                        Total Readvance Amount
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={totalAmount}
+                                            onChange={(e) => setTotalAmount(e.target.value)}
+                                        />
+                                    </label>
+
+                                    <label>
+                                        Readvance Amount to Attorney Firm
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={amountToFirm}
+                                            onChange={(e) => setAmountToFirm(e.target.value)}
+                                            disabled={partyReceiving !== "Split Between Firm and Seller"}
+                                        />
+                                    </label>
+
+                                    <label>
+                                        Readvance Amount to Nominated Account
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={amountToNominated}
+                                            onChange={(e) => setAmountToNominated(e.target.value)}
+                                            disabled={partyReceiving !== "Split Between Firm and Seller"}
+                                        />
+                                    </label>
+
+                                    <label>
+                                        Firm Bank
+                                        <select
+                                            value={selectedFirmBankId}
+                                            onChange={(e) => setSelectedFirmBankId(e.target.value)}
+                                            disabled={partyReceiving === "Seller / Nominated Account"}
+                                        >
+                                            {firmBankOptions.map((b) => (
+                                                <option key={b.id} value={b.id}>{b.label}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+
+                                    <label>
+                                        Seller Bank
+                                        <select
+                                            value={selectedSellerBankId}
+                                            onChange={(e) => setSelectedSellerBankId(e.target.value)}
+                                            disabled={partyReceiving === "Conveyancing Firm" || sellerBankLoading}
+                                        >
+                                            <option value="">{sellerBankLoading ? "Loading…" : "Select seller bank"}</option>
+                                            {sellerBankOptions.map((b) => (
+                                                <option key={b.id} value={b.id}>{b.label}</option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                </div>
+
+                                {!canOpenReadvanceForm && partyReceiving === "Split Between Firm and Seller" && (
+                                    <p className="readvance-validation-message">
+                                        For split payments, the firm and nominated amounts must add up to the total readvance amount.
+                                    </p>
+                                )}
+                            </section>
+
+                            <section className="readvance-section-card">
+                                <h4 className="readvance-section-title">Action</h4>
+                                <div className="readvance-modal-actions">
+                                    {!sellerBankOptions.length && sellerAccountId && (
+                                        <button
+                                            className="button readvance-modal-button"
+                                            onClick={() =>
+                                                openExternalUrl(
+                                                    buildZohoFormUrl(ADD_BANK_DETAIL_FORM_URL, {
+                                                        account_name: sellerAccountId,
+                                                    })
+                                                )
+                                            }
+                                        >
+                                            Add Seller Bank Details
+                                        </button>
+                                    )}
+
+                                    <button
+                                        className="button readvance-modal-button"
+                                        disabled={!canOpenReadvanceForm}
+                                        onClick={() => {
+                                            const formUrl = buildZohoFormUrl(SELLER_READVANCE_FORM_URL, {
+                                                [INITIAL_OR_FURTHER_ADVANCE_ALIAS]: "Further Advance",
+                                                Deal_Reference_Number: propertyRefNumber,
+                                                Party_Receiving_Taurus_Funds_Further_Advance: partyReceiving,
+                                                Readvance_Amount_to_Attorney_Firm: amountToFirm,
+                                                Readvance_Amount_to_Nominated_Account: amountToNominated,
+                                                Readvance_Firm_Bank_Details_id: selectedFirmBankId,
+                                                Readvance_Seller_Bank_Details_id: selectedSellerBankId,
+                                            });
+
+                                            openExternalUrl(formUrl);
+                                            setSellerReadvanceOpen(false);
+                                        }}
+                                    >
+                                        Open Readvance Form
+                                    </button>
+                                    <button className="button readvance-modal-button" onClick={() => setSellerReadvanceOpen(false)}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </section>
+                        </div>
                     </div>
                 </div>
             )}

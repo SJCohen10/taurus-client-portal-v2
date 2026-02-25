@@ -948,7 +948,7 @@ function openExternalUrl(url) {
             )}
 
             {/* Readvance chooser */}
-            {readvanceChooserOpen && (
+            {readvanceChooserOpen && ReactDOM.createPortal(
                 <div className="modal-backdrop readvance-backdrop" onClick={() => setReadvanceChooserOpen(false)}>
                     <div className="readvance-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="readvance-modal-header">
@@ -983,11 +983,12 @@ function openExternalUrl(url) {
                             Quick Bridge Readvance
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Seller Bridging Readvance */}
-            {sellerReadvanceOpen && (
+            {sellerReadvanceOpen && ReactDOM.createPortal(
                 <div className="modal-backdrop readvance-backdrop" onClick={() => setSellerReadvanceOpen(false)}>
                     <div className="readvance-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="readvance-modal-header">
@@ -1154,7 +1155,8 @@ function openExternalUrl(url) {
                             </section>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
         </div>

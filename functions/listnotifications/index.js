@@ -96,19 +96,33 @@ module.exports = async (req, res) => {
             return sendJson(res, 400, { error: "Invalid dealId", requestId, endpoint, details: "invalid dealId" });
         }
 
-        // --- Authorization (only if Analytics env exists) ---
+        // --- Authorization (only if Analytics env exists and token retrieval succeeds) ---
+        let analyticsAuthorized = false;
         if (hasAnalyticsEnv()) {
-            const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
-            const visibleDealIds = new Set(
-                (visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean)
-            );
+            try {
+                const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
+                const visibleDealIds = new Set(
+                    (visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean)
+                );
 
-            if (!visibleDealIds.has(dealId)) {
-                return sendJson(res, 403, {
-                    error: "Deal is not authorized for this user.",
+                if (!visibleDealIds.has(dealId)) {
+                    return sendJson(res, 403, {
+                        error: "Deal is not authorized for this user.",
+                        requestId,
+                        endpoint,
+                        details: "deal authorization failed",
+                    });
+                }
+
+                analyticsAuthorized = true;
+            } catch (authErr) {
+                // Degrade gracefully instead of returning 500 when Analytics OAuth is unavailable.
+                // In this mode we force targeted-email notifications only (no broadcasts).
+                console.warn("[listnotifications] Analytics authorization unavailable; falling back to targeted-only mode", {
                     requestId,
-                    endpoint,
-                    details: "deal authorization failed",
+                    email,
+                    dealId,
+                    message: authErr?.message || String(authErr),
                 });
             }
         } else {
@@ -139,7 +153,7 @@ module.exports = async (req, res) => {
         // Audience scoping:
         // - With Analytics: allow targeted OR broadcast (NULL)
         // - Without Analytics: safest is targeted only, unless env explicitly allows broadcast
-        if (hasAnalyticsEnv() || allowBroadcastWithoutAnalytics()) {
+        if (analyticsAuthorized || allowBroadcastWithoutAnalytics()) {
             query += ` AND (${COL_AUDIENCE_EMAIL}='${esc(email)}' OR ${COL_AUDIENCE_EMAIL} IS NULL)`;
         } else {
             query += ` AND ${COL_AUDIENCE_EMAIL}='${esc(email)}'`;
@@ -153,14 +167,14 @@ module.exports = async (req, res) => {
             includeRead,
             email,
             table: notificationsTable,
-            analyticsAuth: hasAnalyticsEnv(),
+            analyticsAuth: analyticsAuthorized,
             broadcastAllowedWithoutAnalytics: allowBroadcastWithoutAnalytics(),
             query,
         });
 
-        const rows = await zcql.executeZCQLQuery(query);
+        const dbRows = await zcql.executeZCQLQuery(query);
 
-        const mapped = (rows || []).map((r) => {
+        const mapped = (dbRows || []).map((r) => {
             if (!r || typeof r !== "object") return r;
             const keys = Object.keys(r);
             if (keys.length === 1 && r[keys[0]] && typeof r[keys[0]] === "object") {
@@ -175,15 +189,32 @@ module.exports = async (req, res) => {
                 (n) => !(n?.[COL_IS_READ] === true || String(n?.[COL_IS_READ]).toLowerCase() === "true")
             );
 
+        const rows = notifications.map((n) => ({
+            ...n,
+            id: n?.id || n?.ID || n?.ROWID || n?.rowid || "",
+            deal_id: n?.deal_id || n?.Deal_Id || n?.[COL_DEAL_ID] || dealId,
+            audience_email: n?.audience_email || n?.Audience_Email || n?.[COL_AUDIENCE_EMAIL] || null,
+            message: n?.message || n?.Message || "",
+            created_at: n?.created_at || n?.Created_At || n?.[COL_CREATED_AT] || null,
+            read_at: n?.read_at || n?.Read_At || null,
+            is_read: n?.is_read || n?.Is_Read || n?.[COL_IS_READ] || false,
+            type: n?.type || n?.Type || "",
+            severity: n?.severity || n?.Severity || "",
+        }));
+
         console.log("[listnotifications] ok", {
             requestId,
             dealId,
             includeRead,
             email,
-            count: notifications.length,
+            count: rows.length,
         });
 
-        return sendJson(res, 200, { notifications: notifications || [] });
+        return sendJson(res, 200, {
+            count: rows.length,
+            rows,
+            notifications: rows,
+        });
     } catch (err) {
         console.error("[listnotifications] error", {
             requestId,

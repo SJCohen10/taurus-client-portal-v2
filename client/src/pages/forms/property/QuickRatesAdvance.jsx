@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import QRFormEmbed from "../../../components/QRFormEmbed";
 import { usePortalContext } from "../../../PortalContext";
 
@@ -8,6 +9,7 @@ export default function QuickRatesAdvance({
   subtitle = "Please complete the form below. Your firm and user details are pre-populated where possible.",
 }) {
   const portal = usePortalContext();
+  const [searchParams] = useSearchParams();
   const crm = portal?.context || null;
   const emailFromContext = portal?.email || "";
 
@@ -85,6 +87,8 @@ export default function QuickRatesAdvance({
   const directorName = crm?.directorName || "";
   const directorEmail = crm?.directorEmail || "";
   const quickRatesLimit = crm?.quickRatesLimit ?? crm?.quickBridgeLimit ?? "";
+  const initialOrFurtherAdvance =
+    searchParams.get("Initial_Advance_Further_Advance") || "";
 
   const prefill = useMemo(
     () => ({
@@ -121,6 +125,7 @@ export default function QuickRatesAdvance({
       director_first_name: directorName,
       director_email: directorEmail,
       quick_rates_limit: quickRatesLimit,
+      Initial_Advance_Further_Advance: initialOrFurtherAdvance,
 
       // optional: prefill these display fields too (selected overrides preferred)
       Attorney_Firm_Bank: selectedBank?.bank || preferredBank?.bank || "",
@@ -149,6 +154,7 @@ export default function QuickRatesAdvance({
       directorName,
       directorEmail,
       quickRatesLimit,
+      initialOrFurtherAdvance,
       selectedBankDetailId,
       selectedBank?.bank,
       selectedBank?.name,

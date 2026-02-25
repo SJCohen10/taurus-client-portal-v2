@@ -390,6 +390,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     function handleReadvance(event) {
         event.stopPropagation();
         setOpen(false);
+        setNotificationOpen(false);
         setReadvanceChooserOpen(true);
     }
 
@@ -948,7 +949,7 @@ function openExternalUrl(url) {
 
             {/* Readvance chooser */}
             {readvanceChooserOpen && (
-                <div className="modal-backdrop" onClick={() => setReadvanceChooserOpen(false)}>
+                <div className="modal-backdrop readvance-backdrop" onClick={() => setReadvanceChooserOpen(false)}>
                     <div className="readvance-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="readvance-modal-header">
                             <h3>Readvance</h3>
@@ -987,7 +988,7 @@ function openExternalUrl(url) {
 
             {/* Seller Bridging Readvance */}
             {sellerReadvanceOpen && (
-                <div className="modal-backdrop" onClick={() => setSellerReadvanceOpen(false)}>
+                <div className="modal-backdrop readvance-backdrop" onClick={() => setSellerReadvanceOpen(false)}>
                     <div className="readvance-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="readvance-modal-header">
                             <h3>Seller Bridging Readvance</h3>

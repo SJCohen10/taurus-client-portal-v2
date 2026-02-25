@@ -607,12 +607,8 @@ function openExternalUrl(url) {
             openExpectedLodgementModal();
             return;
         }
-
-        // fallback: open note with message
+        // default behavior: only mark as read and close popover.
         setNotificationOpen(false);
-        setNoteError("");
-        setNoteContent(notification.message || "");
-        setNoteOpen(true);
     }
 
 
@@ -853,6 +849,7 @@ function openExternalUrl(url) {
                                                     setPersistedNotifications((prev) =>
                                                         prev.filter((x) => resolveNotificationId(x) !== notificationId)
                                                     );
+                                                    setNotificationOpen(false);
                                                 } catch (err) {
                                                     console.warn("Failed to mark notification read", err);
                                                 }

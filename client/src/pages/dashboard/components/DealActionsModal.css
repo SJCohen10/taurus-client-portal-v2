@@ -252,6 +252,8 @@
     width: min(420px, 94vw);
 }
 
+}
+
 .readvance-backdrop {
     z-index: 12020;
 }

@@ -8,8 +8,24 @@ function sendJson(res, statusCode, payload) {
     res.end(JSON.stringify(payload));
 }
 
-function parseBody(req) {
-    if (req.body == null) return {};
+async function parseBody(req) {
+    if (req.body == null) {
+        // Some Catalyst runtimes don't pre-populate req.body for custom functions.
+        // Fall back to reading the raw request stream.
+        const raw = await new Promise((resolve) => {
+            const chunks = [];
+            req.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+            req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+            req.on("error", () => resolve(""));
+        });
+
+        if (!raw) return {};
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return {};
+        }
+    }
 
     // Catalyst / Node may provide Buffer
     if (Buffer.isBuffer(req.body)) {
@@ -44,7 +60,7 @@ module.exports = async (req, res) => {
         const catalyst = require("zcatalyst-sdk-node");
         const app = catalyst.initialize(req);
 
-        const body = parseBody(req);
+        const body = await parseBody(req);
         const id = String(body.id || "").trim();
         const requestedEmail = String(body.email || "").trim().toLowerCase();
         const callerEmail = portalDeals.getCallerEmail(req);

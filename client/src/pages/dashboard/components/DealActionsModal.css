@@ -1,12 +1,13 @@
 .readvance-modal {
-    width: min(760px, 94vw);
+    width: min(900px, 95vw);
     background: #fff;
     border-radius: 16px;
-    padding: 20px;
     box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28);
     border: 1px solid rgba(15, 23, 42, 0.08);
-    max-height: min(88vh, 780px);
-    overflow-y: auto;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .readvance-modal-header {
@@ -14,7 +15,9 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 12px;
-    margin-bottom: 8px;
+    margin: 0;
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.1);
 }
 
 .readvance-modal-header h3 {
@@ -28,10 +31,34 @@
     object-fit: contain;
 }
 
+.readvance-modal-body {
+    padding: 16px 18px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
 .readvance-modal-subtitle {
-    margin: 0 0 14px;
+    margin: 0;
     color: #475569;
     font-size: 0.92rem;
+}
+
+.readvance-section-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px;
+    background: #ffffff;
+}
+
+.readvance-section-title {
+    margin: 0 0 10px;
+    color: #0f172a;
+    font-size: 0.92rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .readvance-form-grid {
@@ -46,6 +73,7 @@
     font-size: 0.86rem;
     color: #1e293b;
     gap: 6px;
+    min-width: 0;
 }
 
 .readvance-form-grid input,
@@ -64,8 +92,42 @@
     color: #64748b;
 }
 
+.readvance-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.readvance-summary-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px;
+    background: #f8fafc;
+    min-width: 0;
+}
+
+.readvance-summary-label {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+}
+
+.readvance-summary-value {
+    font-size: 0.9rem;
+    color: #111827;
+    word-break: break-word;
+}
+
+.readvance-modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
 .readvance-modal-button {
-    margin-top: 12px;
     width: 100%;
 }
 
@@ -80,7 +142,8 @@
 }
 
 @media (max-width: 700px) {
-    .readvance-form-grid {
+    .readvance-form-grid,
+    .readvance-summary-grid {
         grid-template-columns: 1fr;
     }
 
@@ -125,11 +188,9 @@
 }
 
 .deal-notification-popover {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 6px);
-    width: min(300px, 46vw);
-    max-height: 260px;
+    position: fixed;
+    width: min(320px, calc(100vw - 16px));
+    max-height: min(65vh, 440px);
     overflow-y: auto;
     background: #ffffff;
     border: 1px solid rgba(15, 23, 42, 0.15);
@@ -143,6 +204,42 @@
     margin: 0;
     font-size: 0.83rem;
     color: #1f2937;
+}
+
+.deal-notification-item {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    padding: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.deal-notification-item:last-child {
+    margin-bottom: 0;
+}
+
+.deal-notification-item-title {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+}
+
+.deal-notification-item-message {
+    font-size: 0.86rem;
+    color: #111827;
+    word-break: break-word;
+}
+
+.deal-notification-item-meta {
+    font-size: 0.75rem;
+    color: #64748b;
 }
 
 .deal-notification-actions {

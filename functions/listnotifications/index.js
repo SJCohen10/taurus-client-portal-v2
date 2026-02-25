@@ -96,19 +96,33 @@ module.exports = async (req, res) => {
             return sendJson(res, 400, { error: "Invalid dealId", requestId, endpoint, details: "invalid dealId" });
         }
 
-        // --- Authorization (only if Analytics env exists) ---
+        // --- Authorization (only if Analytics env exists and token retrieval succeeds) ---
+        let analyticsAuthorized = false;
         if (hasAnalyticsEnv()) {
-            const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
-            const visibleDealIds = new Set(
-                (visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean)
-            );
+            try {
+                const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
+                const visibleDealIds = new Set(
+                    (visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean)
+                );
 
-            if (!visibleDealIds.has(dealId)) {
-                return sendJson(res, 403, {
-                    error: "Deal is not authorized for this user.",
+                if (!visibleDealIds.has(dealId)) {
+                    return sendJson(res, 403, {
+                        error: "Deal is not authorized for this user.",
+                        requestId,
+                        endpoint,
+                        details: "deal authorization failed",
+                    });
+                }
+
+                analyticsAuthorized = true;
+            } catch (authErr) {
+                // Degrade gracefully instead of returning 500 when Analytics OAuth is unavailable.
+                // In this mode we force targeted-email notifications only (no broadcasts).
+                console.warn("[listnotifications] Analytics authorization unavailable; falling back to targeted-only mode", {
                     requestId,
-                    endpoint,
-                    details: "deal authorization failed",
+                    email,
+                    dealId,
+                    message: authErr?.message || String(authErr),
                 });
             }
         } else {
@@ -139,7 +153,7 @@ module.exports = async (req, res) => {
         // Audience scoping:
         // - With Analytics: allow targeted OR broadcast (NULL)
         // - Without Analytics: safest is targeted only, unless env explicitly allows broadcast
-        if (hasAnalyticsEnv() || allowBroadcastWithoutAnalytics()) {
+        if (analyticsAuthorized || allowBroadcastWithoutAnalytics()) {
             query += ` AND (${COL_AUDIENCE_EMAIL}='${esc(email)}' OR ${COL_AUDIENCE_EMAIL} IS NULL)`;
         } else {
             query += ` AND ${COL_AUDIENCE_EMAIL}='${esc(email)}'`;
@@ -153,7 +167,7 @@ module.exports = async (req, res) => {
             includeRead,
             email,
             table: notificationsTable,
-            analyticsAuth: hasAnalyticsEnv(),
+            analyticsAuth: analyticsAuthorized,
             broadcastAllowedWithoutAnalytics: allowBroadcastWithoutAnalytics(),
             query,
         });

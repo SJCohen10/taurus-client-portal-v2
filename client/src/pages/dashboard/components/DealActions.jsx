@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
     generateStatement,
     uploadDealDocument,
@@ -76,6 +77,7 @@ function readFileAsBase64(file) {
 }
 
 export default function DealActions({ deal, portalEmail, accountId, onDealUpdate, onOpenExpectedLodgementDate }) {
+    const navigate = useNavigate();
 
     const portal = usePortalContext();
     const crm = portal?.context || null;
@@ -402,8 +404,17 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         return url.toString();
     }
 
-    function openExternalUrl(url) {
+function openExternalUrl(url) {
         window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    function openReadvanceApplication(pathname) {
+        const params = new URLSearchParams();
+        params.set(INITIAL_OR_FURTHER_ADVANCE_ALIAS, "Further Advance");
+        if (propertyRefNumber) {
+            params.set("Deal_Reference_Number", String(propertyRefNumber));
+        }
+        navigate(`${pathname}?${params.toString()}`);
     }
 
     const parsedTotalAmount = Number(totalAmount || 0);
@@ -956,8 +967,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                             className="button readvance-modal-button"
                             onClick={async () => {
                                 setReadvanceChooserOpen(false);
-                                setSellerReadvanceOpen(true);
-                                await loadSellerBanks();
+                                openReadvanceApplication("/seller-proceeds");
                             }}
 
                         >
@@ -968,7 +978,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                             className="button"
                             onClick={() => {
                                 setReadvanceChooserOpen(false);
-                                setMessage("Quick Bridge Readvance coming next.");
+                                openReadvanceApplication("/quick-rates");
                             }}
                             style={{ width: "100%" }}
                         >

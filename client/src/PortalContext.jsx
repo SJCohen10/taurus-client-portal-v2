@@ -1,3 +1,4 @@
+import { request } from "./api/catalystClient";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 const PortalContext = createContext(null);
@@ -29,28 +30,7 @@ export function PortalProvider({ children }) {
   async function loadContext(resolvedEmail) {
     if (!resolvedEmail) return null;
 
-    // In production (Catalyst), leave this blank.
-    // In local dev, set REACT_APP_API_BASE to your Catalyst domain.
-    const apiBase = process.env.REACT_APP_API_BASE || "";
-    const url = `${apiBase}/server/getportalusercontext?email=${encodeURIComponent(resolvedEmail)}`;
-
-    const res = await fetch(url, { method: "GET" });
-
-    const contentType = res.headers.get("content-type") || "";
-    const bodyText = await res.text();
-
-    if (!res.ok) {
-      throw new Error(`getPortalUserContext failed (${res.status}): ${bodyText}`);
-    }
-
-    // If we got HTML, show a clear error (prevents the "<!DOCTYPE" JSON crash)
-    if (!contentType.includes("application/json")) {
-      throw new Error(
-        `Expected JSON but got "${contentType}". URL=${url}. Body starts: ${bodyText.slice(0, 80)}`
-      );
-    }
-
-    return JSON.parse(bodyText);
+    return request("/getportalusercontext", { query: { email: resolvedEmail } });
   }
 
 

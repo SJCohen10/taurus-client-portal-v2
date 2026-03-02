@@ -1,11 +1,6 @@
 // client/src/services/portalApi.js
 
-// In dev: call the remote Catalyst backend directly
-// In prod: use relative /server (works when app is hosted on Catalyst)
-const API_BASE =
-  process.env.NODE_ENV === "development"
-    ? (process.env.REACT_APP_API_BASE || "") + "/server"
-    : "/server";
+import { request } from "../api/catalystClient";
 
 function getDevImpersonationEmail() {
   if (process.env.NODE_ENV !== "development") return "";
@@ -29,14 +24,6 @@ function getPortalUserEmail(explicitEmail) {
 
   // 3) In production, fail if no user
   throw new Error("Missing logged-in user email");
-}
-
-async function handleResponse(res) {
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
-  }
-  return res.json();
 }
 
 function normalizeDeal(deal = {}) {
@@ -73,11 +60,7 @@ function normalizeDealsPayload(payload = {}) {
 // Deals for the logged-in portal user (paralegal / conveyancer)
 export async function fetchMyDeals(emailOverride) {
   const email = getPortalUserEmail(emailOverride);
-  const url = `${API_BASE}/getportaldeals?email=${encodeURIComponent(email)}`;
-
-
-  const res = await fetch(url, { method: "GET" });
-  const data = await handleResponse(res);
+  const data = await request("/getportaldeals", { query: { email } });
   return normalizeDealsPayload(data);
 }
 
@@ -96,13 +79,7 @@ export async function fetchFirmDeals({ accountId, fallbackEmail } = {}) {
     params.set("email", email);
   }
 
-  const url = `${API_BASE}/getportaldeals?${params.toString()}`;
-
-  const res = await fetch(url, {
-    method: "GET",
-  });
-
-  const data = await handleResponse(res);
+  const data = await request("/getportaldeals", { query: Object.fromEntries(params.entries()) });
   return normalizeDealsPayload(data);
 }
 
@@ -112,30 +89,15 @@ export async function fetchDealTransactions({ assetIds, email }) {
   params.set("assetIds", String(assetIds || ""));
   if (safeEmail) params.set("email", safeEmail);
 
-  const url = `${API_BASE}/getdealtransactions?${params.toString()}`;
-
-  const res = await fetch(url, { method: "GET" });
-  return handleResponse(res);
+  return request("/getdealtransactions", { query: Object.fromEntries(params.entries()) });
 }
 
 export async function createNote(payload) {
-  const res = await fetch(`${API_BASE}/createnote`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse(res);
+  return request("/createnote", { method: "POST", body: payload });
 }
 
 export async function updateExpectedLodgementDate(payload) {
-  const res = await fetch(`${API_BASE}/updateexpectedlodgementdate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse(res);
+  return request("/updateexpectedlodgementdate", { method: "POST", body: payload });
 }
 
 
@@ -143,36 +105,19 @@ export async function updateExpectedLodgementDate(payload) {
 
 //Upload a document for a specific deal/property
 export async function uploadDealDocument(payload) {
-  const res = await fetch(`${API_BASE}/uploaddealdocument`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse(res);
+  return request("/uploaddealdocument", { method: "POST", body: payload });
 }
 
 export async function fetchBankDetailsForAccount({ accountId, avsOnly = false }) {
   if (!accountId) throw new Error("Missing accountId");
-  const url = `${API_BASE}/getbankdetailsforaccount?accountId=${encodeURIComponent(
-    accountId
-  )}&avsOnly=${avsOnly ? "true" : "false"}`;
-
-  const res = await fetch(url, { method: "GET" });
-  const data = await handleResponse(res);
+  const data = await request("/getbankdetailsforaccount", { query: { accountId, avsOnly: avsOnly ? "true" : "false" } });
   return normalizeDealsPayload(data);
 }
 
 
 // Generate a statement using the Creator-backed logic
 export async function generateStatement({ assetId }) {
-  const res = await fetch(`${API_BASE}/generatestatement`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ assetId }),
-  });
-
-  return handleResponse(res);
+  return request("/generatestatement", { method: "POST", body: { assetId } });
 }
 
 // --- Notifications (Catalyst Data Store) ---
@@ -187,29 +132,15 @@ export async function listNotifications({ email, dealId, includeRead = false } =
   params.set("dealId", String(dealId));
   params.set("includeRead", includeRead ? "true" : "false");
 
-  const url = `${API_BASE}/listnotifications?${params.toString()}`;
-
-  const res = await fetch(url, { method: "GET" });
-  return handleResponse(res);
+  return request("/listnotifications", { query: Object.fromEntries(params.entries()) });
 }
 
 export async function createNotification(payload) {
-  const res = await fetch(`${API_BASE}/createnotification`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  return handleResponse(res);
+  return request("/createnotification", { method: "POST", body: payload });
 }
 
 export async function markNotificationRead({ id, email }) {
-  const res = await fetch(`${API_BASE}/marknotificationread`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, email: email || "" }),
-  });
-  return handleResponse(res);
+  return request("/marknotificationread", { method: "POST", body: { id, email: email || "" } });
 }
 
 

@@ -1,6 +1,8 @@
 "use strict";
 
 const { Buffer } = require("buffer");
+const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit } = require("../lib/security");
+const { getOAuthAccessToken } = require("../lib/crm");
 
 const DEFAULT_PORTAL_UPLOAD_FOLDER_NAME =
     process.env.PORTAL_UPLOAD_FOLDER_NAME || "Portal Document Uploads";
@@ -23,72 +25,12 @@ function createRequestId() {
     return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function sendJson(res, statusCode, payload) {
-    res.writeHead(statusCode, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(payload));
-}
-
-function readJsonBody(req) {
-    return new Promise((resolve, reject) => {
-        let data = "";
-        let bodyBytes = 0;
-        req.on("data", (chunk) => {
-            bodyBytes += chunk.length;
-            if (bodyBytes > MAX_BODY_BYTES) {
-                reject(new Error("Request body too large"));
-                req.destroy();
-                return;
-            }
-            data += chunk;
-        });
-        req.on("end", () => {
-            try {
-                const parsed = data ? JSON.parse(data) : {};
-                resolve(parsed);
-            } catch (err) {
-                reject(err);
-            }
-        });
-        req.on("error", reject);
-    });
-}
-
 async function getWorkDriveAccessToken() {
-    const clientId = process.env.ZOHO_WORKDRIVE_CLIENT_ID;
-    const clientSecret = process.env.ZOHO_WORKDRIVE_CLIENT_SECRET;
-    const refreshToken = process.env.ZOHO_WORKDRIVE_REFRESH_TOKEN;
-
-    if (!clientId || !clientSecret || !refreshToken) {
-        throw new Error(
-            "Missing Zoho WorkDrive OAuth env vars: ZOHO_WORKDRIVE_CLIENT_ID, ZOHO_WORKDRIVE_CLIENT_SECRET, ZOHO_WORKDRIVE_REFRESH_TOKEN"
-        );
-    }
-
-    const params = new URLSearchParams({
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: "refresh_token",
+    const data = await getOAuthAccessToken({
+        clientId: process.env.ZOHO_WORKDRIVE_CLIENT_ID,
+        clientSecret: process.env.ZOHO_WORKDRIVE_CLIENT_SECRET,
+        refreshToken: process.env.ZOHO_WORKDRIVE_REFRESH_TOKEN,
     });
-
-    const res = await fetch("https://accounts.zoho.com/oauth/v2/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params.toString(),
-    });
-
-    const text = await res.text();
-    let data;
-    try {
-        data = JSON.parse(text);
-    } catch {
-        throw new Error(`Failed to parse WorkDrive token response (${res.status})`);
-    }
-
-    if (!res.ok || !data.access_token) {
-        throw new Error(`Failed to get WorkDrive access token (${res.status})`);
-    }
-
     return data.access_token;
 }
 
@@ -371,11 +313,15 @@ module.exports = async (req, res) => {
     const endpoint = "/server/uploaddealdocument";
 
     try {
+        if (handleOptions(req, res)) return;
         if (req.method !== "POST") {
-            return sendJson(res, 405, { error: "Method not allowed. Use POST.", requestId, endpoint, details: "invalid method" });
+            return sendJson(req, res, 405, { error: "Method not allowed. Use POST.", requestId, endpoint, details: "invalid method" });
         }
 
-        const body = await readJsonBody(req);
+        const body = await readJsonBody(req, MAX_BODY_BYTES);
+        assertAllowedKeys(body, ["email", "fileName", "mimeType", "fileBase64", "propertyRefNumber", "propertyDescription", "accountId", "contactEmail", "assetId", "propertyFolderId", "dealId"]);
+        const email = enforceUserContext(req, body.email || body.contactEmail);
+        enforceRateLimit({ key: `uploaddealdocument:${email}`, limit: 20, windowMs: 60000 });
         const {
             fileName,
             mimeType,
@@ -389,8 +335,16 @@ module.exports = async (req, res) => {
             dealId,
         } = body || {};
 
+        if (String(dealId || "").trim()) {
+            const { getDealsForPortal } = require("../getdealtransactions/lib/portalDeals");
+            const allowedDeals = await getDealsForPortal({ email });
+            if (!allowedDeals.some((d) => String(d.deal_id) === String(dealId).trim())) {
+                return sendJson(req, res, 403, { error: "Forbidden", requestId, endpoint, details: "deal authorization failed" });
+            }
+        }
+
         if (!fileName || !fileBase64) {
-            return sendJson(res, 400, {
+            return sendJson(req, res, 400, {
                 error: "Missing fileName or fileBase64 in request body.",
                 requestId,
                 endpoint,
@@ -399,7 +353,7 @@ module.exports = async (req, res) => {
         }
 
         if (typeof mimeType !== "string" || !ALLOWED_MIME_TYPES.has(mimeType)) {
-            return sendJson(res, 400, {
+            return sendJson(req, res, 400, {
                 error: "Unsupported mimeType. Allowed: application/pdf, image/jpeg, image/png.",
                 requestId,
                 endpoint,
@@ -412,7 +366,7 @@ module.exports = async (req, res) => {
             : String(fileBase64);
 
         if (!/^[A-Za-z0-9+/=\s]+$/.test(base64Payload)) {
-            return sendJson(res, 400, {
+            return sendJson(req, res, 400, {
                 error: "Invalid fileBase64 payload.",
                 requestId,
                 endpoint,
@@ -422,7 +376,7 @@ module.exports = async (req, res) => {
 
         const uploadBytes = Buffer.byteLength(base64Payload.replace(/\s/g, ""), "base64");
         if (!Number.isFinite(uploadBytes) || uploadBytes <= 0 || uploadBytes > MAX_UPLOAD_BYTES) {
-            return sendJson(res, 400, {
+            return sendJson(req, res, 400, {
                 error: `File exceeds max allowed size of ${MAX_UPLOAD_BYTES} bytes.`,
                 requestId,
                 endpoint,
@@ -470,7 +424,7 @@ module.exports = async (req, res) => {
                     finalFolderId: portalFolderId,
                 });
 
-                return sendJson(res, 200, {
+                return sendJson(req, res, 200, {
                     message: "Document uploaded to WorkDrive",
                     folderId: portalFolderId,
                     resolvedPropertyFolderId: baseFolderId,
@@ -495,7 +449,7 @@ module.exports = async (req, res) => {
         }
 
         if (!rootFolderId) {
-            return sendJson(res, 400, {
+            return sendJson(req, res, 400, {
                 error: "Invalid propertyFolderId",
                 requestId,
                 endpoint,
@@ -513,7 +467,7 @@ module.exports = async (req, res) => {
         });
 
         if (!resolved.folderId) {
-            return sendJson(res, 400, {
+            return sendJson(req, res, 400, {
                 error: "Invalid propertyFolderId",
                 requestId,
                 endpoint,
@@ -539,7 +493,7 @@ module.exports = async (req, res) => {
             finalFolderId: portalFolderId,
         });
 
-        return sendJson(res, 200, {
+        return sendJson(req, res, 200, {
             message: "Document uploaded to WorkDrive",
             folderId: portalFolderId,
             resolvedPropertyFolderId: baseFolderId,
@@ -563,7 +517,7 @@ module.exports = async (req, res) => {
             endpoint,
             message: err?.message || String(err),
         });
-        return sendJson(res, 500, {
+        return sendJson(req, res, 500, {
             error: "Internal server error in uploaddealdocument.",
             requestId,
             endpoint,

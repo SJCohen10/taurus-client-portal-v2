@@ -190,8 +190,14 @@ If per-deal persistent notifications are required, implement via Catalyst Data S
 - Shared server utilities now live in `functions/lib/`:
   - `crm.js` for server-side CRM token + request handling with timeout/retry.
   - `security.js` for CORS allowlist handling, auth context checks, request key whitelisting, and per-user rate limiting.
-- Hardened functions (`createnote`, `updateexpectedlodgementdate`, `generatestatement`, `getbankdetailsforaccount`) now enforce authenticated user context, input-key whitelists, and record-level access checks via portal deal mapping.
-- `scripts/verify-security.sh` provides quick grep/static verification checks for client-side Zoho leakage and update endpoint whitelist enforcement.
+- Hardened functions (`createnote`, `updateexpectedlodgementdate`, `generatestatement`, `getbankdetailsforaccount`, `getportalusercontext`, `getdealtransactions`, `uploaddealdocument`) now enforce authenticated user context, input-key whitelists, and record-level access checks via portal deal mapping where applicable.
+- `scripts/verify-security.sh` provides quick verification checks for client-side Zoho leakage, migrated inline OAuth removal checks, and a runtime negative test that extra request fields are rejected.
+
+## Setup + testing guide
+
+For a simple operational guide covering Catalyst env vars, Zoho OAuth clients/setup, and manual/security test steps, see:
+
+- `docs/portal-testing-and-setup.md`
 
 ## 7) Environment variables
 

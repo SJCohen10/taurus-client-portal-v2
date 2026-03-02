@@ -183,6 +183,16 @@ If per-deal persistent notifications are required, implement via Catalyst Data S
 
 ---
 
+
+## Security hardening additions
+
+- Client calls are now centralized through `client/src/api/catalystClient.js`; UI code only calls Catalyst `/server/*` endpoints.
+- Shared server utilities now live in `functions/lib/`:
+  - `crm.js` for server-side CRM token + request handling with timeout/retry.
+  - `security.js` for CORS allowlist handling, auth context checks, request key whitelisting, and per-user rate limiting.
+- Hardened functions (`createnote`, `updateexpectedlodgementdate`, `generatestatement`, `getbankdetailsforaccount`, `getportalusercontext`, `getdealtransactions`, `uploaddealdocument`) now enforce authenticated user context, input-key whitelists, and record-level access checks via portal deal mapping where applicable.
+- `scripts/verify-security.sh` provides quick verification checks for client-side Zoho leakage, migrated inline OAuth removal checks, and a runtime negative test that extra request fields are rejected.
+
 ## 7) Environment variables
 
 ### Client (`client/.env` for local dev)

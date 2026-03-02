@@ -1,139 +1,35 @@
-'use strict';
+"use strict";
 
-const { URL } = require("url");
-const fetch = require("node-fetch");
+const { crmRequest } = require("../lib/crm");
+const { handleOptions, sendJson, enforceUserContext, enforceRateLimit, parseQuery } = require("../lib/security");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(payload));
-}
 
-
-
-async function getAccessToken() {
-  const clientId = process.env.ZOHO_CLIENT_ID;
-  const clientSecret = process.env.ZOHO_CLIENT_SECRET;
-  const refreshToken = process.env.ZOHO_REFRESH_TOKEN;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error(
-      "Missing Zoho OAuth environment variables: ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN"
-    );
-  }
-
-  const params = new URLSearchParams({
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-    grant_type: "refresh_token",
-  });
-
-  const accountsBase = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
-  const tokenUrl = `${accountsBase}/oauth/v2/token`;
-
-
-  const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(
-      `Failed to get access token (${res.status}): ${text || "No response body"}`
-    );
-  }
-
-  const data = await res.json();
-  if (!data.access_token) {
-    throw new Error("No access_token returned by Zoho");
-  }
-
-  const apiDomain = process.env.ZOHO_API_DOMAIN || data.api_domain || "https://www.zohoapis.com";
-  return { accessToken: data.access_token, apiDomain };
-
-
-}
-
-async function getAvsBankDetailsForAccount({ accessToken, crmBase, accountId }) {
+async function getAvsBankDetailsForAccount(accountId) {
   const criteria = `((Account:equals:${accountId}) and (AVS:equals:true))`;
-
-  const url = `${crmBase}/Bank_Details/search?criteria=${encodeURIComponent(criteria)}&per_page=200&page=1`;
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Zoho-oauthtoken ${accessToken}`,
-      Accept: "application/json",
-    },
-  });
-
-  const raw = await res.text();
-  if (!res.ok) {
-    throw new Error(
-      `Zoho CRM Bank_Details search failed (${res.status}): ${raw || "No response body"}`
-    );
-  }
-
-  const json = raw ? JSON.parse(raw) : {};
+  const json = await crmRequest({ method: "GET", path: "/Bank_Details/search", query: { criteria, per_page: 200, page: 1 } });
   const records = json.data || [];
-
   return records.map((bd) => {
     const accountNumber = bd.Account_Number || "";
     const last4 = accountNumber ? String(accountNumber).slice(-4) : "";
     return {
-      id: bd.id,               // ✅ CRM Bank Detail record id
+      id: bd.id,
       bank: bd.Bank || "",
       name: bd.Name || "",
-      accountNumber,           // optional (you’re already sending it today)
+      accountNumber,
       accountNumberLast4: last4,
       label: `${bd.Bank || "Bank"} – ${bd.Name || "Account"}${last4 ? ` – ****${last4}` : ""}`,
     };
   });
 }
 
-
-
-/**
- * Fetch Contact and Account from Zoho CRM Sandbox by email.
- */
 async function getContactAndAccountByEmail(email) {
-  const { accessToken, apiDomain } = await getAccessToken();
-  const crmVersion = process.env.ZOHO_CRM_VERSION || "v6";
-  const crmBase = `${apiDomain}/crm/${crmVersion}`;
-
-
-  // 1) Search Contact by Email
-  const searchUrl = `${crmBase}/Contacts/search?email=${encodeURIComponent(email)}`;
-
-  const searchRes = await fetch(searchUrl, {
-    headers: {
-      Authorization: `Zoho-oauthtoken ${accessToken}`,
-      Accept: "application/json",
-    },
-  });
-
-  const raw = await searchRes.text();
-
-  if (!searchRes.ok) {
-    throw new Error(
-      `Zoho CRM contact search failed (${searchRes.status}): ${raw || "No response body"}`
-    );
-  }
-
-  let searchData;
-  try {
-    searchData = raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    throw new Error(
-      `Failed to parse Contacts search JSON (${searchRes.status}). First 300 chars: ${raw?.slice(0, 300) || "<empty>"}`
-    );
-  }
-
-  const contacts = searchData.data || [];
+  const search = await crmRequest({ method: "GET", path: "/Contacts/search", query: { email } });
+  const contacts = search.data || [];
   if (!contacts.length) {
-    throw new Error(`No CRM Contact found for email: ${email}`);
+    const err = new Error("No CRM Contact found for email");
+    err.statusCode = 404;
+    throw err;
   }
 
   const contact = contacts[0];
@@ -145,78 +41,28 @@ async function getContactAndAccountByEmail(email) {
   const contactEmail = contact.Email || "";
   const contactMobile = contact.Mobile || contact.Phone || "";
   const canViewFirmDealsRaw = contact.Can_View_Firm_Deals;
-  const canViewFirmDeals =
-    canViewFirmDealsRaw === true ||
-    canViewFirmDealsRaw === "true" ||
-    canViewFirmDealsRaw === "Yes";
-
+  const canViewFirmDeals = canViewFirmDealsRaw === true || canViewFirmDealsRaw === "true" || canViewFirmDealsRaw === "Yes";
 
   const accountLookup = contact.Account_Name || contact.Account || {};
   const accountId = accountLookup.id;
-
   if (!accountId) {
-    throw new Error(`CRM Contact ${contactId} has no linked Account (Account_Name lookup missing).`);
+    const err = new Error("CRM Contact has no linked Account");
+    err.statusCode = 400;
+    throw err;
   }
 
-  // 2) Fetch Account details (full record to include custom firm fields)
-  const accountUrl = `${crmBase}/Accounts/${accountId}`;
-
-  const accountRes = await fetch(accountUrl, {
-    headers: {
-      Authorization: `Zoho-oauthtoken ${accessToken}`,
-      Accept: "application/json",
-    },
-  });
-
-  const accountRaw = await accountRes.text();
-  if (!accountRes.ok) {
-    throw new Error(
-      `Zoho CRM account fetch failed (${accountRes.status}): ${accountRaw || "No response body"}`
-    );
-  }
-
-  const accountData = accountRaw ? JSON.parse(accountRaw) : {};
+  const accountData = await crmRequest({ method: "GET", path: `/Accounts/${accountId}` });
   const accountRecord = (accountData.data && accountData.data[0]) || {};
 
-  // ✅ Fetch ALL AVS-verified bank details linked to this firm account
-  const bankDetails = await getAvsBankDetailsForAccount({
-    accessToken,
-    crmBase,
-    accountId,
-  });
-
-
-  // Preferred bank lookup
+  const bankDetails = await getAvsBankDetailsForAccount(accountId);
   const preferredLookup = accountRecord.Preferred_Quick_Rates_Bank_Accounts || null;
   const preferredBankId = preferredLookup?.id || null;
-
-  // ✅ Default selection: preferred Quick Rates bank first, else first AVS bank detail
-  const defaultBankDetailId =
-    preferredBankId || (bankDetails.length ? bankDetails[0].id : null);
-
+  const defaultBankDetailId = preferredBankId || (bankDetails.length ? bankDetails[0].id : null);
 
   let preferredQuickBridgeBank = null;
-
   if (preferredBankId) {
-    const bankDetailsUrl = `${crmBase}/Bank_Details/${preferredBankId}`;
-
-    const bdRes = await fetch(bankDetailsUrl, {
-      headers: {
-        Authorization: `Zoho-oauthtoken ${accessToken}`,
-        Accept: "application/json",
-      },
-    });
-
-    const bdRaw = await bdRes.text();
-    if (!bdRes.ok) {
-      throw new Error(
-        `Zoho CRM bank details fetch failed (${bdRes.status}): ${bdRaw || "No response body"}`
-      );
-    }
-
-    const bdData = bdRaw ? JSON.parse(bdRaw) : {};
+    const bdData = await crmRequest({ method: "GET", path: `/Bank_Details/${preferredBankId}` });
     const bd = (bdData.data && bdData.data[0]) || {};
-
     preferredQuickBridgeBank = {
       id: preferredBankId,
       bank: bd.Bank || "",
@@ -224,35 +70,6 @@ async function getContactAndAccountByEmail(email) {
       accountNumber: bd.Account_Number || "",
     };
   }
-
-  const accountName = accountRecord.Account_Name || "";
-  const firmRegNumber =
-    accountRecord.Reg_Number ||
-    accountRecord.Firm_Reg_Number ||
-    accountRecord.Firm_Registration_Number ||
-    "";
-  const firmStreetAddress =
-    accountRecord.Billing_Street ||
-    accountRecord.Shipping_Street ||
-    "";
-  const firmCity =
-    accountRecord.Billing_City ||
-    accountRecord.Shipping_City ||
-    "";
-  const firmProvince =
-    accountRecord.Billing_State ||
-    accountRecord.Shipping_State ||
-    "";
-  const firmZipCode =
-    accountRecord.Billing_Code ||
-    accountRecord.Shipping_Code ||
-    "";
-  const accountEmail = accountRecord.Email || contactEmail;
-  const accountMobile = accountRecord.Phone || contactMobile;
-
-  const directorName = accountRecord.Quick_Rates_Director_Name;
-  const directorEmail = accountRecord.Quick_Rates_Director_Email || "";
-  const quickBridgeLimit = accountRecord.Quick_Bridge_Limit || 120000;
 
   return {
     contactId,
@@ -263,55 +80,38 @@ async function getContactAndAccountByEmail(email) {
     contactMobile,
     portalRole,
     accountId,
-    accountName,
-    firmRegNumber,
-    firmStreetAddress,
-    firmCity,
-    firmProvince,
-    firmZipCode,
-    accountEmail,
+    accountName: accountRecord.Account_Name || "",
+    firmRegNumber: accountRecord.Reg_Number || accountRecord.Firm_Reg_Number || accountRecord.Firm_Registration_Number || "",
+    firmStreetAddress: accountRecord.Billing_Street || accountRecord.Shipping_Street || "",
+    firmCity: accountRecord.Billing_City || accountRecord.Shipping_City || "",
+    firmProvince: accountRecord.Billing_State || accountRecord.Shipping_State || "",
+    firmZipCode: accountRecord.Billing_Code || accountRecord.Shipping_Code || "",
+    accountEmail: accountRecord.Email || contactEmail,
     canViewFirmDeals,
-    accountMobile,
-    directorName,
-    directorEmail,
-    quickBridgeLimit,
+    accountMobile: accountRecord.Phone || contactMobile,
+    directorName: accountRecord.Quick_Rates_Director_Name,
+    directorEmail: accountRecord.Quick_Rates_Director_Email || "",
+    quickBridgeLimit: accountRecord.Quick_Bridge_Limit || 120000,
     preferredQuickBridgeBank,
     bankDetails,
     defaultBankDetailId,
   };
 }
 
-
-/**
- * Function Entry Point
- */
 module.exports = async (req, res) => {
   try {
+    if (handleOptions(req, res)) return;
+    if (req.method !== "GET") return sendJson(req, res, 405, { error: "Method not allowed. Use GET." });
 
-    if (req.method !== "GET") {
-      return sendJson(res, 405, { error: "Method not allowed. Use GET." });
-    }
-    const parsedUrl = new URL(req.url, "http://dummy-host");
-    const email = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
-
-    if (!email) {
-      return sendJson(res, 400, {
-        error: "Missing 'email' query parameter.",
-      });
-    }
-
-    if (!EMAIL_REGEX.test(email)) {
-      return sendJson(res, 400, { error: "Invalid 'email' query parameter." });
-    }
+    const query = parseQuery(req);
+    const email = enforceUserContext(req, query.get("email"));
+    if (!EMAIL_REGEX.test(email)) return sendJson(req, res, 400, { error: "Invalid email context" });
+    enforceRateLimit({ key: `getportalusercontext:${email}`, limit: 30, windowMs: 60000 });
 
     const context = await getContactAndAccountByEmail(email);
-
-    return sendJson(res, 200, context);
+    return sendJson(req, res, 200, context);
   } catch (err) {
-    console.error("Error in getPortalUserContext:", err);
-
-    return sendJson(res, 500, {
-      error: "Internal server error in getPortalUserContext.",
-    });
+    console.error("getPortalUserContext failed", { message: err.message });
+    return sendJson(req, res, err.statusCode || 500, { error: err.statusCode ? err.message : "Internal server error" });
   }
 };

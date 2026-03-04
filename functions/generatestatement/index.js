@@ -1,9 +1,9 @@
 "use strict";
 
 const crypto = require("crypto");
-const { crmRequest } = require("../lib/crm");
-const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("../lib/security");
-const { getDealsForPortal } = require("../getdealtransactions/lib/portalDeals");
+const { crmRequest } = require("./lib/crm");
+const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("./lib/security");
+const { getDealsForPortal } = require("./lib/portalDeals");
 
 function buildCreatorUrl(pageName, assetId) {
   const base = process.env.ZOHO_CREATOR_STATEMENT_BASE || "https://creatorapp.zoho.com/administrator_tauruscapital/loan-management-system/#Page";

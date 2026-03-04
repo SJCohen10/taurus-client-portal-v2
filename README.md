@@ -198,6 +198,7 @@ If per-deal persistent notifications are required, implement via Catalyst Data S
 For a simple operational guide covering Catalyst env vars, Zoho OAuth clients/setup, and manual/security test steps, see:
 
 - `docs/portal-testing-and-setup.md`
+- `docs/basic-testing-steps.md` (very basic quick-start test checklist)
 
 ## 7) Environment variables
 

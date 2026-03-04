@@ -1,8 +1,8 @@
 "use strict";
 
-const { crmRequest } = require("../lib/crm");
-const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit } = require("../lib/security");
-const { getDealsForPortal } = require("../getdealtransactions/lib/portalDeals");
+const { crmRequest } = require("./lib/crm");
+const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit } = require("./lib/security");
+const { getDealsForPortal } = require("./lib/portalDeals");
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 

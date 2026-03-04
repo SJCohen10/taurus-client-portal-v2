@@ -1,8 +1,8 @@
 "use strict";
 
 const { Buffer } = require("buffer");
-const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit } = require("../lib/security");
-const { getOAuthAccessToken } = require("../lib/crm");
+const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit } = require("./lib/security");
+const { getOAuthAccessToken } = require("./lib/crm");
 
 const DEFAULT_PORTAL_UPLOAD_FOLDER_NAME =
     process.env.PORTAL_UPLOAD_FOLDER_NAME || "Portal Document Uploads";
@@ -336,7 +336,7 @@ module.exports = async (req, res) => {
         } = body || {};
 
         if (String(dealId || "").trim()) {
-            const { getDealsForPortal } = require("../getdealtransactions/lib/portalDeals");
+            const { getDealsForPortal } = require("./lib/portalDeals");
             const allowedDeals = await getDealsForPortal({ email });
             if (!allowedDeals.some((d) => String(d.deal_id) === String(dealId).trim())) {
                 return sendJson(req, res, 403, { error: "Forbidden", requestId, endpoint, details: "deal authorization failed" });

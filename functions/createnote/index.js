@@ -1,8 +1,8 @@
 "use strict";
 
-const { crmRequest } = require("../lib/crm");
-const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit } = require("../lib/security");
-const { getDealsForPortal } = require("../getdealtransactions/lib/portalDeals");
+const { crmRequest } = require("./lib/crm");
+const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit } = require("./lib/security");
+const { getDealsForPortal } = require("./lib/portalDeals");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

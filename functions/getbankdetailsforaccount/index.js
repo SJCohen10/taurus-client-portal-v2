@@ -1,8 +1,8 @@
 "use strict";
 
-const { crmRequest } = require("../lib/crm");
-const { handleOptions, sendJson, enforceUserContext, enforceRateLimit, parseQuery } = require("../lib/security");
-const { getDealsForPortal } = require("../getdealtransactions/lib/portalDeals");
+const { crmRequest } = require("./lib/crm");
+const { handleOptions, sendJson, enforceUserContext, enforceRateLimit, parseQuery } = require("./lib/security");
+const { getDealsForPortal } = require("./lib/portalDeals");
 
 const ACCOUNT_ID_REGEX = /^[A-Za-z0-9_-]{6,100}$/;
 

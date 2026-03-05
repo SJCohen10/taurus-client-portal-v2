@@ -48,6 +48,13 @@ function formatRand(value) {
     return numeric === null ? "—" : `R ${numeric.toLocaleString("en-ZA")}`;
 }
 
+function formatDate(value) {
+    if (!value) return "—";
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return String(value);
+    return dt.toLocaleDateString("en-ZA");
+}
+
 function getPortalUserDisplay(portalContext) {
     if (portalContext?.context?.contactName || portalContext?.email) {
         return {
@@ -220,7 +227,7 @@ export default function ParalegalDashboard() {
     }, [openSections, storageKey]);
 
     useEffect(() => {
-        if (!displayEmail) return;
+        if (!displayEmail || portalContext?.loading || portalContext?.error) return;
 
         async function loadDeals() {
             try {
@@ -236,7 +243,7 @@ export default function ParalegalDashboard() {
         }
 
         loadDeals();
-    }, [accountId, displayEmail]);
+    }, [accountId, displayEmail, portalContext?.error, portalContext?.loading]);
 
     const visibleDeals = useMemo(() => {
         const portalEmailLower = String(displayEmail || "").toLowerCase();
@@ -571,6 +578,7 @@ export default function ParalegalDashboard() {
                                             <th>Transaction Name</th>
                                             <th>Transaction Type</th>
                                             <th>Advance Amount</th>
+                                            <th>Paid Date</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -579,6 +587,7 @@ export default function ParalegalDashboard() {
                                                 <td>{transaction.name || "—"}</td>
                                                 <td>{transaction.type || "—"}</td>
                                                 <td>{formatRand(transaction.advance_amount)}</td>
+                                                <td>{formatDate(transaction.paid_date)}</td>
                                             </tr>
                                         ))}
                                     </tbody>

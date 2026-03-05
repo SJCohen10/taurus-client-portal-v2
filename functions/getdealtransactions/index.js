@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
     if (unauthorized.length) return sendJson(req, res, 403, { error: "One or more assetIds are not authorized for this user." });
 
     const inList = assetIds.map((id) => `'${id}'`).join(",");
-    const select_query = `select id, Name, Transaction_Type, Current_Advance_Amount, Asset from Transactions where Asset.id in (${inList})`;
+    const select_query = `select id, Name, Transaction_Type, Current_Advance_Amount, Paid_Date, Asset from Transactions where Asset.id in (${inList})`;
     const coql = await crmRequest({ method: "POST", path: "/coql", body: { select_query } });
 
     const transactions = (coql.data || []).map((record) => ({
@@ -45,8 +45,16 @@ module.exports = async (req, res) => {
       name: record.Name || "",
       type: record.Transaction_Type || "",
       advance_amount: record.Current_Advance_Amount ?? null,
+      paid_date: record.Paid_Date || null,
       asset_id: record.Asset?.id || null,
     }));
+
+    if (process.env.NODE_ENV !== "production" && transactions.length) {
+      console.info("getdealtransactions sample transaction", {
+        id: transactions[0].id,
+        paid_date: transactions[0].paid_date,
+      });
+    }
 
     return sendJson(req, res, 200, { assetIds, count: transactions.length, transactions });
   } catch (err) {

@@ -14,6 +14,7 @@ export function PortalProvider({ children }) {
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [requestId, setRequestId] = useState("");
 
   function resolveEmail() {
     const pu = window.portalUser || {};
@@ -39,6 +40,7 @@ export function PortalProvider({ children }) {
       try {
         setLoading(true);
         setError("");
+        setRequestId("");
 
         const resolvedEmail = resolveEmail();
         setEmail(resolvedEmail);
@@ -48,11 +50,13 @@ export function PortalProvider({ children }) {
 
         const ctx = await loadContext(resolvedEmail);
         setContext(ctx);
+        setRequestId(ctx?.requestId || "");
 
 
       } catch (e) {
         console.error(e);
         setError(e.message || "Failed to load portal context");
+        setRequestId(e.requestId || "");
         setContext(null);
       } finally {
         setLoading(false);
@@ -68,6 +72,7 @@ export function PortalProvider({ children }) {
         context,
         loading,
         error,
+        requestId,
       }}
     >
       {children}

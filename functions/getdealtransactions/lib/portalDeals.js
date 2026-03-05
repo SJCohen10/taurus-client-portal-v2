@@ -1,6 +1,7 @@
 "use strict";
 
 const { URL } = require("url");
+const fetch = require("./fetchClient");
 
 function getCallerEmail(req) {
   const headers = req?.headers || {};

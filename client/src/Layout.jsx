@@ -10,6 +10,7 @@ export default function Layout() {
   const context = portal?.context || null;
   const loading = portal?.loading || false;
   const error = portal?.error || "";
+  const requestId = portal?.requestId || portal?.context?.requestId || "";
 
   const accountName = context?.accountName || "Account";
   const quickBridgeLimit = context?.quickBridgeLimit ?? null;
@@ -77,7 +78,7 @@ export default function Layout() {
             Loading CRM context…
           </p>
         )}
-        {error && <p className="error">Error: {error}</p>}
+        {error && <p className="error">Error: {error}{requestId ? ` | requestId: ${requestId}` : ""}</p>}
       </header>
 
       <main className="app-main">

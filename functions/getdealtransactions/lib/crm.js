@@ -1,6 +1,7 @@
 "use strict";
 
 const { URL } = require("url");
+const fetch = require("./fetchClient");
 
 async function fetchWithRetry(url, options = {}, { retries = 1, timeoutMs = 5000 } = {}) {
   let lastErr;

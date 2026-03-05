@@ -1,0 +1,10 @@
+{
+  "name": "getdealtransactions",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "administrator@tauruscapital.co.za",
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "zcatalyst-sdk-node": "latest"
+  }
+}

@@ -1,13 +1,46 @@
 "use strict";
 
-const { crmRequest } = require("./lib/crm");
+const { crmRequest, createRequestId } = require("./lib/crm");
 const { handleOptions, sendJson, enforceUserContext, enforceRateLimit, parseQuery } = require("./lib/security");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-async function getAvsBankDetailsForAccount(accountId) {
+function isDebugDetailsEnabled() {
+  return process.env.NODE_ENV !== "production" || process.env.CATALYST_STAGE === "Development";
+}
+
+function getEnvPresenceSummary() {
+  const accountsUrlUsed = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
+  return {
+    clientIdPresent: Boolean(process.env.ZOHO_CLIENT_ID),
+    clientSecretPresent: Boolean(process.env.ZOHO_CLIENT_SECRET),
+    refreshTokenPresent: Boolean(process.env.ZOHO_REFRESH_TOKEN),
+    accountsUrlUsed,
+  };
+}
+
+function assertRequiredOAuthEnv(requestId) {
+  const summary = getEnvPresenceSummary();
+  console.info("getPortalUserContext env check", { requestId, ...summary });
+
+  const missing = [];
+  if (!summary.clientIdPresent) missing.push("ZOHO_CLIENT_ID");
+  if (!summary.clientSecretPresent) missing.push("ZOHO_CLIENT_SECRET");
+  if (!summary.refreshTokenPresent) missing.push("ZOHO_REFRESH_TOKEN");
+
+  if (missing.length) {
+    const err = new Error(`Missing required OAuth env vars for getportalusercontext: ${missing.join(", ")}`);
+    err.statusCode = 500;
+    err.details = { missing, accountsUrlUsed: summary.accountsUrlUsed };
+    throw err;
+  }
+
+  return summary;
+}
+
+async function getAvsBankDetailsForAccount(accountId, requestId) {
   const criteria = `((Account:equals:${accountId}) and (AVS:equals:true))`;
-  const json = await crmRequest({ method: "GET", path: "/Bank_Details/search", query: { criteria, per_page: 200, page: 1 } });
+  const json = await crmRequest({ method: "GET", path: "/Bank_Details/search", query: { criteria, per_page: 200, page: 1 }, requestId });
   const records = json.data || [];
   return records.map((bd) => {
     const accountNumber = bd.Account_Number || "";
@@ -23,8 +56,8 @@ async function getAvsBankDetailsForAccount(accountId) {
   });
 }
 
-async function getContactAndAccountByEmail(email) {
-  const search = await crmRequest({ method: "GET", path: "/Contacts/search", query: { email } });
+async function getContactAndAccountByEmail(email, requestId) {
+  const search = await crmRequest({ method: "GET", path: "/Contacts/search", query: { email }, requestId });
   const contacts = search.data || [];
   if (!contacts.length) {
     const err = new Error("No CRM Contact found for email");
@@ -51,17 +84,17 @@ async function getContactAndAccountByEmail(email) {
     throw err;
   }
 
-  const accountData = await crmRequest({ method: "GET", path: `/Accounts/${accountId}` });
+  const accountData = await crmRequest({ method: "GET", path: `/Accounts/${accountId}`, requestId });
   const accountRecord = (accountData.data && accountData.data[0]) || {};
 
-  const bankDetails = await getAvsBankDetailsForAccount(accountId);
+  const bankDetails = await getAvsBankDetailsForAccount(accountId, requestId);
   const preferredLookup = accountRecord.Preferred_Quick_Rates_Bank_Accounts || null;
   const preferredBankId = preferredLookup?.id || null;
   const defaultBankDetailId = preferredBankId || (bankDetails.length ? bankDetails[0].id : null);
 
   let preferredQuickBridgeBank = null;
   if (preferredBankId) {
-    const bdData = await crmRequest({ method: "GET", path: `/Bank_Details/${preferredBankId}` });
+    const bdData = await crmRequest({ method: "GET", path: `/Bank_Details/${preferredBankId}`, requestId });
     const bd = (bdData.data && bdData.data[0]) || {};
     preferredQuickBridgeBank = {
       id: preferredBankId,
@@ -99,19 +132,24 @@ async function getContactAndAccountByEmail(email) {
 }
 
 module.exports = async (req, res) => {
+  const requestId = createRequestId();
   try {
     if (handleOptions(req, res)) return;
-    if (req.method !== "GET") return sendJson(req, res, 405, { error: "Method not allowed. Use GET." });
+    if (req.method !== "GET") return sendJson(req, res, 405, { error: "Method not allowed. Use GET.", requestId });
+
+    assertRequiredOAuthEnv(requestId);
 
     const query = parseQuery(req);
     const email = enforceUserContext(req, query.get("email"));
-    if (!EMAIL_REGEX.test(email)) return sendJson(req, res, 400, { error: "Invalid email context" });
+    if (!EMAIL_REGEX.test(email)) return sendJson(req, res, 400, { error: "Invalid email context", requestId });
     enforceRateLimit({ key: `getportalusercontext:${email}`, limit: 30, windowMs: 60000 });
 
-    const context = await getContactAndAccountByEmail(email);
-    return sendJson(req, res, 200, context);
+    const context = await getContactAndAccountByEmail(email, requestId);
+    return sendJson(req, res, 200, { ...context, requestId });
   } catch (err) {
-    console.error("getPortalUserContext failed", { message: err.message });
-    return sendJson(req, res, err.statusCode || 500, { error: err.statusCode ? err.message : "Internal server error" });
+    console.error("getPortalUserContext failed", { requestId, message: err.message, details: err.details || null });
+    const payload = { error: err.statusCode ? err.message : "Internal server error", requestId };
+    if (isDebugDetailsEnabled() && err.details) payload.details = err.details;
+    return sendJson(req, res, err.statusCode || 500, payload);
   }
 };

@@ -1,10 +1,26 @@
 "use strict";
 
 const { URL } = require("url");
-const fetch = require("./fetchClient");
+const fetch = global.fetch || require("node-fetch");
+
+const EARLY_REFRESH_MS = 60 * 1000;
+const BACKOFF_MS = [500, 1000, 2000, 4000];
+
+let cachedToken = null;
+let cachedTokenExpiry = 0;
+let inflightRefreshPromise = null;
+let refreshCounter = 0;
+
+function shouldLogDevCounters() {
+  return process.env.NODE_ENV !== "production" || process.env.CATALYST_STAGE === "Development";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function createRequestId() {
-  return `ctx_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function parseJsonSafely(raw) {
@@ -14,6 +30,17 @@ function parseJsonSafely(raw) {
   } catch {
     return null;
   }
+}
+
+function isRetryableOAuthThrottle({ error, errorDescription }) {
+  const err = String(error || "").toLowerCase();
+  const desc = String(errorDescription || "").toLowerCase();
+  return err.includes("access denied") || desc.includes("too many requests continuously");
+}
+
+function isNonRetryableOAuthError({ error }) {
+  const err = String(error || "").toLowerCase();
+  return err.includes("invalid_client") || err.includes("invalid_code") || err.includes("invalid_grant");
 }
 
 async function fetchWithRetry(url, options = {}, { retries = 1, timeoutMs = 5000 } = {}) {
@@ -35,57 +62,113 @@ async function fetchWithRetry(url, options = {}, { retries = 1, timeoutMs = 5000
   throw lastErr || new Error("Request failed");
 }
 
-async function getOAuthAccessToken({ clientId, clientSecret, refreshToken, accountsBase, requestId }) {
-  if (!clientId || !clientSecret || !refreshToken) {
-    const missing = [];
-    if (!clientId) missing.push("ZOHO_CLIENT_ID");
-    if (!clientSecret) missing.push("ZOHO_CLIENT_SECRET");
-    if (!refreshToken) missing.push("ZOHO_REFRESH_TOKEN");
-    const err = new Error(`Missing server-side Zoho OAuth env vars: ${missing.join(", ")}`);
-    err.details = { missing, accountsUrlUsed: accountsBase || process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com" };
-    throw err;
-  }
+async function refreshOAuthAccessToken({ clientId, clientSecret, refreshToken, accountsBase, requestId }) {
+  if (!clientId || !clientSecret || !refreshToken) throw new Error("Missing server-side Zoho OAuth env vars");
 
-  const params = new URLSearchParams({ refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token" });
   const usedAccountsBase = accountsBase || process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
-  const tokenUrl = `${usedAccountsBase}/oauth/v2/token`;
-  const res = await fetchWithRetry(tokenUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString() });
-  const raw = await res.text();
-  const parsed = parseJsonSafely(raw);
-  const oauthError = parsed && typeof parsed === "object" ? parsed.error : undefined;
-  const oauthErrorDescription = parsed && typeof parsed === "object" ? parsed.error_description : undefined;
+  const params = new URLSearchParams({
+    refresh_token: refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: "refresh_token",
+  });
 
-  if (!res.ok || !parsed || !parsed.access_token) {
-    console.error("OAuth token refresh failed", {
-      requestId,
-      tokenEndpointBaseUrl: usedAccountsBase,
-      statusCode: res.status,
-      error: oauthError || null,
-      error_description: oauthErrorDescription || null,
-      responsePreview: !oauthError && !oauthErrorDescription ? String(raw || "").slice(0, 300) : undefined,
+  let lastError;
+  for (let attempt = 0; attempt < BACKOFF_MS.length; attempt += 1) {
+    const res = await fetchWithRetry(`${usedAccountsBase}/oauth/v2/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
     });
-    const err = new Error("Unable to obtain OAuth access token");
-    err.details = {
+
+    const raw = await res.text();
+    const parsed = parseJsonSafely(raw);
+    const oauthError = parsed && typeof parsed === "object" ? parsed.error : undefined;
+    const oauthErrorDescription = parsed && typeof parsed === "object" ? parsed.error_description : undefined;
+
+    if (res.ok && parsed && parsed.access_token) {
+      return { ...parsed, accountsBase: usedAccountsBase };
+    }
+
+    const errorDetails = {
       tokenEndpointBaseUrl: usedAccountsBase,
       statusCode: res.status,
       error: oauthError || null,
       error_description: oauthErrorDescription || null,
-      responsePreview: !oauthError && !oauthErrorDescription ? String(raw || "").slice(0, 300) : undefined,
+      responsePreview: String(raw || "").slice(0, 300),
     };
-    throw err;
+
+    const retryable = isRetryableOAuthThrottle({ error: oauthError, errorDescription: oauthErrorDescription });
+    const nonRetryable = isNonRetryableOAuthError({ error: oauthError });
+    const hasNextAttempt = attempt < BACKOFF_MS.length - 1;
+
+    if (!retryable || nonRetryable || !hasNextAttempt) {
+      console.error("OAuth token refresh failed", {
+        requestId,
+        accountsBase: usedAccountsBase,
+        statusCode: res.status,
+        error: oauthError || null,
+        error_description: oauthErrorDescription || null,
+        responsePreview: String(raw || "").slice(0, 300),
+      });
+      const err = new Error("Unable to obtain OAuth access token");
+      err.details = errorDetails;
+      throw err;
+    }
+
+    lastError = errorDetails;
+    await sleep(BACKOFF_MS[attempt]);
   }
 
-  return parsed;
+  const err = new Error("Unable to obtain OAuth access token");
+  err.details = lastError;
+  throw err;
+}
+
+async function getOAuthAccessToken({ clientId, clientSecret, refreshToken, accountsBase, requestId } = {}) {
+  return refreshOAuthAccessToken({ clientId, clientSecret, refreshToken, accountsBase, requestId });
 }
 
 async function getCrmAccessToken({ requestId } = {}) {
-  const data = await getOAuthAccessToken({
-    clientId: process.env.ZOHO_CLIENT_ID,
-    clientSecret: process.env.ZOHO_CLIENT_SECRET,
-    refreshToken: process.env.ZOHO_REFRESH_TOKEN,
-    requestId,
-  });
-  return { accessToken: data.access_token, apiDomain: process.env.ZOHO_API_DOMAIN || data.api_domain || "https://www.zohoapis.com" };
+  const now = Date.now();
+  if (cachedToken && now < cachedTokenExpiry - EARLY_REFRESH_MS) {
+    return { accessToken: cachedToken, apiDomain: process.env.ZOHO_API_DOMAIN || "https://www.zohoapis.com" };
+  }
+
+  if (!inflightRefreshPromise) {
+    inflightRefreshPromise = (async () => {
+      const data = await refreshOAuthAccessToken({
+        clientId: process.env.ZOHO_CLIENT_ID,
+        clientSecret: process.env.ZOHO_CLIENT_SECRET,
+        refreshToken: process.env.ZOHO_REFRESH_TOKEN,
+        requestId,
+      });
+
+      const expiresInSeconds = Number(data.expires_in || data.expires_in_sec || 3600);
+      cachedToken = data.access_token;
+      cachedTokenExpiry = Date.now() + (Number.isFinite(expiresInSeconds) ? expiresInSeconds * 1000 : 3600 * 1000);
+
+      refreshCounter += 1;
+      if (shouldLogDevCounters()) {
+        console.log("[crmTokenManager] refreshed", {
+          refreshCount: refreshCounter,
+          expiresInSeconds,
+          accountsBase: data.accountsBase,
+        });
+      }
+
+      return {
+        accessToken: cachedToken,
+        apiDomain: process.env.ZOHO_API_DOMAIN || data.api_domain || "https://www.zohoapis.com",
+      };
+    })().finally(() => {
+      inflightRefreshPromise = null;
+    });
+  } else if (shouldLogDevCounters()) {
+    console.log("[crmTokenManager] reusing inflight refresh");
+  }
+
+  return inflightRefreshPromise;
 }
 
 function getCrmBase(apiDomain) {
@@ -118,4 +201,4 @@ async function crmRequest({ method = "GET", path, query = {}, body, requestId })
   return parsed;
 }
 
-module.exports = { crmRequest, getOAuthAccessToken, createRequestId };
+module.exports = { crmRequest, getOAuthAccessToken, createRequestId, getCrmAccessToken };

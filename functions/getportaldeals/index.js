@@ -1,10 +1,16 @@
 "use strict";
 
 const { URL } = require("url");
+const fetch = global.fetch || require("node-fetch");
+const analyticsTokenManager = require("./lib/analyticsTokenManager");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACCOUNT_ID_REGEX = /^[A-Za-z0-9_-]{6,100}$/;
 
+
+function createRequestId() {
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function getCallerEmail(req) {
     const headers = req?.headers || {};
@@ -50,53 +56,6 @@ function sendJson(res, statusCode, payload) {
  * Get a fresh Zoho Analytics access token using the dedicated
  * Analytics OAuth client + refresh token.
  */
-async function getAnalyticsAccessToken() {
-    const clientId = process.env.ZOHO_ANALYTICS_CLIENT_ID;
-    const clientSecret = process.env.ZOHO_ANALYTICS_CLIENT_SECRET;
-    const refreshToken = process.env.ZOHO_ANALYTICS_REFRESH_TOKEN;
-
-    if (!clientId || !clientSecret || !refreshToken) {
-        throw new Error(
-            "Missing Zoho Analytics OAuth env vars: ZOHO_ANALYTICS_CLIENT_ID, ZOHO_ANALYTICS_CLIENT_SECRET, ZOHO_ANALYTICS_REFRESH_TOKEN"
-        );
-    }
-
-    const params = new URLSearchParams({
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: "refresh_token",
-    });
-
-    const accountsBase = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
-    const tokenUrl = `${accountsBase}/oauth/v2/token`;
-
-    const res = await fetch(tokenUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params.toString(),
-    });
-
-    const text = await res.text();
-    let data;
-    try {
-        data = JSON.parse(text);
-    } catch (e) {
-        throw new Error(
-            `Failed to parse Analytics token response (${res.status}): ${text}`
-        );
-    }
-
-    if (!res.ok || !data.access_token) {
-        throw new Error(
-            `Failed to get Analytics access token (${res.status}): ${data.error || text
-            }`
-        );
-    }
-
-    return data.access_token;
-}
-
 /**
  * CSV parser with quoted-field support:
  * - handles commas/newlines inside quoted values
@@ -159,8 +118,8 @@ function parseCsv(text) {
 /**
  * Fetch deals for the portal from Zoho Analytics using CSV export.
  */
-async function getDealsForPortal({ email, accountId }) {
-    const accessToken = await getAnalyticsAccessToken();
+async function getDealsForPortal({ email, accountId, requestId }) {
+    const accessToken = await analyticsTokenManager.getAccessToken({ requestId });
 
     const base =
         process.env.ZOHO_ANALYTICS_BASE || "https://analyticsapi.zoho.com/api";
@@ -319,9 +278,10 @@ async function getDealsForPortal({ email, accountId }) {
  *   GET /server/getportaldeals?email=...&accountId=...
  */
 module.exports = async (req, res) => {
+    const requestId = createRequestId();
     try {
         if (req.method !== "GET") {
-            return sendJson(res, 405, { error: "Method not allowed. Use GET." });
+            return sendJson(res, 405, { error: "Method not allowed. Use GET.", requestId });
         }
 
         const parsedUrl = new URL(req.url, "http://dummy-host");
@@ -334,34 +294,39 @@ module.exports = async (req, res) => {
         if (!email && !accountId) {
             return sendJson(res, 400, {
                 error: "Missing 'email' or 'accountId' query parameter.",
+                requestId,
             });
         }
 
         if (email && !EMAIL_REGEX.test(email)) {
             return sendJson(res, 400, {
                 error: "Invalid email query parameter.",
+                requestId,
             });
         }
 
         if (accountId && !ACCOUNT_ID_REGEX.test(accountId)) {
             return sendJson(res, 400, {
                 error: "Invalid accountId query parameter.",
+                requestId,
             });
         }
 
-        const deals = await getDealsForPortal({ email, accountId });
+        const deals = await getDealsForPortal({ email, accountId, requestId });
 
         return sendJson(res, 200, {
             count: deals.length,
             deals,
+            requestId,
         });
     } catch (err) {
-        console.error("Error in getportaldeals:", err);
+        console.error("Error in getportaldeals:", { requestId, message: err?.message || String(err), details: err?.details || null });
         if (err?.statusCode) {
-            return sendJson(res, err.statusCode, { error: err.message });
+            return sendJson(res, err.statusCode, { error: err.message, requestId });
         }
         return sendJson(res, 500, {
             error: "Internal server error in getportaldeals.",
+            requestId,
 
         });
     }

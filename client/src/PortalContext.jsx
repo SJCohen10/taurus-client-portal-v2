@@ -1,5 +1,5 @@
 import { request } from "./api/catalystClient";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 
 const PortalContext = createContext(null);
 
@@ -15,6 +15,7 @@ export function PortalProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState("");
+  const hasLoadedRef = useRef(false);
 
   function resolveEmail() {
     const pu = window.portalUser || {};
@@ -36,6 +37,9 @@ export function PortalProvider({ children }) {
 
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "development" && hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
     (async () => {
       try {
         setLoading(true);

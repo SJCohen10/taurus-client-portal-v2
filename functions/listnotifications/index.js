@@ -1,7 +1,7 @@
 "use strict";
 
 const portalDeals = require("./lib/portalDeals");
-const { resolvePortalUserContextByEmail } = require("../lib/portalUserContext");
+const { resolvePortalUserContextByEmail } = require("./lib/portalUserContext");
 
 function createRequestId() {
     return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;

@@ -1,7 +1,7 @@
 "use strict";
 
 const { crmRequest, createRequestId } = require("./lib/crm");
-const { resolvePortalUserContextByEmail } = require("../lib/portalUserContext");
+const { resolvePortalUserContextByEmail } = require("./lib/portalUserContext");
 const { handleOptions, sendJson, enforceUserContext, enforceRateLimit, parseQuery } = require("./lib/security");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

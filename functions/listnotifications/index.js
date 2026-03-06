@@ -1,6 +1,7 @@
 "use strict";
 
 const portalDeals = require("./lib/portalDeals");
+const { resolvePortalUserContextByEmail } = require("./lib/portalUserContext");
 
 function createRequestId() {
     return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -98,12 +99,38 @@ module.exports = async (req, res) => {
 
         // --- Authorization (only if Analytics env exists and token retrieval succeeds) ---
         let analyticsAuthorized = false;
+        let resolvedAccountId = "";
+        let canViewFirmDeals = false;
+
         if (hasAnalyticsEnv()) {
             try {
-                const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
-                const visibleDealIds = new Set(
-                    (visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean)
-                );
+                try {
+                    const portalUser = await resolvePortalUserContextByEmail({ email, requestId });
+                    canViewFirmDeals = Boolean(portalUser?.canViewFirmDeals);
+                    resolvedAccountId = canViewFirmDeals ? String(portalUser?.accountId || "").trim() : "";
+                } catch (portalUserErr) {
+                    // Preserve secure behavior if CRM context lookup fails by keeping email-only scope.
+                    console.warn("[listnotifications] CRM portal user resolution failed; defaulting to email-only authorization", {
+                        requestId,
+                        email,
+                        dealId,
+                        message: portalUserErr?.message || String(portalUserErr),
+                    });
+                }
+
+                const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: resolvedAccountId });
+                const visibleDealIdList = (visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean);
+                const visibleDealIds = new Set(visibleDealIdList);
+
+                console.log("[listnotifications] analytics authorization context", {
+                    requestId,
+                    email,
+                    dealId,
+                    accountId: resolvedAccountId || null,
+                    canViewFirmDeals,
+                    visibleDealCount: visibleDealIdList.length,
+                    sampleVisibleDealIds: visibleDealIdList.slice(0, 10),
+                });
 
                 if (!visibleDealIds.has(dealId)) {
                     return sendJson(res, 403, {
@@ -122,6 +149,8 @@ module.exports = async (req, res) => {
                     requestId,
                     email,
                     dealId,
+                    accountId: resolvedAccountId || null,
+                    canViewFirmDeals,
                     message: authErr?.message || String(authErr),
                 });
             }
@@ -130,6 +159,8 @@ module.exports = async (req, res) => {
                 requestId,
                 email,
                 dealId,
+                accountId: null,
+                canViewFirmDeals,
             });
         }
 

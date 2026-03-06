@@ -19,6 +19,8 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+
+
 function parseJsonSafely(raw) {
   if (!raw) return {};
   try {
@@ -214,6 +216,13 @@ async function getDealsForPortal({ email, accountId }) {
   if (accountId) criteriaParts.push(`"Account_Id"='${String(accountId).replace(/'/g, "\\'")}'`);
   const criteria = criteriaParts.length ? criteriaParts.join(" OR ") : "1=0";
 
+  console.log("[portalDeals] getDealsForPortal criteria", {
+    email,
+    accountId,
+    criteria,
+    table,
+  });
+
   const url = new URL(`${base}/${encodeURIComponent(owner)}/${encodeURIComponent(db)}/${encodeURIComponent(table)}`);
   url.searchParams.set("ZOHO_ACTION", "EXPORT");
   url.searchParams.set("ZOHO_OUTPUT_FORMAT", "CSV");
@@ -233,12 +242,22 @@ async function getDealsForPortal({ email, accountId }) {
   }
 
   const rows = parseCsv(text);
+
+  console.log("[portalDeals] getDealsForPortal result", {
+    email,
+    accountId,
+    rowCount: rows.length,
+    sample: rows.slice(0, 5),
+  });
+
   return rows.map((row) => ({
     deal_id: row["Deal_Id"] || null,
     asset_id: row["Asset Id"] || row["Asset_Id"] || row["Asset ID"] || row["asset_id"] || null,
     asset_ids: row["Asset IDs"] || row["Asset_IDs"] || row["Asset Ids"] || null,
   }));
 }
+
+
 
 module.exports = {
   getCallerEmail,

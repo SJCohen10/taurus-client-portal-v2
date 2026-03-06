@@ -106,6 +106,20 @@ module.exports = async (req, res) => {
             try {
                 try {
                     const portalUser = await resolvePortalUserContextByEmail({ email, requestId });
+
+                    canViewFirmDeals = Boolean(portalUser?.canViewFirmDeals);
+                    resolvedAccountId = canViewFirmDeals ? String(portalUser?.accountId || "").trim() : "";
+
+                    console.log("[listnotifications] resolved portal user", {
+                        requestId,
+                        email,
+                        portalUserEmail: portalUser?.email || null,
+                        contactId: portalUser?.contactId || null,
+                        accountId: portalUser?.accountId || null,
+                        resolvedAccountId,
+                        canViewFirmDeals,
+                        requestedDealId: dealId,
+                    });
                     canViewFirmDeals = Boolean(portalUser?.canViewFirmDeals);
                     resolvedAccountId = canViewFirmDeals ? String(portalUser?.accountId || "").trim() : "";
                 } catch (portalUserErr) {
@@ -121,6 +135,18 @@ module.exports = async (req, res) => {
                 const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: resolvedAccountId });
                 const visibleDealIdList = (visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean);
                 const visibleDealIds = new Set(visibleDealIdList);
+
+                console.log("[listnotifications] visible deals auth check", {
+                    requestId,
+                    email,
+                    requestedDealId: dealId,
+                    resolvedAccountId,
+                    canViewFirmDeals,
+                    visibleDealCount: visibleDealIdList.length,
+                    containsRequestedDeal: visibleDealIds.has(dealId),
+                    matchingRows: (visibleDeals || []).filter(d => String(d.deal_id || "").trim() === dealId),
+                    first10: visibleDealIdList.slice(0, 10),
+                });
 
                 console.log("[listnotifications] analytics authorization context", {
                     requestId,
@@ -170,10 +196,11 @@ module.exports = async (req, res) => {
 
         const notificationsTable = String(process.env.PORTAL_NOTIFICATIONS_TABLE || "portal_notifications").trim();
 
-        const COL_DEAL_ID = process.env.PORTAL_NOTIF_COL_DEAL_ID || "Deal_Id";
-        const COL_AUDIENCE_EMAIL = process.env.PORTAL_NOTIF_COL_AUDIENCE_EMAIL || "Audience_Email";
-        const COL_IS_READ = process.env.PORTAL_NOTIF_COL_IS_READ || "Is_Read";
-        const COL_CREATED_AT = process.env.PORTAL_NOTIF_COL_CREATED_AT || "Created_At";
+        const COL_DEAL_ID = process.env.PORTAL_NOTIF_COL_DEAL_ID || "deal_id";
+        const COL_AUDIENCE_EMAIL = process.env.PORTAL_NOTIF_COL_AUDIENCE_EMAIL || "audience_email";
+        const COL_IS_READ = process.env.PORTAL_NOTIF_COL_IS_READ || "is_read";
+        const COL_CREATED_AT = process.env.PORTAL_NOTIF_COL_CREATED_AT || "created_at";
+        const COL_ACCOUNT_ID = process.env.PORTAL_NOTIF_COL_ACCOUNT_ID || "account_id";
 
         if (!/^[A-Za-z0-9_]+$/.test(notificationsTable)) {
             return sendJson(res, 500, { error: "Internal error", requestId, endpoint, details: "invalid table name" });
@@ -185,7 +212,13 @@ module.exports = async (req, res) => {
         // - With Analytics: allow targeted OR broadcast (NULL)
         // - Without Analytics: safest is targeted only, unless env explicitly allows broadcast
         if (analyticsAuthorized || allowBroadcastWithoutAnalytics()) {
-            query += ` AND (${COL_AUDIENCE_EMAIL}='${esc(email)}' OR ${COL_AUDIENCE_EMAIL} IS NULL)`;
+            const audienceParts = [`${COL_AUDIENCE_EMAIL}='${esc(email)}'`, `${COL_AUDIENCE_EMAIL} IS NULL`];
+
+            if (resolvedAccountId) {
+                audienceParts.push(`${COL_ACCOUNT_ID}='${esc(resolvedAccountId)}'`);
+            }
+
+            query += ` AND (${audienceParts.join(" OR ")})`;
         } else {
             query += ` AND ${COL_AUDIENCE_EMAIL}='${esc(email)}'`;
         }

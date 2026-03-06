@@ -425,7 +425,7 @@ export default function ParalegalDashboard() {
                                                     const tagName = String(event.target?.tagName || "").toLowerCase();
                                                     const isInteractive =
                                                         ["input", "textarea", "select", "button"].includes(tagName) ||
-                                                        Boolean(event.target?.closest?.("a,button,input,textarea,select,[contenteditable=\'true\']"));
+                                                        Boolean(event.target?.closest?.("a,button,input,textarea,select,[contenteditable= true]"));
 
                                                     if (isInteractive) return;
 

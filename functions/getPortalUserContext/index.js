@@ -1,6 +1,7 @@
 "use strict";
 
 const { crmRequest, createRequestId } = require("./lib/crm");
+const { resolvePortalUserContextByEmail } = require("../lib/portalUserContext");
 const { handleOptions, sendJson, enforceUserContext, enforceRateLimit, parseQuery } = require("./lib/security");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -57,27 +58,17 @@ async function getAvsBankDetailsForAccount(accountId, requestId) {
 }
 
 async function getContactAndAccountByEmail(email, requestId) {
-  const search = await crmRequest({ method: "GET", path: "/Contacts/search", query: { email }, requestId });
-  const contacts = search.data || [];
-  if (!contacts.length) {
-    const err = new Error("No CRM Contact found for email");
-    err.statusCode = 404;
-    throw err;
-  }
+  const portalUser = await resolvePortalUserContextByEmail({ email, requestId });
+  const contact = portalUser.contact || {};
 
-  const contact = contacts[0];
-  const contactId = contact.id;
   const contactFirstName = contact.First_Name || "";
   const contactLastName = contact.Last_Name || "";
   const fullName = contact.Full_Name || [contactFirstName, contactLastName].filter(Boolean).join(" ");
   const portalRole = contact.Portal_Role || null;
-  const contactEmail = contact.Email || "";
+  const contactEmail = portalUser.email || "";
   const contactMobile = contact.Mobile || contact.Phone || "";
-  const canViewFirmDealsRaw = contact.Can_View_Firm_Deals;
-  const canViewFirmDeals = canViewFirmDealsRaw === true || canViewFirmDealsRaw === "true" || canViewFirmDealsRaw === "Yes";
 
-  const accountLookup = contact.Account_Name || contact.Account || {};
-  const accountId = accountLookup.id;
+  const accountId = portalUser.accountId;
   if (!accountId) {
     const err = new Error("CRM Contact has no linked Account");
     err.statusCode = 400;
@@ -105,7 +96,7 @@ async function getContactAndAccountByEmail(email, requestId) {
   }
 
   return {
-    contactId,
+    contactId: portalUser.contactId,
     contactName: fullName,
     contactEmail,
     contactFirstName,
@@ -120,7 +111,7 @@ async function getContactAndAccountByEmail(email, requestId) {
     firmProvince: accountRecord.Billing_State || accountRecord.Shipping_State || "",
     firmZipCode: accountRecord.Billing_Code || accountRecord.Shipping_Code || "",
     accountEmail: accountRecord.Email || contactEmail,
-    canViewFirmDeals,
+    canViewFirmDeals: portalUser.canViewFirmDeals,
     accountMobile: accountRecord.Phone || contactMobile,
     directorName: accountRecord.Quick_Rates_Director_Name,
     directorEmail: accountRecord.Quick_Rates_Director_Email || "",

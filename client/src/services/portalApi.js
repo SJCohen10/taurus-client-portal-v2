@@ -122,7 +122,7 @@ export async function generateStatement({ assetId }) {
 
 // --- Notifications (Catalyst Data Store) ---
 
-export async function listNotifications({ email, dealId, includeRead = false } = {}) {
+export async function listNotifications({ email, dealId, includeRead = false, signal } = {}) {
   const safeEmail = getPortalUserEmail(email);
 
   if (!dealId) throw new Error("Missing dealId");
@@ -132,7 +132,7 @@ export async function listNotifications({ email, dealId, includeRead = false } =
   params.set("dealId", String(dealId));
   params.set("includeRead", includeRead ? "true" : "false");
 
-  return request("/listnotifications", { query: Object.fromEntries(params.entries()) });
+  return request("/listnotifications", { query: Object.fromEntries(params.entries()), signal });
 }
 
 export async function createNotification(payload) {
@@ -142,5 +142,4 @@ export async function createNotification(payload) {
 export async function markNotificationRead({ id, email }) {
   return request("/marknotificationread", { method: "POST", body: { id, email: email || "" } });
 }
-
 

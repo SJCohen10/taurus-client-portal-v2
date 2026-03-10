@@ -319,7 +319,7 @@ module.exports = async (req, res) => {
         }
 
         const body = await readJsonBody(req, MAX_BODY_BYTES);
-        assertAllowedKeys(body, ["email", "fileName", "mimeType", "fileBase64", "propertyRefNumber", "propertyDescription", "accountId", "contactEmail", "assetId", "propertyFolderId", "dealId"]);
+        assertAllowedKeys(body, ["email", "fileName", "mimeType", "fileBase64", "propertyRefNumber", "propertyDescription", "dealReferenceNumber", "accountId", "contactEmail", "assetId", "propertyFolderId", "dealId"]);
         const email = enforceUserContext(req, body.email || body.contactEmail);
         enforceRateLimit({ key: `uploaddealdocument:${email}`, limit: 20, windowMs: 60000 });
         const {
@@ -327,6 +327,7 @@ module.exports = async (req, res) => {
             mimeType,
             fileBase64,
             propertyRefNumber,
+            dealReferenceNumber,
             propertyDescription,
             accountId,
             contactEmail,
@@ -430,7 +431,7 @@ module.exports = async (req, res) => {
                     resolvedPropertyFolderId: baseFolderId,
                     file: uploadResult,
                     context: {
-                        propertyRefNumber,
+                        propertyRefNumber: propertyRefNumber || dealReferenceNumber,
                         propertyDescription,
                         accountId,
                         contactEmail,
@@ -462,7 +463,7 @@ module.exports = async (req, res) => {
             accessToken,
             rootFolderId,
             dealId,
-            propertyRefNumber,
+            propertyRefNumber: propertyRefNumber || dealReferenceNumber,
             propertyDescription,
         });
 

@@ -123,6 +123,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const [persistedNotifications, setPersistedNotifications] = useState([]);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsError, setNotificationsError] = useState("");
+    const notificationsRequestRef = useRef({ key: "", promise: null });
+    const notificationsAbortRef = useRef(null);
 
     const rootRef = useRef(null);
     const menuRef = useRef(null);
@@ -249,14 +251,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         };
     }, [notificationOpen]);
 
-    useEffect(() => {
-        const resolvedDealId = String(dealId || "").trim();
-        const resolvedEmail = String(portalEmail || "").trim();
-        if (!resolvedDealId || !resolvedEmail) return;
-
-        setNotificationsError("");
-        fetchPersistedNotifications({ showLoading: false, suppressError: true });
-    }, [dealId, portalEmail]);
+    useEffect(() => () => {
+        if (notificationsAbortRef.current) {
+            notificationsAbortRef.current.abort();
+        }
+    }, []);
 
     useEffect(() => {
         setSelectedFirmBankId((prev) => prev || defaultFirmBankId);
@@ -286,7 +285,6 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 dealId,
                 propertyRefNumber,
                 propertyDescription,
-                dealReferenceNumber: propertyRefNumber,
                 accountId,
                 contactEmail: portalEmail,
             };
@@ -528,21 +526,45 @@ function openExternalUrl(url) {
 
     async function fetchPersistedNotifications({ showLoading = false, suppressError = false } = {}) {
         const resolvedDealId = String(dealId || "").trim();
+        const resolvedEmail = String(portalEmail || "").trim().toLowerCase();
         if (!resolvedDealId) {
             setPersistedNotifications([]);
             return;
         }
 
-        try {
+        if (!resolvedEmail) {
+            setPersistedNotifications([]);
+            setNotificationsLoading(false);
+            if (!suppressError) setNotificationsError("Missing portal email context.");
+            return;
+        }
+
+        const requestKey = `${resolvedDealId}|${resolvedEmail}|false`;
+        if (notificationsRequestRef.current.key === requestKey && notificationsRequestRef.current.promise) {
+            return notificationsRequestRef.current.promise;
+        }
+
+        if (notificationsAbortRef.current) {
+            notificationsAbortRef.current.abort();
+        }
+        const abortController = new AbortController();
+        notificationsAbortRef.current = abortController;
+
+        const requestPromise = (async () => {
+            try {
             if (showLoading) setNotificationsLoading(true);
             const resp = await listNotifications({
-                email: portalEmail,
+                email: resolvedEmail,
                 dealId: resolvedDealId,
+                signal: abortController.signal,
             });
             const fetchedNotifications = Array.isArray(resp?.notifications) ? resp.notifications : [];
             setPersistedNotifications(fetchedNotifications);
             if (!suppressError) setNotificationsError("");
         } catch (err) {
+            if (err?.name === "AbortError") {
+                return;
+            }
             console.error("[DealActions] Notifications fetch failure", err);
             if (!suppressError) {
                 setNotificationsError(err?.message || "Failed to load notifications");
@@ -550,7 +572,17 @@ function openExternalUrl(url) {
             setPersistedNotifications([]);
         } finally {
             if (showLoading) setNotificationsLoading(false);
+            if (notificationsAbortRef.current === abortController) {
+                notificationsAbortRef.current = null;
+            }
+            if (notificationsRequestRef.current.key === requestKey) {
+                notificationsRequestRef.current = { key: "", promise: null };
+            }
         }
+        })();
+
+        notificationsRequestRef.current = { key: requestKey, promise: requestPromise };
+        return requestPromise;
     }
 
 
@@ -912,19 +944,19 @@ function openExternalUrl(url) {
 
             {noteOpen && (
                 <div className="modal-backdrop" onClick={() => setNoteOpen(false)}>
-                    <div className="readvance-modal" onClick={(event) => event.stopPropagation()}>
+                    <div className="readvance-modal note-modal" onClick={(event) => event.stopPropagation()}>
                         <div className="readvance-modal-header">
                             <h3>Add Note</h3>
                         </div>
                         <label>
                             Note
                             <textarea
+                                className="note-modal-textarea"
                                 value={noteContent}
                                 onChange={(event) => setNoteContent(event.target.value)}
                                 onKeyDown={(event) => event.stopPropagation()}
                                 maxLength={5000}
                                 rows={6}
-                                style={{ width: "100%", marginTop: 8 }}
                             />
                         </label>
                         <div style={{ marginTop: 8, fontSize: 12 }}>{noteContent.length}/5000</div>

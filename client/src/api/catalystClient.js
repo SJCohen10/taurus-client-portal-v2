@@ -3,7 +3,7 @@ const API_BASE =
     ? (process.env.REACT_APP_API_BASE || "") + "/server"
     : "/server";
 
-async function request(path, { method = "GET", query, body } = {}) {
+async function request(path, { method = "GET", query, body, signal } = {}) {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
   if (query) {
     Object.entries(query).forEach(([k, v]) => {
@@ -15,6 +15,7 @@ async function request(path, { method = "GET", query, body } = {}) {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   if (!res.ok) {

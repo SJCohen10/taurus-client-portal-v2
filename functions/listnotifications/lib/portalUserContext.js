@@ -10,16 +10,6 @@ function parseCanViewFirmDeals(value) {
   return value === true || value === "true" || value === "Yes";
 }
 
-console.log("[portalUserContext] contact access debug", {
-  requestId,
-  email: normalizedEmail,
-  contactId: contact.id || null,
-  accountId: accountLookup.id || null,
-  rawCanViewFirmDeals: contact.Can_View_Firm_Deals,
-  rawType: typeof contact.Can_View_Firm_Deals,
-  parsedCanViewFirmDeals: parseCanViewFirmDeals(contact.Can_View_Firm_Deals),
-});
-
 async function resolvePortalUserContextByEmail({ email, requestId }) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) {
@@ -44,6 +34,16 @@ async function resolvePortalUserContextByEmail({ email, requestId }) {
 
   const contact = contacts[0] || {};
   const accountLookup = contact.Account_Name || contact.Account || {};
+
+  console.log("[portalUserContext] contact access debug", {
+    requestId,
+    email: normalizedEmail,
+    contactId: contact.id || null,
+    accountId: accountLookup.id || null,
+    rawCanViewFirmDeals: contact.Can_View_Firm_Deals,
+    rawType: typeof contact.Can_View_Firm_Deals,
+    parsedCanViewFirmDeals: parseCanViewFirmDeals(contact.Can_View_Firm_Deals),
+  });
 
   return {
     contact,

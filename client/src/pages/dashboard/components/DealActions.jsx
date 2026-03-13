@@ -219,6 +219,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         };
     }, []);
 
+
+
     useEffect(() => {
         if (!notificationOpen) return undefined;
 
@@ -264,6 +266,52 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     useEffect(() => {
         setExpectedLodgementDate(normalizeDateValue(deal?.expectedLodgementDate));
     }, [deal?.expectedLodgementDate]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const resolvedDealId = String(dealId || "").trim();
+        const resolvedEmail = String(portalEmail || "").trim().toLowerCase();
+
+        if (!resolvedDealId || !resolvedEmail) {
+            setPersistedNotifications([]);
+            return;
+        }
+
+        (async () => {
+            try {
+                const resp = await listNotifications({
+                    email: resolvedEmail,
+                    dealId: resolvedDealId,
+                });
+
+                if (cancelled) return;
+
+                const fetchedNotifications = Array.isArray(resp?.notifications)
+                    ? resp.notifications
+                    : Array.isArray(resp?.rows)
+                        ? resp.rows
+                        : [];
+
+                console.log("[DealActions] preload notifications success", {
+                    count: fetchedNotifications.length,
+                    fetchedNotifications,
+                });
+
+                setPersistedNotifications(fetchedNotifications);
+                setNotificationsError("");
+            } catch (err) {
+                if (cancelled) return;
+                console.error("[DealActions] preload notifications failed", err);
+                setPersistedNotifications([]);
+                setNotificationsError(err?.message || "Failed to load notifications");
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [dealId, portalEmail]);
 
 
     async function handleFileChange(event) {
@@ -403,7 +451,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         return url.toString();
     }
 
-function openExternalUrl(url) {
+    function openExternalUrl(url) {
         window.open(url, "_blank", "noopener,noreferrer");
     }
 
@@ -552,33 +600,33 @@ function openExternalUrl(url) {
 
         const requestPromise = (async () => {
             try {
-            if (showLoading) setNotificationsLoading(true);
-            const resp = await listNotifications({
-                email: resolvedEmail,
-                dealId: resolvedDealId,
-                signal: abortController.signal,
-            });
-            const fetchedNotifications = Array.isArray(resp?.notifications) ? resp.notifications : [];
-            setPersistedNotifications(fetchedNotifications);
-            if (!suppressError) setNotificationsError("");
-        } catch (err) {
-            if (err?.name === "AbortError") {
-                return;
+                if (showLoading) setNotificationsLoading(true);
+                const resp = await listNotifications({
+                    email: resolvedEmail,
+                    dealId: resolvedDealId,
+                    signal: abortController.signal,
+                });
+                const fetchedNotifications = Array.isArray(resp?.notifications) ? resp.notifications : [];
+                setPersistedNotifications(fetchedNotifications);
+                if (!suppressError) setNotificationsError("");
+            } catch (err) {
+                if (err?.name === "AbortError") {
+                    return;
+                }
+                console.error("[DealActions] Notifications fetch failure", err);
+                if (!suppressError) {
+                    setNotificationsError(err?.message || "Failed to load notifications");
+                }
+                setPersistedNotifications([]);
+            } finally {
+                if (showLoading) setNotificationsLoading(false);
+                if (notificationsAbortRef.current === abortController) {
+                    notificationsAbortRef.current = null;
+                }
+                if (notificationsRequestRef.current.key === requestKey) {
+                    notificationsRequestRef.current = { key: "", promise: null };
+                }
             }
-            console.error("[DealActions] Notifications fetch failure", err);
-            if (!suppressError) {
-                setNotificationsError(err?.message || "Failed to load notifications");
-            }
-            setPersistedNotifications([]);
-        } finally {
-            if (showLoading) setNotificationsLoading(false);
-            if (notificationsAbortRef.current === abortController) {
-                notificationsAbortRef.current = null;
-            }
-            if (notificationsRequestRef.current.key === requestKey) {
-                notificationsRequestRef.current = { key: "", promise: null };
-            }
-        }
         })();
 
         notificationsRequestRef.current = { key: requestKey, promise: requestPromise };

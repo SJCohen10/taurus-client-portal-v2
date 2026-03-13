@@ -38,10 +38,10 @@ function responseEnvelope({ status = "error", requestId, message, details, data 
 function hasAnalyticsEnv() {
   return Boolean(
     process.env.ZOHO_ANALYTICS_CLIENT_ID &&
-      process.env.ZOHO_ANALYTICS_CLIENT_SECRET &&
-      process.env.ZOHO_ANALYTICS_REFRESH_TOKEN &&
-      process.env.ZOHO_ANALYTICS_OWNER &&
-      process.env.ZOHO_ANALYTICS_DB
+    process.env.ZOHO_ANALYTICS_CLIENT_SECRET &&
+    process.env.ZOHO_ANALYTICS_REFRESH_TOKEN &&
+    process.env.ZOHO_ANALYTICS_OWNER &&
+    process.env.ZOHO_ANALYTICS_DB
   );
 }
 
@@ -204,11 +204,21 @@ module.exports = async (req, res) => {
     const COL_CREATED_AT = process.env.PORTAL_NOTIF_COL_CREATED_AT || "created_at";
     const COL_ACCOUNT_ID = process.env.PORTAL_NOTIF_COL_ACCOUNT_ID || "account_id";
 
+    const COL_MESSAGE = process.env.PORTAL_NOTIF_COL_MESSAGE || "message";
+    const COL_READ_AT = process.env.PORTAL_NOTIF_COL_READ_AT || "";
+    const COL_TYPE = process.env.PORTAL_NOTIF_COL_TYPE || "";
+    const COL_SEVERITY = process.env.PORTAL_NOTIF_COL_SEVERITY || "";
+
     if (!/^[A-Za-z0-9_]+$/.test(notificationsTable)) {
       return sendJson(res, 500, responseEnvelope({ status: "error", requestId, message: "Internal error", details: "invalid table name" }));
     }
 
-    const selectFields = [COL_ID, COL_DEAL_ID, COL_AUDIENCE_EMAIL, "message", COL_CREATED_AT, "read_at", COL_IS_READ, "type", "severity"];
+    const selectFields = [COL_ID, COL_DEAL_ID, COL_AUDIENCE_EMAIL, COL_MESSAGE, COL_CREATED_AT, COL_IS_READ];
+
+    if (COL_READ_AT) selectFields.push(COL_READ_AT);
+    if (COL_TYPE) selectFields.push(COL_TYPE);
+    if (COL_SEVERITY) selectFields.push(COL_SEVERITY);
+
     let query = `SELECT ${selectFields.join(", ")} FROM ${notificationsTable} WHERE ${COL_DEAL_ID}='${esc(dealId)}'`;
 
     if (analyticsAuthorized || allowBroadcastWithoutAnalytics()) {
@@ -244,12 +254,12 @@ module.exports = async (req, res) => {
       id: n?.id || n?.ID || n?.ROWID || n?.rowid || n?.[COL_ID] || "",
       deal_id: n?.deal_id || n?.Deal_Id || n?.[COL_DEAL_ID] || dealId,
       audience_email: n?.audience_email || n?.Audience_Email || n?.[COL_AUDIENCE_EMAIL] || null,
-      message: n?.message || n?.Message || "",
+      message: n?.message || n?.Message || n?.[COL_MESSAGE] || "",
       created_at: n?.created_at || n?.Created_At || n?.[COL_CREATED_AT] || null,
-      read_at: n?.read_at || n?.Read_At || null,
+      read_at: COL_READ_AT ? (n?.read_at || n?.Read_At || n?.[COL_READ_AT] || null) : null,
       is_read: n?.is_read || n?.Is_Read || n?.[COL_IS_READ] || false,
-      type: n?.type || n?.Type || "",
-      severity: n?.severity || n?.Severity || "",
+      type: COL_TYPE ? (n?.type || n?.Type || n?.[COL_TYPE] || "") : "",
+      severity: COL_SEVERITY ? (n?.severity || n?.Severity || n?.[COL_SEVERITY] || "") : "",
     }));
 
     timings.totalMs = nowMs() - startedAt;

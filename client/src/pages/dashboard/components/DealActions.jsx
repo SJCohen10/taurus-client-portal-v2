@@ -293,10 +293,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                         ? resp.rows
                         : [];
 
-                console.log("[DealActions] preload notifications success", {
-                    count: fetchedNotifications.length,
-                    fetchedNotifications,
-                });
+                
 
                 setPersistedNotifications(fetchedNotifications);
                 setNotificationsError("");
@@ -962,64 +959,105 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
 
 
-            {expectedLodgementOpen && (
-                <div className="modal-backdrop" onClick={() => setExpectedLodgementOpen(false)}>
-                    <div className="readvance-modal expected-date-modal" onClick={(event) => event.stopPropagation()}>
-                        <div className="readvance-modal-header">
-                            <h3>Update Expected Lodgement Date</h3>
-                        </div>
-                        <label>
-                            Expected Lodgement Date
-                            <input
-                                type="date"
-                                value={expectedLodgementDate}
-                                onChange={(event) => setExpectedLodgementDate(event.target.value)}
-                                max="9999-12-31"
-                            />
-                        </label>
-                        {expectedLodgementError && <p className="error">{expectedLodgementError}</p>}
-                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                            <button type="button" className="button" onClick={handleExpectedLodgementSave} disabled={expectedLodgementSaving}>
-                                {expectedLodgementSaving ? "Saving…" : "Save"}
-                            </button>
-                            <button type="button" className="button" onClick={() => setExpectedLodgementOpen(false)}>
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {expectedLodgementOpen &&
+                ReactDOM.createPortal(
+                    <div className="modal-backdrop" onClick={() => setExpectedLodgementOpen(false)}>
+                        <div
+                            className="readvance-modal expected-date-modal"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="readvance-modal-header">
+                                <h3>Update Expected Lodgement Date</h3>
+                            </div>
 
-            {noteOpen && (
-                <div className="modal-backdrop" onClick={() => setNoteOpen(false)}>
-                    <div className="readvance-modal note-modal" onClick={(event) => event.stopPropagation()}>
-                        <div className="readvance-modal-header">
-                            <h3>Add Note</h3>
+                            <div className="readvance-modal-body">
+                                <label>
+                                    Expected Lodgement Date
+                                    <input
+                                        type="date"
+                                        value={expectedLodgementDate}
+                                        onChange={(event) => setExpectedLodgementDate(event.target.value)}
+                                        max="9999-12-31"
+                                    />
+                                </label>
+
+                                {expectedLodgementError && <p className="error">{expectedLodgementError}</p>}
+
+                                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                                    <button
+                                        type="button"
+                                        className="button"
+                                        onClick={handleExpectedLodgementSave}
+                                        disabled={expectedLodgementSaving}
+                                    >
+                                        {expectedLodgementSaving ? "Saving…" : "Save"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="button"
+                                        onClick={() => setExpectedLodgementOpen(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <label>
-                            Note
-                            <textarea
-                                className="note-modal-textarea"
-                                value={noteContent}
-                                onChange={(event) => setNoteContent(event.target.value)}
-                                onKeyDown={(event) => event.stopPropagation()}
-                                maxLength={5000}
-                                rows={6}
-                            />
-                        </label>
-                        <div style={{ marginTop: 8, fontSize: 12 }}>{noteContent.length}/5000</div>
-                        {noteError && <p className="error">{noteError}</p>}
-                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                            <button type="button" className="button" onClick={handleSaveNote} disabled={noteSaving}>
-                                {noteSaving ? "Saving…" : "Save"}
-                            </button>
-                            <button type="button" className="button" onClick={() => setNoteOpen(false)}>
-                                Cancel
-                            </button>
+                    </div>,
+                    document.body
+                )}
+
+            {noteOpen &&
+                ReactDOM.createPortal(
+                    <div className="modal-backdrop" onClick={() => setNoteOpen(false)}>
+                        <div
+                            className="readvance-modal note-modal"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="readvance-modal-header">
+                                <h3>Add Note</h3>
+                            </div>
+
+                            <div className="readvance-modal-body">
+                                <label>
+                                    Note
+                                    <textarea
+                                        className="note-modal-textarea"
+                                        value={noteContent}
+                                        onChange={(event) => setNoteContent(event.target.value)}
+                                        onKeyDown={(event) => event.stopPropagation()}
+                                        maxLength={5000}
+                                        rows={6}
+                                    />
+                                </label>
+
+                                <div style={{ marginTop: 8, fontSize: 12 }}>
+                                    {noteContent.length}/5000
+                                </div>
+
+                                {noteError && <p className="error">{noteError}</p>}
+
+                                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                                    <button
+                                        type="button"
+                                        className="button"
+                                        onClick={handleSaveNote}
+                                        disabled={noteSaving}
+                                    >
+                                        {noteSaving ? "Saving…" : "Save"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="button"
+                                        onClick={() => setNoteOpen(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    </div>,
+                    document.body
+                )}
 
             {message && (
                 <div className="deal-action-message" style={{ marginTop: 6 }}>

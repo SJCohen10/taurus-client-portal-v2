@@ -75,9 +75,17 @@ module.exports = async (req, res) => {
     const allowed = await withTimeout(() => getDealsForPortal({ email, accountId: scope.accountId }), AUTHZ_TIMEOUT_MS, "getDealsForPortal");
     if (!allowed.some((d) => String(d.deal_id) === dealId)) return sendJson(req, res, 403, responseEnvelope({ requestId, message: "Forbidden" }));
 
-    const payload = { data: [{ Expected_Lodgement_Date: expectedLodgementDate }] };
+    const payload = {
+      data: [
+        {
+          id: String(dealId),
+          Expected_Lodgement_Date: expectedLodgementDate,
+        },
+      ],
+    };
+
     const parsed = await withTimeout(
-      () => crmRequest({ method: "PUT", path: `/Deals/${dealId}`, body: payload, requestId }),
+      () => crmRequest({ method: "PUT", path: "/Deals", body: payload, requestId }),
       CRM_WRITE_TIMEOUT_MS,
       "update CRM deal"
     );

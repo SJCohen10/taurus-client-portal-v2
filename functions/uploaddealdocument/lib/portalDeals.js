@@ -2,6 +2,7 @@
 
 const { URL } = require("url");
 const fetch = global.fetch || require("node-fetch");
+const { resolvePortalUserContextByEmail } = require("./portalUserContext");
 
 const EARLY_REFRESH_MS = 60 * 1000;
 const BACKOFF_MS = [500, 1000, 2000, 4000];
@@ -200,19 +201,79 @@ function parseCsv(text) {
   });
 }
 
-async function getDealsForPortal({ email, accountId }) {
-  const accessToken = await getAnalyticsAccessToken();
+function parseNumber(val) {
+  if (val === undefined || val === null || val === "") return null;
+  const numeric = Number(String(val).replace(/[^0-9.-]/g, ""));
+  return Number.isNaN(numeric) ? null : numeric;
+}
+
+function mapPortalDealRow(row) {
+  const assetId =
+    row["Asset Id"] ||
+    row["Asset_Id"] ||
+    row["Asset ID"] ||
+    row["asset_id"] ||
+    null;
+
+  const assetCreatorId =
+    row["Asset Creator ID"] ||
+    row["Asset_Creator_ID"] ||
+    row["Asset Creator Id"] ||
+    null;
+
+  const sellerAccountId = row["Seller_Account_Id"] || null;
+
+  const accountId =
+    row["Account_Id"] || row["Account Id"] || row["Account_ID"] || null;
+
+  const propertyFolderId =
+    row["Property Folder Id"] ||
+    row["Property_Folder_Id"] ||
+    row["Property Folder"] ||
+    null;
+
+  const assetIds =
+    row["Asset IDs"] || row["Asset_IDs"] || row["Asset Ids"] || null;
+
+  const assetCreatorIds =
+    row["Asset Creator IDs"] || row["Asset_Creator_IDs"] || null;
+
+  const currentBalance = parseNumber(row["Current Balance"]);
+  const upsellAvailable = parseNumber(row["Upsell Available"]);
+
+  const seller = row["Seller"] || row["seller"] || row["Seller Name"] || null;
+
+  return {
+    property_ref_number: row["Property Ref Number"] || null,
+    property_description: row["Property Description"] || null,
+    created_time: row["Created time"] || null,
+    contact_email: row["Contact_Email"] || null,
+    status: row["Status"] || null,
+    amount: parseNumber(row["Amount"]),
+    current_balance: currentBalance,
+    upsell_available: upsellAvailable,
+    lodged: row["Lodged"] || null,
+    registered: row["Registered"] || null,
+    asset_id: assetId,
+    asset_creator_id: assetCreatorId,
+    account_id: accountId,
+    property_folder_id: propertyFolderId,
+    asset_ids: assetIds,
+    asset_creator_ids: assetCreatorIds,
+    seller_account_id: sellerAccountId,
+    deal_id: row["Deal_Id"] || null,
+    expectedLodgementDate: row["Expected_Lodgement_Date"] || null,
+    seller,
+  };
+}
+
+async function fetchPortalDealsByCriteria({ accessToken, criteria }) {
   const base = process.env.ZOHO_ANALYTICS_BASE || "https://analyticsapi.zoho.com/api";
   const owner = process.env.ZOHO_ANALYTICS_OWNER;
   const db = process.env.ZOHO_ANALYTICS_DB;
   const table = process.env.ZOHO_ANALYTICS_PORTAL_DEALS_TABLE || "Portal_Deals_View";
 
   if (!owner || !db) throw new Error("Missing Analytics owner/db env vars");
-
-  const criteriaParts = [];
-  if (email) criteriaParts.push(`"Contact_Email"='${String(email).replace(/'/g, "\\'")}'`);
-  if (accountId) criteriaParts.push(`"Account_Id"='${String(accountId).replace(/'/g, "\\'")}'`);
-  const criteria = criteriaParts.length ? criteriaParts.join(" OR ") : "1=0";
 
   const url = new URL(`${base}/${encodeURIComponent(owner)}/${encodeURIComponent(db)}/${encodeURIComponent(table)}`);
   url.searchParams.set("ZOHO_ACTION", "EXPORT");
@@ -232,12 +293,68 @@ async function getDealsForPortal({ email, accountId }) {
     throw new Error("Zoho Analytics returned JSON error response");
   }
 
-  const rows = parseCsv(text);
-  return rows.map((row) => ({
-    deal_id: row["Deal_Id"] || null,
-    asset_id: row["Asset Id"] || row["Asset_Id"] || row["Asset ID"] || row["asset_id"] || null,
-    asset_ids: row["Asset IDs"] || row["Asset_IDs"] || row["Asset Ids"] || null,
-  }));
+  return parseCsv(text);
+}
+
+function dedupeDealsById(deals) {
+  const unique = [];
+  const seen = new Set();
+
+  for (const deal of deals) {
+    const key = String(deal?.deal_id || "").trim();
+    if (!key) {
+      unique.push(deal);
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(deal);
+  }
+
+  return unique;
+}
+
+async function getDealsForPortal({ email, requestId }) {
+  const portalUser = await resolvePortalUserContextByEmail({ email, requestId });
+  const resolvedAccountId = String(portalUser?.accountId || "").trim();
+  const canViewFirmDeals = Boolean(portalUser?.canViewFirmDeals);
+  const safeEmail = String(email || "").trim().toLowerCase();
+
+  const accessToken = await getAnalyticsAccessToken();
+
+  const escapedEmail = safeEmail.replace(/'/g, "\\'");
+  const myRows = safeEmail
+    ? await fetchPortalDealsByCriteria({
+      accessToken,
+      criteria: `"Contact_Email"='${escapedEmail}'`,
+    })
+    : [];
+
+  let firmRows = [];
+  if (canViewFirmDeals && resolvedAccountId) {
+    const escapedAccountId = resolvedAccountId.replace(/'/g, "\\'");
+    firmRows = await fetchPortalDealsByCriteria({
+      accessToken,
+      criteria: `"Account_Id"='${escapedAccountId}'`,
+    });
+  }
+
+  const normalizedMyDeals = myRows.map(mapPortalDealRow);
+  const normalizedFirmDeals = firmRows.map(mapPortalDealRow);
+  const dedupedDeals = dedupeDealsById([...normalizedMyDeals, ...normalizedFirmDeals]);
+
+  console.log("[portalDeals] visibility resolved", {
+    requestId,
+    email: safeEmail,
+    resolvedAccountId: resolvedAccountId || null,
+    canViewFirmDeals,
+    myDealsCount: normalizedMyDeals.length,
+    firmDealsCount: normalizedFirmDeals.length,
+    dedupedCount: dedupedDeals.length,
+    first10DealIds: dedupedDeals.slice(0, 10).map((deal) => String(deal?.deal_id || "").trim()),
+  });
+
+  return dedupedDeals;
 }
 
 module.exports = {

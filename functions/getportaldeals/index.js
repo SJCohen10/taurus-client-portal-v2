@@ -1,7 +1,7 @@
 "use strict";
 
 const { URL } = require("url");
-const { getDealsForPortal } = require("../lib/portalDeals");
+const { getDealsForPortal } = require("./lib/portalDeals");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

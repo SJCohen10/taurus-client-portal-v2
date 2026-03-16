@@ -47,6 +47,17 @@ function buildAuthHeaders(accessToken) {
     return headers;
 }
 
+function extractComparableDealId(row) {
+    return String(
+        row?.deal_id ||
+        row?.Deal_Id ||
+        row?.["Deal Id"] ||
+        row?.id ||
+        row?.Id ||
+        ""
+    ).trim();
+}
+
 function shortError(message) {
     return String(message || "Unknown error").slice(0, 220);
 }
@@ -319,8 +330,43 @@ module.exports = async (req, res) => {
         }
 
         const body = await readJsonBody(req, MAX_BODY_BYTES);
-        assertAllowedKeys(body, ["email", "fileName", "mimeType", "fileBase64", "propertyRefNumber", "propertyDescription", "dealReferenceNumber", "accountId", "contactEmail", "assetId", "propertyFolderId", "dealId"]);
+
+        console.log("[uploaddealdocument] body received", {
+            requestId,
+            keys: Object.keys(body || {}),
+            bodyEmail: body?.email || "",
+            bodyContactEmail: body?.contactEmail || "",
+            dealId: body?.dealId || "",
+            propertyFolderId: body?.propertyFolderId || "",
+        });
+
+        assertAllowedKeys(body, [
+            "email",
+            "fileName",
+            "mimeType",
+            "fileBase64",
+            "propertyRefNumber",
+            "propertyDescription",
+            "dealReferenceNumber",
+            "accountId",
+            "contactEmail",
+            "assetId",
+            "propertyFolderId",
+            "dealId",
+        ]);
+
+        console.log("[uploaddealdocument] before enforceUserContext", {
+            requestId,
+            candidateEmail: body?.email || body?.contactEmail || "",
+        });
+
         const email = enforceUserContext(req, body.email || body.contactEmail);
+
+        console.log("[uploaddealdocument] after enforceUserContext", {
+            requestId,
+            resolvedEmail: email,
+        });
+
         enforceRateLimit({ key: `uploaddealdocument:${email}`, limit: 20, windowMs: 60000 });
         const {
             fileName,
@@ -336,13 +382,40 @@ module.exports = async (req, res) => {
             dealId,
         } = body || {};
 
+
         if (String(dealId || "").trim()) {
             const { getDealsForPortal } = require("./lib/portalDeals");
+            const requestedDealId = String(dealId).trim();
             const allowedDeals = await getDealsForPortal({ email });
-            if (!allowedDeals.some((d) => String(d.deal_id) === String(dealId).trim())) {
-                return sendJson(req, res, 403, { error: "Forbidden", requestId, endpoint, details: "deal authorization failed" });
+
+            const isAllowed = Array.isArray(allowedDeals)
+                ? allowedDeals.some((d) => extractComparableDealId(d) === requestedDealId)
+                : false;
+
+            console.log("[uploaddealdocument] auth check", {
+                requestId,
+                email,
+                requestedDealId,
+                allowedDealCount: Array.isArray(allowedDeals) ? allowedDeals.length : 0,
+                first10AllowedDealIds: Array.isArray(allowedDeals)
+                    ? allowedDeals.slice(0, 10).map(extractComparableDealId)
+                    : [],
+                isAllowed,
+                matchingRows: Array.isArray(allowedDeals)
+                    ? allowedDeals.filter((d) => extractComparableDealId(d) === requestedDealId).slice(0, 3)
+                    : [],
+            });
+
+            if (!isAllowed) {
+                return sendJson(req, res, 403, {
+                    error: "Forbidden",
+                    requestId,
+                    endpoint,
+                    details: "deal authorization failed",
+                });
             }
         }
+
 
         if (!fileName || !fileBase64) {
             return sendJson(req, res, 400, {

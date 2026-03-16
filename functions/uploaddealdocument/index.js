@@ -15,6 +15,9 @@ const ALLOWED_MIME_TYPES = new Set([
     "application/pdf",
     "image/jpeg",
     "image/png",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
 ]);
 const MAX_UPLOAD_BYTES = Number(process.env.PORTAL_UPLOAD_MAX_BYTES || 10 * 1024 * 1024);
 const MAX_BODY_BYTES = Number(process.env.PORTAL_UPLOAD_MAX_BODY_BYTES || 14 * 1024 * 1024);
@@ -428,7 +431,7 @@ module.exports = async (req, res) => {
 
         if (typeof mimeType !== "string" || !ALLOWED_MIME_TYPES.has(mimeType)) {
             return sendJson(req, res, 400, {
-                error: "Unsupported mimeType. Allowed: application/pdf, image/jpeg, image/png.",
+                error: "Unsupported mimeType. Allowed: application/pdf, image/jpeg, image/png, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, text/plain.",
                 requestId,
                 endpoint,
                 details: "invalid mimeType",

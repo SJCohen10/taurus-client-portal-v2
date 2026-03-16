@@ -384,9 +384,9 @@ module.exports = async (req, res) => {
 
 
         if (String(dealId || "").trim()) {
-            const { getDealsForPortal } = require("./lib/portalDeals");
+            const { getDealsForPortal } = require("../lib/portalDeals");
             const requestedDealId = String(dealId).trim();
-            const allowedDeals = await getDealsForPortal({ email });
+            const allowedDeals = await getDealsForPortal({ email, requestId });
 
             const isAllowed = Array.isArray(allowedDeals)
                 ? allowedDeals.some((d) => extractComparableDealId(d) === requestedDealId)

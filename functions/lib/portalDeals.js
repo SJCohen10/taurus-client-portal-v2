@@ -2,150 +2,8 @@
 
 const { URL } = require("url");
 const fetch = global.fetch || require("node-fetch");
+const analyticsTokenManager = require("./analyticsTokenManager");
 const { resolvePortalUserContextByEmail } = require("./portalUserContext");
-
-const EARLY_REFRESH_MS = 60 * 1000;
-const BACKOFF_MS = [500, 1000, 2000, 4000];
-
-let cachedToken = null;
-let cachedTokenExpiry = 0;
-let inflightRefreshPromise = null;
-let refreshCounter = 0;
-
-function shouldLogDevCounters() {
-  return process.env.NODE_ENV !== "production" || process.env.CATALYST_STAGE === "Development";
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function parseJsonSafely(raw) {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function isRetryableOAuthThrottle({ error, errorDescription }) {
-  const err = String(error || "").toLowerCase();
-  const desc = String(errorDescription || "").toLowerCase();
-  return err.includes("access denied") || desc.includes("too many requests continuously");
-}
-
-function isNonRetryableOAuthError({ error }) {
-  const err = String(error || "").toLowerCase();
-  return err.includes("invalid_client") || err.includes("invalid_code") || err.includes("invalid_grant");
-}
-
-function getCallerEmail(req) {
-  const headers = req?.headers || {};
-  const direct =
-    req?.user?.email ||
-    headers["x-zc-user-email"] ||
-    headers["x-zc-useremail"] ||
-    headers["x-catalyst-user-email"] ||
-    headers["x-user-email"] ||
-    headers["x-forwarded-user-email"] ||
-    "";
-  return String(direct || "").trim().toLowerCase();
-}
-
-async function refreshAnalyticsAccessToken() {
-  const clientId = process.env.ZOHO_ANALYTICS_CLIENT_ID;
-  const clientSecret = process.env.ZOHO_ANALYTICS_CLIENT_SECRET;
-  const refreshToken = process.env.ZOHO_ANALYTICS_REFRESH_TOKEN;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error("Missing Analytics OAuth env vars");
-  }
-
-  const accountsBase = process.env.ZOHO_ANALYTICS_ACCOUNTS_URL || process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
-
-  const params = new URLSearchParams({
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-    grant_type: "refresh_token",
-  });
-
-  let lastError;
-  for (let attempt = 0; attempt < BACKOFF_MS.length; attempt += 1) {
-    const res = await fetch(`${accountsBase}/oauth/v2/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString(),
-    });
-
-    const text = await res.text();
-    const data = parseJsonSafely(text);
-    const oauthError = data && typeof data === "object" ? data.error : undefined;
-    const oauthErrorDescription = data && typeof data === "object" ? data.error_description : undefined;
-
-    if (res.ok && data && data.access_token) {
-      return { ...data, accountsBase };
-    }
-
-    const details = {
-      accountsBase,
-      statusCode: res.status,
-      error: oauthError || null,
-      error_description: oauthErrorDescription || null,
-      responsePreview: String(text || "").slice(0, 300),
-    };
-
-    const retryable = isRetryableOAuthThrottle({ error: oauthError, errorDescription: oauthErrorDescription });
-    const nonRetryable = isNonRetryableOAuthError({ error: oauthError });
-    const hasNextAttempt = attempt < BACKOFF_MS.length - 1;
-
-    if (!retryable || nonRetryable || !hasNextAttempt) {
-      console.error("Analytics OAuth refresh failed", details);
-      const err = new Error(`Failed to get Analytics access token (${res.status})`);
-      err.details = details;
-      throw err;
-    }
-
-    lastError = details;
-    await sleep(BACKOFF_MS[attempt]);
-  }
-
-  const err = new Error("Failed to get Analytics access token");
-  err.details = lastError;
-  throw err;
-}
-
-async function getAnalyticsAccessToken() {
-  const now = Date.now();
-  if (cachedToken && now < cachedTokenExpiry - EARLY_REFRESH_MS) {
-    return cachedToken;
-  }
-
-  if (!inflightRefreshPromise) {
-    inflightRefreshPromise = (async () => {
-      const data = await refreshAnalyticsAccessToken();
-      const expiresInSeconds = Number(data.expires_in || data.expires_in_sec || 3600);
-      cachedToken = data.access_token;
-      cachedTokenExpiry = Date.now() + (Number.isFinite(expiresInSeconds) ? expiresInSeconds * 1000 : 3600 * 1000);
-      refreshCounter += 1;
-      if (shouldLogDevCounters()) {
-        console.log("[analyticsTokenManager] refreshed", {
-          refreshCount: refreshCounter,
-          expiresInSeconds,
-          accountsBase: data.accountsBase,
-        });
-      }
-      return cachedToken;
-    })().finally(() => {
-      inflightRefreshPromise = null;
-    });
-  } else if (shouldLogDevCounters()) {
-    console.log("[analyticsTokenManager] reusing inflight refresh");
-  }
-
-  return inflightRefreshPromise;
-}
 
 function parseCsv(text) {
   const rows = [];
@@ -273,7 +131,9 @@ async function fetchPortalDealsByCriteria({ accessToken, criteria }) {
   const db = process.env.ZOHO_ANALYTICS_DB;
   const table = process.env.ZOHO_ANALYTICS_PORTAL_DEALS_TABLE || "Portal_Deals_View";
 
-  if (!owner || !db) throw new Error("Missing Analytics owner/db env vars");
+  if (!owner || !db) {
+    throw new Error("Missing Analytics env vars: ZOHO_ANALYTICS_OWNER, ZOHO_ANALYTICS_DB");
+  }
 
   const url = new URL(`${base}/${encodeURIComponent(owner)}/${encodeURIComponent(db)}/${encodeURIComponent(table)}`);
   url.searchParams.set("ZOHO_ACTION", "EXPORT");
@@ -284,13 +144,24 @@ async function fetchPortalDealsByCriteria({ accessToken, criteria }) {
 
   const res = await fetch(url.toString(), {
     method: "GET",
-    headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    headers: {
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
+    },
   });
 
   const text = await res.text();
   const trimmed = text.trim();
   if (trimmed.startsWith("{")) {
-    throw new Error("Zoho Analytics returned JSON error response");
+    try {
+      const errJson = JSON.parse(trimmed);
+      if (errJson.response && errJson.response.error) {
+        const err = errJson.response.error;
+        throw new Error(`Zoho Analytics error ${err.code || ""}: ${err.message || ""}`);
+      }
+    } catch (parseErr) {
+      throw new Error(`Zoho Analytics returned JSON but parsing failed: ${parseErr.message}; raw=${trimmed}`);
+    }
+    throw new Error(`Unexpected JSON response from Analytics: ${trimmed}`);
   }
 
   return parseCsv(text);
@@ -320,7 +191,7 @@ async function getDealsForPortal({ email, requestId }) {
   const canViewFirmDeals = Boolean(portalUser?.canViewFirmDeals);
   const safeEmail = String(email || "").trim().toLowerCase();
 
-  const accessToken = await getAnalyticsAccessToken();
+  const accessToken = await analyticsTokenManager.getAccessToken({ requestId });
 
   const escapedEmail = safeEmail.replace(/'/g, "\\'");
   const myRows = safeEmail
@@ -358,7 +229,6 @@ async function getDealsForPortal({ email, requestId }) {
 }
 
 module.exports = {
-  getCallerEmail,
   getDealsForPortal,
-  getAnalyticsAccessToken,
+  mapPortalDealRow,
 };

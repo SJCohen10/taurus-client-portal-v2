@@ -372,7 +372,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
             const results = [];
             for (const id of targetIds) {
-                const response = await generateStatement({ assetId: id });
+                const response = await generateStatement({ assetId: id, email: portalEmail, accountId });
                 results.push({ assetId: id, response });
 
                 if (response?.statementUrl) {

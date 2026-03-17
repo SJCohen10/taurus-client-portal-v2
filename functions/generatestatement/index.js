@@ -5,6 +5,8 @@ const { crmRequest } = require("./lib/crm");
 const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("./lib/security");
 const { getDealsForPortal } = require("./lib/portalDeals");
 
+const ACCOUNT_ID_REGEX = /^[0-9]{6,30}$/;
+
 function buildCreatorUrl(pageName, assetId) {
   const base = process.env.ZOHO_CREATOR_STATEMENT_BASE || "https://creatorapp.zoho.com/administrator_tauruscapital/loan-management-system/#Page";
   return `${base}:${pageName}?CrmAssetId=${assetId}`;
@@ -27,6 +29,21 @@ function verifyToken(token) {
   return parsed;
 }
 
+function parseCanViewFirmDeals(value) {
+  return value === true || value === "true" || value === "Yes";
+}
+
+async function resolveAuthorizationScope(email) {
+  const search = await crmRequest({ method: "GET", path: "/Contacts/search", query: { email } });
+  const contact = (search?.data || [])[0] || {};
+  const accountLookup = contact.Account_Name || contact.Account || {};
+  const canViewFirmDeals = parseCanViewFirmDeals(contact.Can_View_Firm_Deals);
+
+  return {
+    accountId: canViewFirmDeals ? String(accountLookup.id || "").trim() : "",
+  };
+}
+
 module.exports = async (req, res) => {
   try {
     if (handleOptions(req, res)) return;
@@ -41,7 +58,7 @@ module.exports = async (req, res) => {
 
     if (req.method !== "POST") return sendJson(req, res, 405, { error: "Method not allowed" });
     const body = await readJsonBody(req);
-    assertAllowedKeys(body, ["email", "assetId"]);
+    assertAllowedKeys(body, ["email", "assetId", "accountId"]);
 
     const email = enforceUserContext(req, body.email);
     enforceRateLimit({ key: `generatestatement:${email}`, limit: 10, windowMs: 60000 });
@@ -49,8 +66,30 @@ module.exports = async (req, res) => {
     const assetId = String(body.assetId || "").trim();
     if (!/^\d+$/.test(assetId)) return sendJson(req, res, 400, { error: "Invalid assetId" });
 
-    const allowed = await getDealsForPortal({ email });
-    if (!allowed.some((d) => String(d.asset_id) === assetId || String(d.asset_ids || "").split(",").map((x) => x.trim()).includes(assetId))) {
+    const incomingAccountId = String(body.accountId || "").trim();
+    if (incomingAccountId && !ACCOUNT_ID_REGEX.test(incomingAccountId)) {
+      return sendJson(req, res, 400, { error: "Invalid accountId" });
+    }
+
+    const scope = await resolveAuthorizationScope(email);
+    const allowedAccountId = String(scope.accountId || "").trim();
+    const accountId = incomingAccountId && incomingAccountId === allowedAccountId ? incomingAccountId : allowedAccountId;
+
+    const allowed = await getDealsForPortal({ email, accountId });
+    const isAuthorized = allowed.some((d) => String(d.asset_id) === assetId || String(d.asset_ids || "").split(",").map((x) => x.trim()).includes(assetId));
+
+    console.log("[generatestatement] authorization", {
+      email,
+      incomingAccountId: incomingAccountId || null,
+      resolvedAccountId: allowedAccountId || null,
+      accountIdUsed: accountId || null,
+      requestedAssetId: assetId,
+      allowedCount: Array.isArray(allowed) ? allowed.length : 0,
+      allowedSampleDealIds: Array.isArray(allowed) ? allowed.slice(0, 5).map((d) => String(d?.deal_id || "").trim()).filter(Boolean) : [],
+      authorized: isAuthorized,
+    });
+
+    if (!isAuthorized) {
       return sendJson(req, res, 403, { error: "Forbidden" });
     }
 

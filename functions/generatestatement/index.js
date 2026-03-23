@@ -5,6 +5,8 @@ const { crmRequest } = require("./lib/crm");
 const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("./lib/security");
 const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
 
+const ACCOUNT_ID_REGEX = /^[0-9]{6,30}$/;
+
 function buildCreatorUrl(pageName, assetId) {
   const base = process.env.ZOHO_CREATOR_STATEMENT_BASE || "https://creatorapp.zoho.com/administrator_tauruscapital/loan-management-system/#Page";
   return `${base}:${pageName}?CrmAssetId=${assetId}`;
@@ -56,7 +58,7 @@ module.exports = async (req, res) => {
 
     if (req.method !== "POST") return sendJson(req, res, 405, { error: "Method not allowed" });
     const body = await readJsonBody(req);
-    assertAllowedKeys(body, ["email", "assetId"]);
+    assertAllowedKeys(body, ["email", "assetId", "accountId"]);
 
     const bodyEmail = String(body.email || "").trim().toLowerCase();
     const callerEmail = getCallerEmail(req);

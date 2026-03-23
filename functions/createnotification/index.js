@@ -1,11 +1,24 @@
 "use strict";
 
-const portalDeals = require("./lib/portalDeals");
+const { getDealsForPortal } = require("../lib/portalDeals");
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
+}
+
+function getCallerEmail(req) {
+  const headers = req?.headers || {};
+  const direct =
+    req?.user?.email ||
+    headers["x-zc-user-email"] ||
+    headers["x-zc-useremail"] ||
+    headers["x-catalyst-user-email"] ||
+    headers["x-user-email"] ||
+    headers["x-forwarded-user-email"] ||
+    "";
+  return String(direct || "").trim().toLowerCase();
 }
 
 // Catalyst Advanced I/O often gives req.body as an object if JSON,
@@ -33,7 +46,7 @@ module.exports = async (req, res) => {
     const dealId = String(body.dealId || "").trim();
     const message = String(body.message || "").trim();
     const requestedEmail = String(body.email || body.audienceEmail || "").trim().toLowerCase();
-    const callerEmail = portalDeals.getCallerEmail(req);
+    const callerEmail = getCallerEmail(req);
     const email = callerEmail || requestedEmail;
 
     if (!email) return sendJson(res, 401, { error: "Missing authenticated user email context." });
@@ -42,9 +55,21 @@ module.exports = async (req, res) => {
     if (!/^[0-9]{6,30}$/.test(dealId)) return sendJson(res, 400, { error: "Invalid dealId" });
     if (!message) return sendJson(res, 400, { error: "Missing message" });
 
-    const visibleDeals = await portalDeals.getDealsForPortal({ email, accountId: "" });
+    const visibleDeals = await getDealsForPortal({ email });
     const visibleDealIds = new Set((visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean));
-    if (!visibleDealIds.has(dealId)) return sendJson(res, 403, { error: "Deal is not authorized for this user." });
+    const isAuthorized = visibleDealIds.has(dealId);
+
+    console.log("[createnotification] authorization", {
+      email,
+      requestedDealId: dealId,
+      visibleDealCount: Array.isArray(visibleDeals) ? visibleDeals.length : 0,
+      visibleDealSample: Array.isArray(visibleDeals)
+        ? visibleDeals.slice(0, 5).map((d) => String(d?.deal_id || "").trim()).filter(Boolean)
+        : [],
+      isAuthorized,
+    });
+
+    if (!isAuthorized) return sendJson(res, 403, { error: "Deal is not authorized for this user." });
 
     const table = app.datastore().table("portal_notifications");
 

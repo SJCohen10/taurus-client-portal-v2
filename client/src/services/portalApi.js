@@ -150,4 +150,3 @@ export async function createNotification(payload) {
 export async function markNotificationRead({ id, email }) {
   return request("/marknotificationread", { method: "POST", body: { id, email: email || "" } });
 }
-

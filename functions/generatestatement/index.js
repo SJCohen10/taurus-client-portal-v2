@@ -3,7 +3,7 @@
 const crypto = require("crypto");
 const { crmRequest } = require("./lib/crm");
 const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("./lib/security");
-const { getDealsForPortal } = require("./lib/portalDeals");
+const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
 
 function buildCreatorUrl(pageName, assetId) {
   const base = process.env.ZOHO_CREATOR_STATEMENT_BASE || "https://creatorapp.zoho.com/administrator_tauruscapital/loan-management-system/#Page";
@@ -27,6 +27,21 @@ function verifyToken(token) {
   return parsed;
 }
 
+function extractAssetIdsFromAllowedRow(row) {
+  const ids = new Set();
+
+  const single = String(row.asset_id || "").trim();
+  if (single) ids.add(single);
+
+  String(row.asset_ids || "")
+    .split(/[,\n;|]/)
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .forEach((id) => ids.add(id));
+
+  return [...ids];
+}
+
 module.exports = async (req, res) => {
   try {
     if (handleOptions(req, res)) return;
@@ -43,14 +58,59 @@ module.exports = async (req, res) => {
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "assetId"]);
 
-    const email = enforceUserContext(req, body.email);
+    const bodyEmail = String(body.email || "").trim().toLowerCase();
+    const callerEmail = getCallerEmail(req);
+    const requestedEmail = bodyEmail || callerEmail;
+
+    const email = enforceUserContext(req, requestedEmail);
+
+    console.info("[generatestatement] resolved user context", {
+      bodyEmail,
+      callerEmail,
+      resolvedEmail: email,
+    });
+
+    if (!email) {
+      return sendJson(req, res, 401, { error: "Unable to resolve portal user email" });
+    }
+
     enforceRateLimit({ key: `generatestatement:${email}`, limit: 10, windowMs: 60000 });
 
     const assetId = String(body.assetId || "").trim();
     if (!/^\d+$/.test(assetId)) return sendJson(req, res, 400, { error: "Invalid assetId" });
 
+    console.info("[generatestatement] fetching allowed deals", { email });
     const allowed = await getDealsForPortal({ email });
-    if (!allowed.some((d) => String(d.asset_id) === assetId || String(d.asset_ids || "").split(",").map((x) => x.trim()).includes(assetId))) {
+
+    console.info("[generatestatement] auth check", {
+      email,
+      requestedAssetId: assetId,
+      allowedCount: allowed.length,
+      sample: allowed.slice(0, 5).map((row) => ({
+        deal_id: row.deal_id,
+        asset_id: row.asset_id,
+        asset_ids: row.asset_ids,
+        extractedAssetIds: extractAssetIdsFromAllowedRow(row),
+      })),
+    });
+
+    const isAllowed = allowed.some((row) =>
+      extractAssetIdsFromAllowedRow(row).includes(assetId)
+    );
+
+    if (!isAllowed) {
+      console.warn("[generatestatement] forbidden asset access", {
+        email,
+        requestedAssetId: assetId,
+        allowedCount: allowed.length,
+        sample: allowed.slice(0, 5).map((row) => ({
+          deal_id: row.deal_id,
+          asset_id: row.asset_id,
+          asset_ids: row.asset_ids,
+          extractedAssetIds: extractAssetIdsFromAllowedRow(row),
+        })),
+      });
+
       return sendJson(req, res, 403, { error: "Forbidden" });
     }
 
@@ -67,7 +127,14 @@ module.exports = async (req, res) => {
     const token = signToken({ url: creatorUrl, exp: Date.now() + 5 * 60 * 1000 });
     return sendJson(req, res, 200, { statementUrl: `/server/generatestatement?token=${encodeURIComponent(token)}`, expiresInSeconds: 300 });
   } catch (err) {
-    console.error("generatestatement failed", { message: err.message });
-    return sendJson(req, res, err.statusCode || 500, { error: err.statusCode ? err.message : "Internal server error" });
+    console.error("generatestatement failed", {
+      message: err.message,
+      statusCode: err.statusCode || 500,
+      details: err.details || null,
+      stack: err.stack || null,
+    });
+    return sendJson(req, res, err.statusCode || 500, {
+      error: err.statusCode ? err.message : "Internal server error",
+    });
   }
 };

@@ -293,7 +293,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                         ? resp.rows
                         : [];
 
-                
+
 
                 setPersistedNotifications(fetchedNotifications);
                 setNotificationsError("");
@@ -364,6 +364,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             return;
         }
 
+        if (!portalEmail) {
+            setMessage("Missing portal user email.");
+            return;
+        }
+
         try {
             setStatementLoading(true);
             setMessage("");
@@ -372,7 +377,12 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
             const results = [];
             for (const id of targetIds) {
-                const response = await generateStatement({ assetId: id });
+                console.log("[DealActions] generateStatement request", {
+                    assetId: id,
+                    portalEmail,
+                });
+
+                const response = await generateStatement({ assetId: id, email: portalEmail });
                 results.push({ assetId: id, response });
 
                 if (response?.statementUrl) {

@@ -233,6 +233,14 @@ async function getDealsForPortal({ email, accountId }) {
   }
 
   const rows = parseCsv(text);
+
+  console.info("[getDealsForPortal] analytics rows", {
+    email,
+    accountId,
+    rowCount: rows.length,
+    sample: rows.slice(0, 5),
+  });
+
   return rows.map((row) => ({
     deal_id: row["Deal_Id"] || null,
     asset_id: row["Asset Id"] || row["Asset_Id"] || row["Asset ID"] || row["asset_id"] || null,

@@ -116,8 +116,16 @@ export async function fetchBankDetailsForAccount({ accountId, avsOnly = false })
 
 
 // Generate a statement using the Creator-backed logic
-export async function generateStatement({ assetId }) {
-  return request("/generatestatement", { method: "POST", body: { assetId } });
+export async function generateStatement({ assetId, email }) {
+  const safeEmail = getPortalUserEmail(email);
+
+  return request("/generatestatement", {
+    method: "POST",
+    body: {
+      assetId,
+      email: safeEmail,
+    },
+  });
 }
 
 // --- Notifications (Catalyst Data Store) ---

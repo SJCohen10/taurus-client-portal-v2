@@ -123,11 +123,13 @@ module.exports = async (req, res) => {
     else if (assetType.includes("agent")) statementPage = "Agent_Statements";
     else if (assetType.includes("agency")) statementPage = "Agency_Statements";
     else if (assetType.includes("bond")) statementPage = "Bond_Statements";
+    else if (assetType.includes("rafpay")) statementPage = "RAFPAY_Statements";
+    else if (assetType === "aa" || assetType.includes(" aa")) statementPage = "AA_Statements";
+    else if (assetType.includes("lwb")) statementPage = "LWB_Statements";
     if (!statementPage) return sendJson(req, res, 404, { error: "No statement template for this asset" });
 
     const creatorUrl = buildCreatorUrl(statementPage, assetId);
-    const token = signToken({ url: creatorUrl, exp: Date.now() + 5 * 60 * 1000 });
-    return sendJson(req, res, 200, { statementUrl: `/server/generatestatement?token=${encodeURIComponent(token)}`, expiresInSeconds: 300 });
+    return sendJson(req, res, 200, { statementUrl: creatorUrl });
   } catch (err) {
     console.error("generatestatement failed", {
       message: err.message,

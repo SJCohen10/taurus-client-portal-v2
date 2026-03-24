@@ -369,36 +369,43 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             return;
         }
 
+        let newTab = null;
+
         try {
             setStatementLoading(true);
             setMessage("");
 
-            const targetIds = assetIds; // generate ALL assets
+            // Open immediately from the user click
+            newTab = window.open("", "_blank");
 
-            const results = [];
-            for (const id of targetIds) {
-                console.log("[DealActions] generateStatement request", {
-                    assetId: id,
-                    portalEmail,
-                });
-
-                const response = await generateStatement({ assetId: id, email: portalEmail });
-                results.push({ assetId: id, response });
-
-                if (response?.statementUrl) {
-                    window.open(response.statementUrl, "_blank", "noopener");
-                }
+            if (!newTab) {
+                throw new Error("Popup was blocked. Please allow popups for this site.");
             }
 
-            const openedCount = results.filter((r) => r.response?.statementUrl).length;
+            const primaryAssetId = assetIds[0];
 
-            setMessage(
-                openedCount
-                    ? `Opened ${openedCount} statement(s) in new tabs.`
-                    : "No statement page was returned for the selected assets."
-            );
+            const response = await generateStatement({
+                assetId: primaryAssetId,
+                email: portalEmail,
+            });
+
+            if (!response?.statementUrl) {
+                newTab.close();
+                throw new Error("No statement URL was returned.");
+            }
+
+            const absoluteUrl = new URL(response.statementUrl, window.location.origin).toString();
+
+            // security hardening after opening
+            newTab.opener = null;
+            newTab.location.href = absoluteUrl;
+
+            setMessage("Statement opened in a new tab.");
             setOpen(false);
         } catch (err) {
+            if (newTab && !newTab.closed) {
+                newTab.close();
+            }
             console.error("Generate statement failed", err);
             setMessage(err.message || "Unable to generate a statement right now.");
         } finally {

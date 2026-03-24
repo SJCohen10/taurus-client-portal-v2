@@ -369,9 +369,18 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             return;
         }
 
+        let newTab = null;
+
         try {
             setStatementLoading(true);
             setMessage("");
+
+            // Open the tab immediately while still inside the user click
+            newTab = window.open("about:blank", "_blank");
+
+            if (!newTab) {
+                throw new Error("Popup was blocked. Please allow popups for this site.");
+            }
 
             const primaryAssetId = assetIds[0];
 
@@ -379,21 +388,25 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 assetId: primaryAssetId,
                 email: portalEmail,
             });
-
+            console.log("Statement response", response);
+            console.log("Opening statement URL", response?.statementUrl);
             if (!response?.statementUrl) {
                 throw new Error("No statement URL was returned.");
             }
 
-            const newTab = window.open(response.statementUrl, "_blank");
-            if (!newTab) {
-                throw new Error("Popup was blocked. Please allow popups for this site.");
-            }
-            newTab.opener = null;
+            // Navigate the already-open tab to the final Creator URL
+            newTab.location.href = response.statementUrl;
 
             setMessage("Statement opened in a new tab.");
             setOpen(false);
         } catch (err) {
             console.error("Generate statement failed", err);
+            console.error("Statement response/navigation debug", {
+                assetIds,
+                portalEmail,
+                newTabExists: !!newTab,
+                newTabClosed: newTab ? newTab.closed : null,
+            });
             setMessage(err.message || "Unable to generate a statement right now.");
         } finally {
             setStatementLoading(false);

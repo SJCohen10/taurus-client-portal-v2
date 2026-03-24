@@ -265,6 +265,7 @@
 
 .note-modal-textarea {
     width: 100%;
+    box-sizing: border-box;
     margin-top: 4px;
     border: 1px solid rgba(15, 23, 42, 0.2);
     border-radius: 10px;

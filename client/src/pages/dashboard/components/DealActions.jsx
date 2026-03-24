@@ -22,6 +22,17 @@ const ADD_BANK_DETAIL_FORM_URL =
     "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalAddBankDetail/formperma/sMwZkmaaClPpGJ9uLA_jm59z-DBs-l4LoPpWSA3UBr4";
 
 const INITIAL_OR_FURTHER_ADVANCE_ALIAS = "Initial_Advance_Further_Advance";
+const READVANCE_ONLY_PREFILL_PARAM_MAP = [
+    { urlKey: "Property_Ref_Number", dealKeys: ["property_ref_number", "Property Ref Number"] },
+    { urlKey: "Transfer_Duty_Receipt_Obtained", dealKeys: ["transfer_duty_receipt_obtained", "Transfer Duty Receipt Obtained"] },
+    { urlKey: "Seller_has_signed_transfer_documents", dealKeys: ["seller_has_signed_transfer_documents", "Seller has signed transfer documents"] },
+    { urlKey: "Guarantees_issued", dealKeys: ["guarantees_issued", "Guarantees issued"] },
+    { urlKey: "Rates_Clearance_Certificate_Obtained", dealKeys: ["rates_clearance_certificate_obtained", "Rates Clearance Certificate Obtained"] },
+    { urlKey: "Bond_Cancellation_Figures_Obtained", dealKeys: ["bond_cancellation_figures_obtained", "Bond Cancellation Figures Obtained"] },
+    { urlKey: "Buyer_has_signed_transfer_documents", dealKeys: ["buyer_has_signed_transfer_documents", "Buyer has signed transfer documents"] },
+    { urlKey: "Attorneys_are_in_possession_of_the_original_Deed", dealKeys: ["attorneys_have_original_deed", "Attorneys are in possession of the original Deed"] },
+    { urlKey: "Cash_in_Trust", dealKeys: ["cash_in_trust", "Cash in Trust"] },
+];
 
 function normalizeDateValue(value) {
     if (!value) return "";
@@ -475,6 +486,15 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         if (propertyRefNumber) {
             params.set("Deal_Reference_Number", String(propertyRefNumber));
         }
+        READVANCE_ONLY_PREFILL_PARAM_MAP.forEach(({ urlKey, dealKeys }) => {
+            const value = dealKeys
+                .map((key) => deal?.[key])
+                .find((candidate) => candidate !== undefined && candidate !== null && String(candidate).trim() !== "");
+            if (value === undefined || value === null) return;
+            const safe = String(value).trim();
+            if (!safe) return;
+            params.set(urlKey, safe);
+        });
         navigate(`${pathname}?${params.toString()}`);
     }
 

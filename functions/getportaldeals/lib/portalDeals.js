@@ -103,6 +103,14 @@ function mapPortalDealRow(row) {
 
   return {
     property_ref_number: row["Property Ref Number"] || null,
+    transfer_duty_receipt_obtained: row["Transfer Duty Receipt Obtained"] || null,
+    seller_has_signed_transfer_documents: row["Seller has signed transfer documents"] || null,
+    guarantees_issued: row["Guarantees issued"] || null,
+    rates_clearance_certificate_obtained: row["Rates Clearance Certificate Obtained"] || null,
+    bond_cancellation_figures_obtained: row["Bond Cancellation Figures Obtained"] || null,
+    buyer_has_signed_transfer_documents: row["Buyer has signed transfer documents"] || null,
+    attorneys_have_original_deed: row["Attorneys are in possession of the original Deed"] || null,
+    cash_in_trust: row["Cash in Trust"] || null,
     property_description: row["Property Description"] || null,
     created_time: row["Created time"] || null,
     contact_email: row["Contact_Email"] || null,

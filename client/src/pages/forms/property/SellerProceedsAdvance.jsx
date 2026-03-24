@@ -3,6 +3,19 @@ import { useSearchParams } from "react-router-dom";
 import QRFormEmbed from "../../../components/QRFormEmbed";
 import { usePortalContext } from "../../../PortalContext";
 
+const READVANCE_VALUE = "further advance";
+const READVANCE_ONLY_FIELD_KEYS = [
+    "Property_Ref_Number",
+    "Transfer_Duty_Receipt_Obtained",
+    "Seller_has_signed_transfer_documents",
+    "Guarantees_issued",
+    "Rates_Clearance_Certificate_Obtained",
+    "Bond_Cancellation_Figures_Obtained",
+    "Buyer_has_signed_transfer_documents",
+    "Attorneys_are_in_possession_of_the_original_Deed",
+    "Cash_in_Trust",
+];
+
 export default function SellerProceedsAdvance({
     title = "Seller Proceeds Application",
     productType = "Seller Proceeds",
@@ -83,6 +96,15 @@ export default function SellerProceedsAdvance({
     const quickRatesLimit = crm?.quickRatesLimit ?? crm?.quickBridgeLimit ?? "";
     const initialOrFurtherAdvance =
         searchParams.get("Initial_Advance_Further_Advance") || "";
+    const isReadvance =
+        String(initialOrFurtherAdvance || "").trim().toLowerCase() === READVANCE_VALUE;
+    const readvanceOnlyPrefill = useMemo(() => {
+        if (!isReadvance) return {};
+        return READVANCE_ONLY_FIELD_KEYS.reduce((acc, key) => {
+            acc[key] = searchParams.get(key) || "";
+            return acc;
+        }, {});
+    }, [isReadvance, searchParams]);
 
     const prefill = useMemo(
         () => ({
@@ -118,6 +140,7 @@ export default function SellerProceedsAdvance({
             director_email: directorEmail,
             quick_rates_limit: quickRatesLimit,
             Initial_Advance_Further_Advance: initialOrFurtherAdvance,
+            ...(isReadvance ? readvanceOnlyPrefill : {}),
 
             Attorney_Firm_Bank: selectedBank?.bank || preferredBank?.bank || "",
             Attorney_Firm_Account_Name: selectedBank?.name || preferredBank?.name || "",
@@ -146,6 +169,8 @@ export default function SellerProceedsAdvance({
             directorEmail,
             quickRatesLimit,
             initialOrFurtherAdvance,
+            isReadvance,
+            readvanceOnlyPrefill,
             selectedBankDetailId,
             selectedBank?.bank,
             selectedBank?.name,

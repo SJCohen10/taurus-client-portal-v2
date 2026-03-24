@@ -8,7 +8,9 @@ const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
 const ACCOUNT_ID_REGEX = /^[0-9]{6,30}$/;
 
 function buildCreatorUrl(pageName, assetId) {
-  const base = process.env.ZOHO_CREATOR_STATEMENT_BASE || "https://creatorapp.zoho.com/administrator_tauruscapital/loan-management-system/#Page";
+  const configuredBase = String(process.env.ZOHO_CREATOR_STATEMENT_BASE || "").trim();
+  const defaultBase = "https://creatorapp.zoho.com/administrator_tauruscapital/loan-management-system/#Page";
+  const base = configuredBase.startsWith("https://creatorapp.zoho.com/") ? configuredBase : defaultBase;
   return `${base}:${pageName}?CrmAssetId=${assetId}`;
 }
 
@@ -129,7 +131,7 @@ module.exports = async (req, res) => {
     if (!statementPage) return sendJson(req, res, 404, { error: "No statement template for this asset" });
 
     const creatorUrl = buildCreatorUrl(statementPage, assetId);
-    return sendJson(req, res, 200, { statementUrl: creatorUrl });
+    return sendJson(req, res, 200, { ok: true, statementUrl: creatorUrl });
   } catch (err) {
     console.error("generatestatement failed", {
       message: err.message,

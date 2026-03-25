@@ -25,6 +25,7 @@ const INITIAL_OR_FURTHER_ADVANCE_ALIAS = "Initial_Advance_Further_Advance";
 const READVANCE_ONLY_PREFILL_PARAM_MAP = [
     { urlKey: "Property_Ref_Number", dealKeys: ["property_ref_number", "Property Ref Number"] },
     { urlKey: "Transfer_Duty_Receipt_Obtained", dealKeys: ["transfer_duty_receipt_obtained", "Transfer Duty Receipt Obtained"] },
+    { urlKey: "Transfer_Costs_Paid", dealKeys: ["transfer_costs_paid", "buyers_have_paid_costs", "Buyers have paid costs"] },
     { urlKey: "Seller_has_signed_transfer_documents", dealKeys: ["seller_has_signed_transfer_documents", "Seller has signed transfer documents"] },
     { urlKey: "Guarantees_issued", dealKeys: ["guarantees_issued", "Guarantees issued"] },
     { urlKey: "Rates_Clearance_Certificate_Obtained", dealKeys: ["rates_clearance_certificate_obtained", "Rates Clearance Certificate Obtained"] },
@@ -32,6 +33,10 @@ const READVANCE_ONLY_PREFILL_PARAM_MAP = [
     { urlKey: "Buyer_has_signed_transfer_documents", dealKeys: ["buyer_has_signed_transfer_documents", "Buyer has signed transfer documents"] },
     { urlKey: "Attorneys_are_in_possession_of_the_original_Deed", dealKeys: ["attorneys_have_original_deed", "Attorneys are in possession of the original Deed"] },
     { urlKey: "Cash_in_Trust", dealKeys: ["cash_in_trust", "Cash in Trust"] },
+    { urlKey: "On_Sell", dealKeys: ["on_sell", "On-Sell"] },
+    { urlKey: "Estate_Late", dealKeys: ["estate_late", "Estate Late"] },
+    { urlKey: "Related_Parties", dealKeys: ["related_parties", "Related Parties"] },
+    { urlKey: "Sheriff_Transfer", dealKeys: ["sheriff_transfer", "sherriff_transfer", "Sherriff Transfer"] },
 ];
 
 function normalizeDateValue(value) {
@@ -480,12 +485,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         window.open(url, "_blank", "noopener,noreferrer");
     }
 
-    function openReadvanceApplication(pathname) {
-        const params = new URLSearchParams();
-        params.set(INITIAL_OR_FURTHER_ADVANCE_ALIAS, "Further Advance");
-        if (propertyRefNumber) {
-            params.set("Deal_Reference_Number", String(propertyRefNumber));
-        }
+    function buildReadvanceDealPrefillParams() {
+        const params = {};
         READVANCE_ONLY_PREFILL_PARAM_MAP.forEach(({ urlKey, dealKeys }) => {
             const value = dealKeys
                 .map((key) => deal?.[key])
@@ -493,7 +494,19 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             if (value === undefined || value === null) return;
             const safe = String(value).trim();
             if (!safe) return;
-            params.set(urlKey, safe);
+            params[urlKey] = safe;
+        });
+        return params;
+    }
+
+    function openReadvanceApplication(pathname) {
+        const params = new URLSearchParams();
+        params.set(INITIAL_OR_FURTHER_ADVANCE_ALIAS, "Further Advance");
+        if (propertyRefNumber) {
+            params.set("Deal_Reference_Number", String(propertyRefNumber));
+        }
+        Object.entries(buildReadvanceDealPrefillParams()).forEach(([key, value]) => {
+            params.set(key, value);
         });
         navigate(`${pathname}?${params.toString()}`);
     }
@@ -1295,6 +1308,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                                 Readvance_Amount_to_Nominated_Account: amountToNominated,
                                                 Readvance_Firm_Bank_Details_id: selectedFirmBankId,
                                                 Readvance_Seller_Bank_Details_id: selectedSellerBankId,
+                                                ...buildReadvanceDealPrefillParams(),
                                             });
 
                                             openExternalUrl(formUrl);

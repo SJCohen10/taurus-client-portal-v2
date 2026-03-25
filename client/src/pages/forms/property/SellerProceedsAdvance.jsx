@@ -3,6 +3,19 @@ import { useSearchParams } from "react-router-dom";
 import QRFormEmbed from "../../../components/QRFormEmbed";
 import { usePortalContext } from "../../../PortalContext";
 
+const READVANCE_VALUE = "further advance";
+const READVANCE_PREFILL_PARAM_MAP = [
+    { routeKey: "Property_Ref_Number", formKey: "property_ref_number" },
+    { routeKey: "Transfer_Duty_Receipt_Obtained", formKey: "transfer_duty_receipt_obtained" },
+    { routeKey: "Seller_has_signed_transfer_documents", formKey: "seller_has_signed_transfer_documents" },
+    { routeKey: "Guarantees_issued", formKey: "guarantees_issued" },
+    { routeKey: "Rates_Clearance_Certificate_Obtained", formKey: "rates_clearance_certificate_obtained" },
+    { routeKey: "Bond_Cancellation_Figures_Obtained", formKey: "bond_cancellation_figures_obtained" },
+    { routeKey: "Buyer_has_signed_transfer_documents", formKey: "buyer_has_signed_transfer_documents" },
+    { routeKey: "Attorneys_are_in_possession_of_the_original_Deed", formKey: "attorneys_have_original_deed" },
+    { routeKey: "Cash_in_Trust", formKey: "cash_in_trust" },
+];
+
 export default function SellerProceedsAdvance({
     title = "Seller Proceeds Application",
     productType = "Seller Proceeds",
@@ -83,6 +96,18 @@ export default function SellerProceedsAdvance({
     const quickRatesLimit = crm?.quickRatesLimit ?? crm?.quickBridgeLimit ?? "";
     const initialOrFurtherAdvance =
         searchParams.get("Initial_Advance_Further_Advance") || "";
+    const isReadvance =
+        String(initialOrFurtherAdvance || "").trim().toLowerCase() === READVANCE_VALUE;
+    const readvanceOnlyPrefill = useMemo(() => {
+        if (!isReadvance) return {};
+        return READVANCE_PREFILL_PARAM_MAP.reduce((acc, { routeKey, formKey }) => {
+            const value = searchParams.get(routeKey);
+            if (value && String(value).trim()) {
+                acc[formKey] = value;
+            }
+            return acc;
+        }, {});
+    }, [isReadvance, searchParams]);
 
     const prefill = useMemo(
         () => ({
@@ -118,6 +143,7 @@ export default function SellerProceedsAdvance({
             director_email: directorEmail,
             quick_rates_limit: quickRatesLimit,
             Initial_Advance_Further_Advance: initialOrFurtherAdvance,
+            ...(isReadvance ? readvanceOnlyPrefill : {}),
 
             Attorney_Firm_Bank: selectedBank?.bank || preferredBank?.bank || "",
             Attorney_Firm_Account_Name: selectedBank?.name || preferredBank?.name || "",
@@ -146,6 +172,8 @@ export default function SellerProceedsAdvance({
             directorEmail,
             quickRatesLimit,
             initialOrFurtherAdvance,
+            isReadvance,
+            readvanceOnlyPrefill,
             selectedBankDetailId,
             selectedBank?.bank,
             selectedBank?.name,

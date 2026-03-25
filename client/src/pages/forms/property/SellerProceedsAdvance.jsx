@@ -7,6 +7,7 @@ const READVANCE_VALUE = "further advance";
 const READVANCE_PREFILL_PARAM_MAP = [
     { routeKey: "Property_Ref_Number", formKey: "property_ref_number" },
     { routeKey: "Transfer_Duty_Receipt_Obtained", formKey: "transfer_duty_receipt_obtained" },
+    { routeKey: "Transfer_Costs_Paid", formKey: "transfer_costs_paid" },
     { routeKey: "Seller_has_signed_transfer_documents", formKey: "seller_has_signed_transfer_documents" },
     { routeKey: "Guarantees_issued", formKey: "guarantees_issued" },
     { routeKey: "Rates_Clearance_Certificate_Obtained", formKey: "rates_clearance_certificate_obtained" },
@@ -14,6 +15,10 @@ const READVANCE_PREFILL_PARAM_MAP = [
     { routeKey: "Buyer_has_signed_transfer_documents", formKey: "buyer_has_signed_transfer_documents" },
     { routeKey: "Attorneys_are_in_possession_of_the_original_Deed", formKey: "attorneys_have_original_deed" },
     { routeKey: "Cash_in_Trust", formKey: "cash_in_trust" },
+    { routeKey: "On_Sell", formKey: "on_sell" },
+    { routeKey: "Estate_Late", formKey: "estate_late" },
+    { routeKey: "Related_Parties", formKey: "related_parties" },
+    { routeKey: "Sheriff_Transfer", formKey: "sheriff_transfer" },
 ];
 
 export default function SellerProceedsAdvance({

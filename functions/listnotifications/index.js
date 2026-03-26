@@ -84,6 +84,10 @@ function setCachedAuthScope(cacheKey, value) {
   authCache.set(cacheKey, { value, expiresAt: nowMs() + AUTH_CACHE_TTL_MS });
 }
 
+function isProductionRuntime() {
+  return process.env.NODE_ENV === "production";
+}
+
 module.exports = async (req, res) => {
   const requestId = createRequestId();
   const endpoint = "/server/listnotifications";
@@ -111,7 +115,22 @@ module.exports = async (req, res) => {
       .toLowerCase();
 
     const callerEmail = portalDeals.getCallerEmail(req);
+    if (callerEmail && requestedEmail && callerEmail !== requestedEmail) {
+      return sendJson(
+        res,
+        403,
+        responseEnvelope({ status: "error", requestId, message: "Requested email does not match authenticated user.", details: "user mismatch" })
+      );
+    }
     const email = (callerEmail || requestedEmail || "").trim().toLowerCase();
+
+    if (!callerEmail && isProductionRuntime()) {
+      return sendJson(
+        res,
+        401,
+        responseEnvelope({ status: "error", requestId, message: "Missing authenticated user email context.", details: "missing authenticated context" })
+      );
+    }
 
     if (!email) {
       return sendJson(

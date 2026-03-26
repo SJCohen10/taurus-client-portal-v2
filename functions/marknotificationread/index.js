@@ -64,6 +64,15 @@ module.exports = async (req, res) => {
         const id = String(body.id || "").trim();
         const requestedEmail = String(body.email || "").trim().toLowerCase();
         const callerEmail = portalDeals.getCallerEmail(req);
+
+        if (callerEmail && requestedEmail && callerEmail !== requestedEmail) {
+            return sendJson(res, 403, { error: "Requested email does not match authenticated user." });
+        }
+
+        if (!callerEmail && process.env.NODE_ENV === "production") {
+            return sendJson(res, 401, { error: "Missing authenticated user email context." });
+        }
+
         const email = callerEmail || requestedEmail;
 
         if (!email) return sendJson(res, 401, { error: "Missing authenticated user email context." });

@@ -132,16 +132,15 @@ Then it calls:
 
 ### Authorization enforcement status
 
-- - UI-level filtering uses `contact_email` / `account_id` from fetched deal payload.
-- Server functions currently trust request parameters (email/accountId) and do not validate against an authenticated server session/JWT in these functions.
+- UI-level filtering uses `contact_email` / `account_id` from fetched deal payload.
+- Hardened backend functions now enforce caller/request email match checks (and reject missing auth context in production) via shared helper patterns.
+- Record-level access checks are implemented in the main deal action functions by resolving visible deals server-side.
 
-### Production-safety requirements (must-do)
+### Production-safety requirements (remaining)
 
-Before production-hardening, implement server-side identity enforcement so request params cannot be arbitrarily impersonated:
-
-- validate caller identity from Catalyst auth session/token at function layer,
-- derive allowed `email/accountId` from authenticated identity server-side,
-- ignore/restrict caller-supplied identity fields where appropriate.
+- Ensure Catalyst-authenticated caller headers/session are consistently available in all deployed environments (prod checks rely on authenticated context).
+- Keep OAuth credentials server-side only and rotate tokens/secrets per internal policy.
+- Continue validating any newly added endpoints against the same user-context and record-level authorization pattern.
 
 ---
 
@@ -149,37 +148,22 @@ Before production-hardening, implement server-side identity enforcement so reque
 
 ### What exists now
 
-Notifications are currently **computed client-side only** in `DealActions`:
+Notifications are loaded from **persisted Catalyst Data Store records** and merged with one computed client-side expected-lodgement signal in `DealActions`:
 
-- If `expectedLodgementDate` is in the past and deal status is not closed/declined/registered, one notification is shown.
-- Bell icon shows computed count (currently 0 or 1).
-- Popover actions allow:
-  - opening Update Expected Lodgement Date modal,
-  - creating a CRM Note.
+- Persisted notifications are fetched via `listnotifications` and can be marked read via `marknotificationread`.
+- Client still computes one expected-lodgement-overdue notification and merges it with persisted notifications.
+- Bell icon count reflects merged notifications.
+- Popover actions can open Update Expected Lodgement Date or Add Note flows, and persisted rows are marked read on click when an id is present.
 
 ### Persistence status
 
-- There is **no persisted per-deal notifications store** currently in this repo (no Catalyst Data Store CRUD functions or CRM notification module integration found).
+Persisted notifications are supported in this repo via:
 
-### Recommended minimal implementation TODO (not implemented in this patch)
+- `createnotification`
+- `listnotifications`
+- `marknotificationread`
 
-If per-deal persistent notifications are required, implement via Catalyst Data Store (preferred):
-
-- Table: `portal_notifications`
-  - `id` (pk)
-  - `deal_id` (string)
-  - `account_id` (string, optional)
-  - `audience_email` (string, optional)
-  - `message` (text)
-  - `severity` (`info|warning|critical`)
-  - `is_read` (boolean)
-  - `created_at` (datetime)
-  - `expires_at` (datetime, nullable)
-- Functions:
-  - `createNotification`
-  - `listNotifications`
-  - `markRead`
-- UI: merge persisted notifications + computed expected-lodgement notification in bell popover.
+The backing table is expected to be `portal_notifications` (name is env-configurable in `listnotifications`).
 
 ---
 
@@ -316,7 +300,6 @@ catalyst deploy
 
 ## 11) Known limitations / clarifications
 
-- Server-side authorization is not yet strict in these functions (request params are trusted).
-- Notifications are computed client-side only (no persisted notification store).
-- `authorization_portal_function` currently has sample domain logic (`@zylker.com`) and is not wired as end-to-end policy for portal API authorization.
+- Some legacy/sample functions remain in repo (`authorization_portal_function`, `taurus_client_portal_function`) and are not part of the hardened portal API flow.
+- `scripts/test-extra-fields-rejected.js` currently asserts a legacy error shape (`error`) while `updateexpectedlodgementdate` responds using an envelope (`message`/`details`) for failures.
 - Role handling in UI currently defaults to paralegal.

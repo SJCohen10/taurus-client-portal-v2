@@ -12,6 +12,7 @@ const READVANCE_PREFILL_PARAM_MAP = [
     { routeKey: "Guarantees_issued", formKey: "guarantees_issued" },
     { routeKey: "Rates_Clearance_Certificate_Obtained", formKey: "rates_clearance_certificate_obtained" },
     { routeKey: "Bond_Cancellation_Figures_Obtained", formKey: "bond_cancellation_figures_obtained" },
+    { routeKey: "Do_the_Bond_attorneys_have_Proceed_to_Lodge", formKey: "do_the_bond_attorneys_have_proceed_to_lodge" },
     { routeKey: "Buyer_has_signed_transfer_documents", formKey: "buyer_has_signed_transfer_documents" },
     { routeKey: "Attorneys_are_in_possession_of_the_original_Deed", formKey: "attorneys_have_original_deed" },
     { routeKey: "Cash_in_Trust", formKey: "cash_in_trust" },

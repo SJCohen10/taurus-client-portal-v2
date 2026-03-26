@@ -197,6 +197,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         String(propertyDescription || "").trim()
     );
     const canUploadDocument = Boolean(String(propertyFolderId || "").trim()) || hasUploadFallbackIdentifiers;
+    const dealStatus = String(deal?.status || deal?.Status || "").trim().toLowerCase();
+    const isClosedDeal = dealStatus === "closed";
 
 
     // Close popup on outside click / ESC
@@ -879,26 +881,28 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                         </button>
 
 
-                        <button
-                            type="button"
-                            className="deal-actions-menu-item"
-                            role="menuitem"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                openExpectedLodgementModal();
-                            }}
-                            style={{
-                                width: "100%",
-                                textAlign: "left",
-                                padding: "10px 10px",
-                                borderRadius: 10,
-                                border: "none",
-                                background: "transparent",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Update Expected Lodgement Date
-                        </button>
+                        {!isClosedDeal && (
+                            <button
+                                type="button"
+                                className="deal-actions-menu-item"
+                                role="menuitem"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    openExpectedLodgementModal();
+                                }}
+                                style={{
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "10px 10px",
+                                    borderRadius: 10,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Update Expected Lodgement Date
+                            </button>
+                        )}
 
                         <button
                             type="button"
@@ -924,23 +928,25 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                         </button>
 
 
-                        <button
-                            type="button"
-                            className="deal-actions-menu-item"
-                            role="menuitem"
-                            onClick={handleReadvance}
-                            style={{
-                                width: "100%",
-                                textAlign: "left",
-                                padding: "10px 10px",
-                                borderRadius: 10,
-                                border: "none",
-                                background: "transparent",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Readvance
-                        </button>
+                        {!isClosedDeal && (
+                            <button
+                                type="button"
+                                className="deal-actions-menu-item"
+                                role="menuitem"
+                                onClick={handleReadvance}
+                                style={{
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "10px 10px",
+                                    borderRadius: 10,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Readvance
+                            </button>
+                        )}
                     </div>,
                     document.body
                 )}

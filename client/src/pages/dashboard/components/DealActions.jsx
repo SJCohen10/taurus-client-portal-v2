@@ -30,6 +30,7 @@ const READVANCE_ONLY_PREFILL_PARAM_MAP = [
     { urlKey: "Guarantees_issued", dealKeys: ["guarantees_issued", "Guarantees issued"] },
     { urlKey: "Rates_Clearance_Certificate_Obtained", dealKeys: ["rates_clearance_certificate_obtained", "Rates Clearance Certificate Obtained"] },
     { urlKey: "Bond_Cancellation_Figures_Obtained", dealKeys: ["bond_cancellation_figures_obtained", "Bond Cancellation Figures Obtained"] },
+    { urlKey: "Do_the_Bond_attorneys_have_Proceed_to_Lodge", dealKeys: ["do_the_bond_attorneys_have_proceed_to_lodge", "Do the Bond attorneys have Proceed to Lodge"] },
     { urlKey: "Buyer_has_signed_transfer_documents", dealKeys: ["buyer_has_signed_transfer_documents", "Buyer has signed transfer documents"] },
     { urlKey: "Attorneys_are_in_possession_of_the_original_Deed", dealKeys: ["attorneys_have_original_deed", "Attorneys are in possession of the original Deed"] },
     { urlKey: "Cash_in_Trust", dealKeys: ["cash_in_trust", "Cash in Trust"] },

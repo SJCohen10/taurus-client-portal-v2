@@ -1134,8 +1134,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 className="app-header-logo"
                             />
                         </div>
-                        <p className="readvance-modal-subtitle">Choose the readvance flow you want to continue with.</p>
-
+                        <div className="readvance-modal-body">
+                            <p className="readvance-modal-subtitle">Choose the preferred readvance product</p>
+                            <p className="readvance-modal-subtitle">Quick Bridge is paid to the conveyancing firm to settle rates/levies up to your Quick Bridge Limit.</p>
+                            <p className="readvance-modal-subtitle">Seller Bridging requires the Seller's signature and a Conveyancing Firm Undertaking</p>
+                        </div>
                         <button
                             className="button readvance-modal-button"
                             onClick={async () => {

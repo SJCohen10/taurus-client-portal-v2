@@ -38,6 +38,7 @@ const READVANCE_ONLY_PREFILL_PARAM_MAP = [
     { urlKey: "Estate_Late", dealKeys: ["estate_late", "Estate Late"] },
     { urlKey: "Related_Parties", dealKeys: ["related_parties", "Related Parties"] },
     { urlKey: "Sheriff_Transfer", dealKeys: ["sheriff_transfer", "sherriff_transfer", "Sherriff Transfer"] },
+    { urlKey: "Readvance_Seller_Bank_Details_id", dealKeys: ["seller_bank_detail_id", "Seller_Bank_Detail_Id"] },
 ];
 
 function normalizeDateValue(value) {

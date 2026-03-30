@@ -20,6 +20,7 @@ const READVANCE_PREFILL_PARAM_MAP = [
     { routeKey: "Estate_Late", formKey: "estate_late" },
     { routeKey: "Related_Parties", formKey: "related_parties" },
     { routeKey: "Sheriff_Transfer", formKey: "sheriff_transfer" },
+    { routeKey: "Readvance_Seller_Bank_Details_id", formKey: "Readvance_Seller_Bank_Details_id" },
 ];
 
 export default function SellerProceedsAdvance({

@@ -80,6 +80,7 @@ function mapPortalDealRow(row) {
     null;
 
   const sellerAccountId = row["Seller_Account_Id"] || null;
+  const sellerBankDetailId = row["Seller_Bank_Detail_Id"] || null;
 
   const accountId =
     row["Account_Id"] || row["Account Id"] || row["Account_ID"] || null;
@@ -127,6 +128,7 @@ function mapPortalDealRow(row) {
     asset_ids: assetIds,
     asset_creator_ids: assetCreatorIds,
     seller_account_id: sellerAccountId,
+    seller_bank_detail_id: sellerBankDetailId,
     deal_id: row["Deal_Id"] || null,
     expectedLodgementDate: row["Expected_Lodgement_Date"] || null,
     seller,

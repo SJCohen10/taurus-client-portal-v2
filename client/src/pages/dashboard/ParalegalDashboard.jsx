@@ -469,7 +469,7 @@ export default function ParalegalDashboard() {
             <header className="dashboard-header">
                 <div>
                     <h1 className="dashboard-title">My Bridging Deals</h1>
-                    <p className="dashboard-subtitle">View your live matters and your firm’s pipeline at a glance.</p>
+                    <p className="dashboard-subtitle">View your live matters and your pipeline at a glance.</p>
                     {accountName && <div className="dashboard-subtitle subtle">Firm: {accountName}</div>}
                 </div>
                 <div className="dashboard-user-pill">
@@ -498,7 +498,7 @@ export default function ParalegalDashboard() {
 
             <section className="dashboard-stats">
                 <div className="stat-card"><div className="stat-label">Total Number of Deals</div><div className="stat-value">{stats.total}</div></div>
-                <div className="stat-card"><div className="stat-label">Active / In-Process</div><div className="stat-value">{stats.activeCount}</div></div>
+                <div className="stat-card"><div className="stat-label">Active</div><div className="stat-value">{stats.activeCount}</div></div>
                 <div className="stat-card"><div className="stat-label">Current Exposure</div><div className="stat-value">{new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(stats.currentExposure)}</div></div>
             </section>
 
@@ -537,7 +537,7 @@ export default function ParalegalDashboard() {
                 {!loading && !error && (
                     <>
                         <DealsTable sectionKey="pending" title="Pending Review" sectionDeals={dealBuckets.pending} />
-                        <DealsTable sectionKey="active" title="Active / Due to Taurus" sectionDeals={dealBuckets.active} />
+                        <DealsTable sectionKey="active" title="Active" sectionDeals={dealBuckets.active} />
                         <DealsTable sectionKey="closed" title="Closed / Declined" sectionDeals={dealBuckets.closed} />
                         {dealBuckets.other.length > 0 && <DealsTable sectionKey="other" title="Other" sectionDeals={dealBuckets.other} />}
                     </>

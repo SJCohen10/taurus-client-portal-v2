@@ -8,6 +8,16 @@ function getDevImpersonationEmail() {
   return (process.env.REACT_APP_DEV_IMPERSONATE_EMAIL || "").trim().toLowerCase();
 }
 
+export function resolvePortalEmail(portalUser = {}, devImpersonationEmail = "") {
+  return (
+    portalUser.email ||
+    portalUser.email_id ||
+    portalUser.user_mailid ||
+    portalUser.user_email ||
+    devImpersonationEmail
+  );
+}
+
 export function PortalProvider({ children }) {
   const [user, setUser] = useState(null);         // optional
   const [email, setEmail] = useState("");
@@ -20,13 +30,7 @@ export function PortalProvider({ children }) {
   function resolveEmail() {
     const pu = window.portalUser || {};
     const devImpersonationEmail = getDevImpersonationEmail();
-    return (
-      pu.email ||
-      pu.email_id ||
-      pu.user_mailid ||
-      pu.user_email ||
-      devImpersonationEmail
-    );
+    return resolvePortalEmail(pu, devImpersonationEmail);
   }
 
   async function loadContext(resolvedEmail) {

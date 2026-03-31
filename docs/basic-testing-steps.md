@@ -110,3 +110,41 @@ npm run build
 
 Then deploy/upload client build as your normal Catalyst process.
 
+
+---
+
+## Step 9: Focused login test plan (recommended)
+
+Use this if login is the one area you have not tested yet.
+
+### 9.1 Positive login path
+
+1. Open the portal in a fresh private/incognito browser window.
+2. Sign in with a known portal user that has at least one deal.
+3. Confirm the first request to `/server/getportalusercontext` returns `200`.
+4. Confirm the dashboard loads with the expected user context (name/email/account) and deals.
+
+### 9.2 Missing identity behavior
+
+1. In local development, remove any `REACT_APP_DEV_IMPERSONATE_EMAIL` from `client/.env`.
+2. Reload the app without a real portal-authenticated session.
+3. Confirm context load fails safely (no data leakage) and the UI does not show another user's deals.
+
+### 9.3 Identity mismatch protection
+
+1. Open devtools network tab.
+2. Re-run or replay `getportalusercontext` with a different `email` query value than the authenticated user.
+3. Expected result: function rejects with `403` (`User mismatch`) when authenticated headers are present.
+
+### 9.4 Production behavior expectation
+
+In production (`NODE_ENV=production`), requests with no authenticated user context should be rejected (`401`).
+
+### 9.5 Quick local smoke script
+
+Run this to verify the frontend identity resolution fallback order:
+
+```bash
+cd client
+npm test -- --watchAll=false --runInBand App.test.js
+```

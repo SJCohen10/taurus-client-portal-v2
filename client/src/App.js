@@ -8,6 +8,7 @@ import {
 import Layout from "./Layout";
 import RoleBasedDashboard from "./pages/dashboard/RoleBasedDashboard";
 import QuickRatesAdvance from "./pages/forms/property/QuickRatesAdvance";
+import FaqPage from "./pages/faq/FaqPage";
 
 import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 
@@ -27,6 +28,7 @@ export default function App() {
           {/* Existing Quick Rates route */}
           <Route path="quick-rates" element={<QuickRatesAdvance />} />
           <Route path="seller-proceeds" element={<SellerProceedsStart />} />
+          <Route path="faq" element={<FaqPage />} />
 
         </Route>
 

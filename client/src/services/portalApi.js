@@ -100,6 +100,10 @@ export async function updateExpectedLodgementDate(payload) {
   return request("/updateexpectedlodgementdate", { method: "POST", body: payload });
 }
 
+export async function updateMatterLodged(payload) {
+  return request("/updatematterlodged", { method: "POST", body: payload });
+}
+
 
 
 

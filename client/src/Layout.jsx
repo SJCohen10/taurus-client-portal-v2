@@ -71,6 +71,13 @@ export default function Layout() {
           >
             Seller Application
           </Link>
+          <Link
+            to="/faq"
+            className={`app-nav-link ${location.pathname.startsWith("/faq") ? "active" : ""
+              }`}
+          >
+            FAQ
+          </Link>
         </nav>
 
         {loading && (

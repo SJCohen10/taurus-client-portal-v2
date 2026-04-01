@@ -7,6 +7,7 @@ import {
     fetchBankDetailsForAccount,
     createNote,
     updateExpectedLodgementDate,
+    updateMatterLodged,
     listNotifications,
     markNotificationRead,
 
@@ -60,6 +61,21 @@ function hasExpectedLodgementAttention(deal) {
         .toISOString()
         .slice(0, 10);
     return todayIso > expectedDate;
+}
+
+function hasExpectedLodgementSevenDayReminder(deal) {
+    const expectedDate = normalizeDateValue(deal?.expectedLodgementDate);
+    if (!expectedDate) return false;
+    const status = String(deal?.status || deal?.Status || "").trim().toLowerCase();
+    if (["closed", "declined", "registered"].includes(status)) return false;
+
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    const [year, month, day] = expectedDate.split("-").map((value) => Number(value));
+    const expectedUtc = Date.UTC(year, month - 1, day);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const dayDiff = Math.round((expectedUtc - todayUtc) / msPerDay);
+    return dayDiff === 7;
 }
 
 function resolveNotificationId(notification) {
@@ -133,8 +149,13 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const [noteError, setNoteError] = useState("");
     const [expectedLodgementOpen, setExpectedLodgementOpen] = useState(false);
     const [expectedLodgementDate, setExpectedLodgementDate] = useState(normalizeDateValue(deal?.expectedLodgementDate));
+    const [expectedLodgementReason, setExpectedLodgementReason] = useState("");
     const [expectedLodgementSaving, setExpectedLodgementSaving] = useState(false);
     const [expectedLodgementError, setExpectedLodgementError] = useState("");
+    const [matterLodgedOpen, setMatterLodgedOpen] = useState(false);
+    const [matterLodgedDate, setMatterLodgedDate] = useState("");
+    const [matterLodgedSaving, setMatterLodgedSaving] = useState(false);
+    const [matterLodgedError, setMatterLodgedError] = useState("");
     const [notificationOpen, setNotificationOpen] = useState(false);
 
 
@@ -199,7 +220,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     );
     const canUploadDocument = Boolean(String(propertyFolderId || "").trim()) || hasUploadFallbackIdentifiers;
     const dealStatus = String(deal?.status || deal?.Status || "").trim().toLowerCase();
-    const isClosedDeal = dealStatus === "closed";
+    const isClosedDeal = ["closed", "declined"].includes(dealStatus);
 
 
     // Close popup on outside click / ESC
@@ -555,6 +576,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     function openExpectedLodgementModal() {
         setExpectedLodgementError("");
         setExpectedLodgementDate(normalizeDateValue(deal?.expectedLodgementDate));
+        setExpectedLodgementReason("");
         setExpectedLodgementOpen(true);
         setOpen(false);
         setNotificationOpen(false);
@@ -563,12 +585,29 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         }
     }
 
+    function openMatterLodgedModal() {
+        setMatterLodgedError("");
+        setMatterLodgedDate(normalizeDateValue(deal?.lodgment_date || deal?.Lodgment_Date || deal?.lodged_date || ""));
+        setMatterLodgedOpen(true);
+        setOpen(false);
+        setNotificationOpen(false);
+    }
+
     async function handleExpectedLodgementSave(event) {
         event.stopPropagation();
 
         const selectedDate = normalizeDateValue(expectedLodgementDate);
+        const trimmedReason = expectedLodgementReason.trim();
         if (!selectedDate) {
             setExpectedLodgementError("Please select a valid date in YYYY-MM-DD format.");
+            return;
+        }
+        if (!trimmedReason) {
+            setExpectedLodgementError("Reason for Update is required.");
+            return;
+        }
+        if (trimmedReason.length > 5000) {
+            setExpectedLodgementError("Reason for Update cannot exceed 5000 characters.");
             return;
         }
 
@@ -581,6 +620,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             setExpectedLodgementError("No CRM deal id is available for this row.");
             return;
         }
+        const target = resolveNoteTarget();
+        if (!target) {
+            setExpectedLodgementError("No Deal or Asset id is available for this row.");
+            return;
+        }
 
         try {
             setExpectedLodgementSaving(true);
@@ -590,11 +634,18 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 dealId: String(dealId),
                 expectedLodgementDate: selectedDate,
             });
+            await createNote({
+                email: portalEmail,
+                recordType: target.recordType,
+                recordId: target.recordId,
+                content: `Expected Lodgement Date updated to ${selectedDate}. Reason for Update: ${trimmedReason}`,
+            });
             if (onDealUpdate) {
                 onDealUpdate({ ...deal, expectedLodgementDate: selectedDate });
             }
             setExpectedLodgementOpen(false);
-            setMessage("Expected Lodgement Date updated.");
+            setExpectedLodgementReason("");
+            setMessage("Expected Lodgement Date updated and note added.");
         } catch (error) {
             setExpectedLodgementError(error.message || "Unable to update Expected Lodgement Date.");
         } finally {
@@ -602,17 +653,62 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         }
     }
 
-    const needsExpectedLodgementAttention = hasExpectedLodgementAttention(deal);
+    async function handleMatterLodgedSave(event) {
+        event.stopPropagation();
 
-    const computedNotifications = needsExpectedLodgementAttention
-        ? [
-            {
-                id: "expected-lodgement-overdue",
-                message: "Expected Lodgement Date has passed. Please update it.",
-                source: "computed",
-            },
-        ]
-        : [];
+        const selectedDate = normalizeDateValue(matterLodgedDate);
+        if (!selectedDate) {
+            setMatterLodgedError("Please select a valid lodgement date in YYYY-MM-DD format.");
+            return;
+        }
+        if (!portalEmail) {
+            setMatterLodgedError("Missing portal user email.");
+            return;
+        }
+        if (!/^\d+$/.test(String(dealId || ""))) {
+            setMatterLodgedError("No CRM deal id is available for this row.");
+            return;
+        }
+
+        try {
+            setMatterLodgedSaving(true);
+            setMatterLodgedError("");
+            await updateMatterLodged({
+                email: portalEmail,
+                dealId: String(dealId),
+                lodgementDate: selectedDate,
+            });
+            if (onDealUpdate) {
+                onDealUpdate({ ...deal, Lodged: "Yes", lodged: "Yes", Lodgment_Date: selectedDate, lodgment_date: selectedDate });
+            }
+            setMatterLodgedOpen(false);
+            setMessage("Matter marked as lodged.");
+        } catch (error) {
+            setMatterLodgedError(error.message || "Unable to update matter lodged status.");
+        } finally {
+            setMatterLodgedSaving(false);
+        }
+    }
+
+    const needsExpectedLodgementAttention = hasExpectedLodgementAttention(deal);
+    const hasSevenDayReminder = hasExpectedLodgementSevenDayReminder(deal);
+
+    const computedNotifications = [];
+    if (needsExpectedLodgementAttention) {
+        computedNotifications.push({
+            id: "expected-lodgement-overdue",
+            message: "Expected Lodgement Date has passed. Please update it.",
+            source: "computed",
+        });
+    }
+    if (hasSevenDayReminder) {
+        computedNotifications.push({
+            id: "expected-lodgement-7-day-reminder",
+            title: "Expected Lodgement Reminder",
+            message: "Lodgement is scheduled in 7 days. Please confirm that everything remains on track. If there are any concerns or delays, add a note on the deal so the Taurus team can assist.",
+            source: "computed",
+        });
+    }
 
     const mergedNotifications = [
         ...(Array.isArray(persistedNotifications)
@@ -731,6 +827,10 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         // your computed notification
         if (notification.id === "expected-lodgement-overdue") {
             openExpectedLodgementModal();
+            return;
+        }
+        if (notification.id === "expected-lodgement-7-day-reminder") {
+            setNotificationOpen(false);
             return;
         }
 
@@ -889,6 +989,29 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 role="menuitem"
                                 onClick={(event) => {
                                     event.stopPropagation();
+                                    openMatterLodgedModal();
+                                }}
+                                style={{
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "10px 10px",
+                                    borderRadius: 10,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Matter Lodged
+                            </button>
+                        )}
+
+                        {!isClosedDeal && (
+                            <button
+                                type="button"
+                                className="deal-actions-menu-item"
+                                role="menuitem"
+                                onClick={(event) => {
+                                    event.stopPropagation();
                                     openExpectedLodgementModal();
                                 }}
                                 style={{
@@ -1038,6 +1161,18 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                         max="9999-12-31"
                                     />
                                 </label>
+                                <label>
+                                    Reason for Update
+                                    <textarea
+                                        className="note-modal-textarea"
+                                        value={expectedLodgementReason}
+                                        onChange={(event) => setExpectedLodgementReason(event.target.value)}
+                                        onKeyDown={(event) => event.stopPropagation()}
+                                        maxLength={5000}
+                                        rows={4}
+                                        placeholder="Provide the reason for changing the expected lodgement date."
+                                    />
+                                </label>
 
                                 {expectedLodgementError && <p className="error">{expectedLodgementError}</p>}
 
@@ -1054,6 +1189,53 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                         type="button"
                                         className="button"
                                         onClick={() => setExpectedLodgementOpen(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+
+            {matterLodgedOpen &&
+                ReactDOM.createPortal(
+                    <div className="modal-backdrop" onClick={() => setMatterLodgedOpen(false)}>
+                        <div
+                            className="readvance-modal expected-date-modal"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="readvance-modal-header">
+                                <h3>Matter Lodged</h3>
+                            </div>
+
+                            <div className="readvance-modal-body">
+                                <label>
+                                    Lodgement Date
+                                    <input
+                                        type="date"
+                                        value={matterLodgedDate}
+                                        onChange={(event) => setMatterLodgedDate(event.target.value)}
+                                        max="9999-12-31"
+                                    />
+                                </label>
+
+                                {matterLodgedError && <p className="error">{matterLodgedError}</p>}
+
+                                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                                    <button
+                                        type="button"
+                                        className="button"
+                                        onClick={handleMatterLodgedSave}
+                                        disabled={matterLodgedSaving}
+                                    >
+                                        {matterLodgedSaving ? "Saving…" : "Save"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="button"
+                                        onClick={() => setMatterLodgedOpen(false)}
                                     >
                                         Cancel
                                     </button>

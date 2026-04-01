@@ -12,11 +12,13 @@ function getDevImpersonationEmail() {
     if (process.env.NODE_ENV !== "development") return "";
     return (process.env.REACT_APP_DEV_IMPERSONATE_EMAIL || "").trim().toLowerCase();
 }
-const DEFAULT_OPEN_SECTIONS = { pending: true, active: true, closed: false, other: false };
+const DEFAULT_OPEN_SECTIONS = { pending: true, active: true, lodged: true, closed: false, declined: false, other: false };
 const STATUS_BUCKETS = {
     pending: new Set(["pending review"]),
     active: new Set(["active", "due to taurus"]),
-    closed: new Set(["closed", "declined"]),
+    lodged: new Set(["lodged"]),
+    closed: new Set(["closed"]),
+    declined: new Set(["declined"]),
 };
 
 const DEAL_DETAIL_FIELDS = [
@@ -302,18 +304,22 @@ export default function ParalegalDashboard() {
 
         const pending = [];
         const active = [];
+        const lodged = [];
         const closed = [];
+        const declined = [];
         const other = [];
 
         for (const deal of filteredDeals) {
             const status = normalizeStatus(deal?.status ?? deal?.Status);
             if (STATUS_BUCKETS.pending.has(status)) pending.push(deal);
             else if (STATUS_BUCKETS.active.has(status)) active.push(deal);
+            else if (STATUS_BUCKETS.lodged.has(status)) lodged.push(deal);
             else if (STATUS_BUCKETS.closed.has(status)) closed.push(deal);
+            else if (STATUS_BUCKETS.declined.has(status)) declined.push(deal);
             else other.push(deal);
         }
 
-        return { pending, active, closed, other };
+        return { pending, active, lodged, closed, declined, other };
     }, [filteredDeals]);
 
     const stats = useMemo(() => {
@@ -482,6 +488,7 @@ export default function ParalegalDashboard() {
                 <div className="card action-card"><h3>Quick Bridge Application</h3><p className="subtle">Start a new application with your firm’s preferred Quick Bridge bank details.</p><Link className="button" to="/quick-rates">Start Quick Bridge Application</Link></div>
                 <div className="card action-card"><h3>Seller Application</h3><p className="subtle">Create a seller proceeds request and keep your pipeline moving.</p><Link className="button" to="/seller-proceeds">Start Seller Application</Link></div>
                 <div className="card action-card"><h3>Agent Referral</h3><p className="subtle">Refer an estate agent deal by completing a quick referral form.</p><button className="button" type="button" onClick={() => setAgentReferralOpen(true)}>Open Agent Referral Form</button></div>
+                <div className="card action-card"><h3>Generate Quote</h3><p className="subtle">Open the quote form in a new tab to prepare a new quote.</p><a className="button" href="https://zfrmz.com/0AxyGWsAOSyjhYL7fpRf" target="_blank" rel="noopener noreferrer">Open Generate Quote</a></div>
             </div>
 
 
@@ -538,7 +545,9 @@ export default function ParalegalDashboard() {
                     <>
                         <DealsTable sectionKey="pending" title="Pending Review" sectionDeals={dealBuckets.pending} />
                         <DealsTable sectionKey="active" title="Active" sectionDeals={dealBuckets.active} />
-                        <DealsTable sectionKey="closed" title="Closed / Declined" sectionDeals={dealBuckets.closed} />
+                        <DealsTable sectionKey="lodged" title="Lodged" sectionDeals={dealBuckets.lodged} />
+                        <DealsTable sectionKey="closed" title="Closed" sectionDeals={dealBuckets.closed} />
+                        <DealsTable sectionKey="declined" title="Declined" sectionDeals={dealBuckets.declined} />
                         {dealBuckets.other.length > 0 && <DealsTable sectionKey="other" title="Other" sectionDeals={dealBuckets.other} />}
                     </>
                 )}

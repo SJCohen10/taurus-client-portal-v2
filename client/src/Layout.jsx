@@ -29,7 +29,7 @@ export default function Layout() {
                   {typeof quickBridgeLimit === "number" && (
                     <>
                       {" "}
-                      | Quick Bridge Limit: R {quickBridgeLimit.toLocaleString()}
+                      | Quick Bridge Limit Per Deal: R {quickBridgeLimit.toLocaleString()}
                     </>
                   )}
                 </>

@@ -7,11 +7,12 @@ export default function FaqPage() {
   return (
     <section className="card faq-card">
       <h2>Frequently Asked Questions</h2>
-      <p className="subtle">Helpful answers for common portal workflows.</p>
+      <p className="subtle">Helpful answers for common portal questions.</p>
 
       <div className="faq-list">
         {faqItems.map((item) => {
           const isOpen = openItemId === item.id;
+
           return (
             <div key={item.id} className="faq-item">
               <button
@@ -23,7 +24,20 @@ export default function FaqPage() {
                 <span>{item.question}</span>
                 <span>{isOpen ? "−" : "+"}</span>
               </button>
-              {isOpen && <p className="faq-answer">{item.answer}</p>}
+
+              {isOpen && (
+                Array.isArray(item.answer) ? (
+                  <ul className="faq-answer">
+                    {item.answer.map((entry, index) => (
+                      <li key={index}>
+                        <strong>{entry.label}</strong> – {entry.text}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="faq-answer">{item.answer}</p>
+                )
+              )}
             </div>
           );
         })}

@@ -259,6 +259,8 @@ body {
   box-shadow: 0 10px 24px rgba(20, 31, 62, 0.08);
 }
 
+/* FAQ */
+
 .faq-card {
   max-width: 900px;
 }
@@ -275,6 +277,7 @@ body {
   background: #fff;
 }
 
+/* Question */
 .faq-question {
   width: 100%;
   border: none;
@@ -285,17 +288,24 @@ body {
   align-items: center;
   justify-content: space-between;
   font-weight: 600;
-  color: #141f3e;
+  color: var(--color-navy);
   cursor: pointer;
 }
 
+/* Answer */
 .faq-answer {
   margin: 0;
-  padding: 0 1rem 1rem;
+  padding: 0 1rem 1rem 1rem;
+  /* aligns perfectly with question */
   color: rgba(20, 31, 62, 0.8);
   font-size: 0.95rem;
+
+  /* remove list styling */
+  list-style: none;
 }
 
-.notice-card h3 {
-  color: var(--color-navy);
+/* List items inside answer */
+.faq-answer li {
+  margin-bottom: 8px;
+  line-height: 1.5;
 }

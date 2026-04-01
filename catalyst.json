@@ -13,7 +13,8 @@
       "updateexpectedlodgementdate",
       "createnotification",
       "marknotificationread",
-      "listnotifications"
+      "listnotifications",
+      "updatematterlodged"
     ],
     "ignore": [],
     "source": "functions"

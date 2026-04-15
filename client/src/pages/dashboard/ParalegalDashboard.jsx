@@ -487,8 +487,8 @@ export default function ParalegalDashboard() {
             <div className="dashboard-actions">
                 <div className="card action-card"><h3>Quick Bridge Application</h3><p className="subtle">Start a new application with your firm’s preferred Quick Bridge bank details.</p><Link className="button" to="/quick-rates">Start Quick Bridge Application</Link></div>
                 <div className="card action-card"><h3>Seller Application</h3><p className="subtle">Create a seller proceeds request and keep your pipeline moving.</p><Link className="button" to="/seller-proceeds">Start Seller Application</Link></div>
-                <div className="card action-card"><h3>Agent Referral</h3><p className="subtle">Refer an estate agent deal by completing a quick referral form.</p><button className="button" type="button" onClick={() => setAgentReferralOpen(true)}>Open Agent Referral Form</button></div>
-                <div className="card action-card"><h3>Generate Quote</h3><p className="subtle">Open the quote form in a new tab to prepare a new quote.</p><a className="button" href="https://zfrmz.com/0AxyGWsAOSyjhYL7fpRf" target="_blank" rel="noopener noreferrer">Open Generate Quote</a></div>
+                <div className="card action-card"><h3>Agent Referral</h3><p className="subtle">Refer an estate agent by completing a quick referral form.</p><button className="button" type="button" onClick={() => setAgentReferralOpen(true)}>Open Agent Referral Form</button></div>
+                <div className="card action-card"><h3>Generate Quote</h3><p className="subtle">Create and prepare a preliminary quotation.</p><a className="button" href="https://zfrmz.com/0AxyGWsAOSyjhYL7fpRf" target="_blank" rel="noopener noreferrer">Open Generate Quote</a></div>
             </div>
 
 

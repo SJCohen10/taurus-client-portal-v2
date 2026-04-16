@@ -6,6 +6,7 @@ const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJson
 const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
 
 const ACCOUNT_ID_REGEX = /^[0-9]{6,30}$/;
+const DEFAULT_SIGNING_SECRET = "change-me";
 
 function buildCreatorUrl(pageName, assetId) {
   const configuredBase = String(process.env.ZOHO_CREATOR_STATEMENT_BASE || "").trim();
@@ -14,8 +15,19 @@ function buildCreatorUrl(pageName, assetId) {
   return `${base}:${pageName}?CrmAssetId=${assetId}`;
 }
 
+function getSigningSecret() {
+  const secret = String(process.env.STATEMENT_SIGNING_SECRET || "").trim();
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    const err = new Error("Missing STATEMENT_SIGNING_SECRET");
+    err.statusCode = 500;
+    throw err;
+  }
+  return DEFAULT_SIGNING_SECRET;
+}
+
 function signToken(payload) {
-  const secret = process.env.STATEMENT_SIGNING_SECRET || "change-me";
+  const secret = getSigningSecret();
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto.createHmac("sha256", secret).update(body).digest("base64url");
   return `${body}.${sig}`;
@@ -23,10 +35,15 @@ function signToken(payload) {
 
 function verifyToken(token) {
   const [body, sig] = String(token || "").split(".");
-  const secret = process.env.STATEMENT_SIGNING_SECRET || "change-me";
+  const secret = getSigningSecret();
   const expected = crypto.createHmac("sha256", secret).update(body || "").digest("base64url");
   if (!body || !sig || sig !== expected) return null;
-  const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+  let parsed;
+  try {
+    parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
   if (Date.now() > Number(parsed.exp || 0)) return null;
   return parsed;
 }

@@ -1,6 +1,6 @@
 "use strict";
 
-const { getDealsForPortal } = require("../lib/portalDeals");
+const { getDealsForPortal } = require("./lib/portalDeals");
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;

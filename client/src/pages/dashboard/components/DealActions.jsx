@@ -375,13 +375,6 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 contactEmail: portalEmail,
             };
 
-            console.log("[DealActions] upload payload folder source", {
-                propertyFolderId,
-                folderSource: deal.propertyFolderId ? "normalized" : "analytics-row-fallback",
-                dealId,
-                propertyRefNumber,
-            });
-
             const response = await uploadDealDocument(payload);
             setMessage(
                 response?.message ||
@@ -429,8 +422,6 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 assetId: primaryAssetId,
                 email: portalEmail,
             });
-            console.log("Statement response", response);
-            console.log("Opening statement URL", response?.statementUrl);
             if (!response?.statementUrl) {
                 throw new Error("No statement URL was returned.");
             }

@@ -32,7 +32,7 @@ export function PortalProvider({ children }) {
   async function resolveIdentity() {
     const identity = await resolveAuthenticatedPortalIdentity();
     const devImpersonationEmail = getDevImpersonationEmail();
-    const resolvedEmail = resolvePortalEmail(identity.user || {}, devImpersonationEmail);
+    const resolvedEmail = identity.email || resolvePortalEmail(identity.user || {}, devImpersonationEmail);
 
     return {
       ...identity,

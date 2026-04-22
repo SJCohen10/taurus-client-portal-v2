@@ -33,6 +33,7 @@ async function request(path, { method = "GET", query, body, signal } = {}) {
       ? `API error ${res.status}: ${baseMessage} (requestId: ${requestId})`
       : `API error ${res.status}: ${baseMessage}`;
     const error = new Error(message);
+    error.status = res.status;
     if (requestId) error.requestId = requestId;
     if (parsed?.details) error.details = parsed.details;
     throw error;

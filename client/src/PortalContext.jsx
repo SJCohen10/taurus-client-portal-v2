@@ -1,5 +1,6 @@
 import { request } from "./api/catalystClient";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { resolveAuthenticatedPortalIdentity } from "./auth/catalystAuth";
 
 const PortalContext = createContext(null);
 
@@ -28,10 +29,15 @@ export function PortalProvider({ children }) {
   const [requestId, setRequestId] = useState("");
   const hasLoadedRef = useRef(false);
 
-  function resolveEmail() {
-    const pu = window.portalUser || {};
+  async function resolveIdentity() {
+    const identity = await resolveAuthenticatedPortalIdentity();
     const devImpersonationEmail = getDevImpersonationEmail();
-    return resolvePortalEmail(pu, devImpersonationEmail);
+    const resolvedEmail = resolvePortalEmail(identity.user || {}, devImpersonationEmail);
+
+    return {
+      ...identity,
+      email: resolvedEmail,
+    };
   }
 
   async function loadContext(resolvedEmail) {
@@ -50,16 +56,16 @@ export function PortalProvider({ children }) {
         setError("");
         setRequestId("");
 
-        const resolvedEmail = resolveEmail();
-        setEmail(resolvedEmail);
+        const identity = await resolveIdentity();
+        setEmail(identity.email);
 
-        // optional: keep whatever catalyst user object you have
-        setUser(window.portalUser || null);
+        // optional: keep whichever Catalyst/portal user object was found
+        setUser(identity.user || null);
 
-        const ctx = await loadContext(resolvedEmail);
+        const ctx = await loadContext(identity.email);
         setContext(ctx);
         setAuthenticated(true);
-        if (!resolvedEmail && ctx?.contactEmail) setEmail(ctx.contactEmail);
+        if (!identity.email && ctx?.contactEmail) setEmail(ctx.contactEmail);
         setRequestId(ctx?.requestId || "");
 
 

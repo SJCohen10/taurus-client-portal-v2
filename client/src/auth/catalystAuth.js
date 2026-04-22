@@ -78,22 +78,47 @@ async function resolveCatalystCurrentUser() {
 }
 
 export async function resolveAuthenticatedPortalIdentity() {
-  const catalystUser = await resolveCatalystCurrentUser();
+  const catalyst = window?.catalyst;
+  const auth = catalyst?.auth;
   const portalUser = window?.portalUser || null;
+  const debugState = {
+    catalystExists: Boolean(catalyst),
+    catalystAuthExists: Boolean(auth),
+    getCurrentUserExists: typeof auth?.getCurrentUser === "function",
+    isUserAuthenticatedExists: typeof auth?.isUserAuthenticated === "function",
+    authCurrentUserExists: Boolean(auth?.currentUser),
+    portalUserExists: Boolean(portalUser),
+  };
 
-  const email =
-    extractEmail(catalystUser) ||
-    extractEmail(catalystUser?.content) ||
-    extractEmail(portalUser);
+  const catalystUser = await resolveCatalystCurrentUser();
+  const catalystEmail = extractEmail(catalystUser);
+  const catalystContentEmail = extractEmail(catalystUser?.content);
+  const portalUserEmail = extractEmail(portalUser);
+  const email = catalystEmail || catalystContentEmail || portalUserEmail;
 
-  const user = catalystUser || portalUser;
+  const source = catalystEmail
+    ? "catalyst_auth"
+    : catalystContentEmail
+      ? "catalyst_auth_content"
+      : portalUserEmail
+        ? "window_portal_user"
+        : "none";
+
+  const user =
+    source === "catalyst_auth_content"
+      ? catalystUser?.content || catalystUser || portalUser
+      : catalystUser || portalUser;
+
+  console.debug("[PortalAuth] Identity resolution", {
+    ...debugState,
+    source,
+    emailFound: Boolean(email),
+    email,
+  });
+
   return {
     user,
     email,
-    source: extractEmail(catalystUser)
-      ? "catalyst_auth"
-      : extractEmail(portalUser)
-      ? "window_portal_user"
-      : "none",
+    source,
   };
 }

@@ -22,6 +22,7 @@ export function PortalProvider({ children }) {
   const [user, setUser] = useState(null);         // optional
   const [email, setEmail] = useState("");
   const [context, setContext] = useState(null);
+  const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState("");
@@ -34,9 +35,8 @@ export function PortalProvider({ children }) {
   }
 
   async function loadContext(resolvedEmail) {
-    if (!resolvedEmail) return null;
-
-    return request("/getportalusercontext", { query: { email: resolvedEmail } });
+    const query = resolvedEmail ? { email: resolvedEmail } : undefined;
+    return request("/getportalusercontext", { query });
   }
 
 
@@ -58,14 +58,23 @@ export function PortalProvider({ children }) {
 
         const ctx = await loadContext(resolvedEmail);
         setContext(ctx);
+        setAuthenticated(true);
+        if (!resolvedEmail && ctx?.contactEmail) setEmail(ctx.contactEmail);
         setRequestId(ctx?.requestId || "");
 
 
       } catch (e) {
         console.error(e);
-        setError(e.message || "Failed to load portal context");
-        setRequestId(e.requestId || "");
+        setAuthenticated(false);
         setContext(null);
+
+        if (e?.status === 401 || e?.status === 403) {
+          setError("");
+          setRequestId("");
+        } else {
+          setError(e.message || "Failed to load portal context");
+          setRequestId(e.requestId || "");
+        }
       } finally {
         setLoading(false);
       }
@@ -78,6 +87,7 @@ export function PortalProvider({ children }) {
         user,
         email,
         context,
+        authenticated,
         loading,
         error,
         requestId,

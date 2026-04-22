@@ -32,6 +32,37 @@ function parseJsonSafely(raw) {
   }
 }
 
+function isDevelopmentDiagnosticsEnabled() {
+  return process.env.NODE_ENV !== "production" || process.env.CATALYST_STAGE === "Development";
+}
+
+function toResponsePreview(raw, maxLength = 300) {
+  return String(raw || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function extractCrmErrorFields(parsed) {
+  if (!parsed || typeof parsed !== "object") {
+    return { code: null, message: null };
+  }
+
+  if (parsed.code || parsed.message) {
+    return {
+      code: parsed.code || null,
+      message: parsed.message || null,
+    };
+  }
+
+  if (Array.isArray(parsed.data) && parsed.data.length) {
+    const first = parsed.data[0] || {};
+    return {
+      code: first.code || null,
+      message: first.message || null,
+    };
+  }
+
+  return { code: null, message: null };
+}
+
 function isRetryableOAuthThrottle({ error, errorDescription }) {
   const err = String(error || "").toLowerCase();
   const desc = String(errorDescription || "").toLowerCase();
@@ -192,13 +223,25 @@ async function crmRequest({ method = "GET", path, query = {}, body, requestId })
   });
 
   const raw = await res.text();
-  const parsed = raw ? JSON.parse(raw) : {};
+  const parsed = parseJsonSafely(raw);
   if (!res.ok) {
+    const crmError = extractCrmErrorFields(parsed);
+    const diagnostics = {
+      path,
+      statusCode: res.status,
+      code: crmError.code,
+      message: crmError.message,
+      responsePreview: toResponsePreview(raw),
+    };
+    console.error("CRM request failed", { requestId, ...diagnostics });
     const err = new Error("CRM request failed");
     err.statusCode = res.status;
+    if (isDevelopmentDiagnosticsEnabled()) {
+      err.details = diagnostics;
+    }
     throw err;
   }
-  return parsed;
+  return parsed && typeof parsed === "object" ? parsed : {};
 }
 
 module.exports = { crmRequest, getOAuthAccessToken, createRequestId, getCrmAccessToken };

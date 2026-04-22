@@ -2,12 +2,15 @@
 
 const { crmRequest, createRequestId } = require("./lib/crm");
 const { resolvePortalUserContextByEmail } = require("./lib/portalUserContext");
-const { handleOptions, sendJson, enforceUserContext, enforceRateLimit, parseQuery } = require("./lib/security");
+const { handleOptions, sendJson, resolveUserContext, getAuthContextDebugMeta, enforceRateLimit, parseQuery } = require("./lib/security");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isDebugDetailsEnabled() {
   return process.env.NODE_ENV !== "production" || process.env.CATALYST_STAGE === "Development";
+}
+function isAuthContextDebugEnabled() {
+  return String(process.env.PORTAL_DEBUG_AUTH_CONTEXT || "false").toLowerCase() === "true";
 }
 
 function getEnvPresenceSummary() {
@@ -131,8 +134,33 @@ module.exports = async (req, res) => {
     assertRequiredOAuthEnv(requestId);
 
     const query = parseQuery(req);
-    const email = enforceUserContext(req, query.get("email"));
-    if (!EMAIL_REGEX.test(email)) return sendJson(req, res, 400, { error: "Invalid email context", requestId });
+    const requestedEmail = query.get("email");
+    const authDebugMeta = getAuthContextDebugMeta(req);
+    if (isAuthContextDebugEnabled()) {
+      console.info("getPortalUserContext auth context debug", { requestId, ...authDebugMeta });
+    }
+    let resolvedUser;
+    try {
+      resolvedUser = resolveUserContext(req, requestedEmail);
+    } catch (identityErr) {
+      console.warn("getPortalUserContext identity resolution failed", {
+        requestId,
+        message: identityErr.message,
+        hadReqUser: authDebugMeta.hadReqUser,
+        reqUserKeys: authDebugMeta.reqUserKeys,
+        presentIdentityHeaders: authDebugMeta.presentIdentityHeaders,
+        parsedUserDetailsKeys: authDebugMeta.parsedUserDetailsKeys,
+        hasAnyCandidateEmail: authDebugMeta.hasAnyCandidateEmail,
+        hasRequestedEmail: Boolean(String(requestedEmail || "").trim()),
+      });
+      throw identityErr;
+    }
+    const email = resolvedUser.email;
+    if (!EMAIL_REGEX.test(email)) {
+      console.warn("getPortalUserContext invalid resolved email", { requestId, source: resolvedUser.source });
+      return sendJson(req, res, 400, { error: "Invalid email context", requestId });
+    }
+    console.info("getPortalUserContext resolved identity", { requestId, source: resolvedUser.source, emailDomain: email.split("@")[1] || "" });
     enforceRateLimit({ key: `getportalusercontext:${email}`, limit: 30, windowMs: 60000 });
 
     const context = await getContactAndAccountByEmail(email, requestId);

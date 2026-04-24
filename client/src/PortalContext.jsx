@@ -27,6 +27,7 @@ export function PortalProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState("");
+  const [authFailure, setAuthFailure] = useState(false);
   const hasLoadedRef = useRef(false);
 
   async function resolveIdentity() {
@@ -55,6 +56,7 @@ export function PortalProvider({ children }) {
         setLoading(true);
         setError("");
         setRequestId("");
+        setAuthFailure(false);
 
         const identity = await resolveIdentity();
         setEmail(identity.email);
@@ -65,6 +67,7 @@ export function PortalProvider({ children }) {
         const ctx = await loadContext(identity.email);
         setContext(ctx);
         setAuthenticated(true);
+        setAuthFailure(false);
         if (!identity.email && ctx?.contactEmail) setEmail(ctx.contactEmail);
         setRequestId(ctx?.requestId || "");
 
@@ -75,8 +78,9 @@ export function PortalProvider({ children }) {
         setContext(null);
 
         if (e?.status === 401 || e?.status === 403) {
-          setError("");
-          setRequestId("");
+          setAuthFailure(true);
+          setError("We could not verify your portal access. Please contact Taurus Capital to resolve this issue.");
+          setRequestId(e.requestId || "");
         } else {
           setError(e.message || "Failed to load portal context");
           setRequestId(e.requestId || "");
@@ -97,6 +101,7 @@ export function PortalProvider({ children }) {
         loading,
         error,
         requestId,
+        authFailure,
       }}
     >
       {children}

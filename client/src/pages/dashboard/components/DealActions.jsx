@@ -429,7 +429,16 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             // Navigate the already-open tab to the final Creator URL
             newTab.location.href = response.statementUrl;
 
-            setMessage("Statement opened in a new tab.");
+            if (response?.statementStorage?.saved) {
+                setMessage("Statement generated and saved to the deal Statements folder.");
+            } else if (response?.statementStorage?.attempted) {
+                setMessage(
+                    response?.statementStorage?.message ||
+                    "Statement generated. Saving to the deal Statements folder is not yet available."
+                );
+            } else {
+                setMessage("Statement opened in a new tab.");
+            }
             setOpen(false);
         } catch (err) {
             console.error("Generate statement failed", err);
@@ -495,6 +504,23 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             url.searchParams.set(k, s);
         });
         return url.toString();
+    }
+
+    function openPopupWithFallback(url, { name = "portal-popup", width = 1100, height = 760 } = {}) {
+        const dualScreenLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX;
+        const dualScreenTop = window.screenTop !== undefined ? window.screenTop : window.screenY;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || screen.width;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || screen.height;
+
+        const left = Math.max(0, Math.round(dualScreenLeft + (viewportWidth - width) / 2));
+        const top = Math.max(0, Math.round(dualScreenTop + (viewportHeight - height) / 2));
+
+        const features = `popup=yes,width=${width},height=${height},left=${left},top=${top},noopener,noreferrer`;
+        const popup = window.open(url, name, features);
+        if (popup) return { opened: true, usedFallback: false };
+
+        const fallback = window.open(url, "_blank", "noopener,noreferrer");
+        return { opened: Boolean(fallback), usedFallback: Boolean(fallback) };
     }
 
     function openExternalUrl(url) {
@@ -1059,7 +1085,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     cursor: "pointer",
                                 }}
                             >
-                                Readvance
+                                Generate Quote
                             </button>
                         )}
                     </div>,
@@ -1495,11 +1521,25 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                                 ...buildReadvanceDealPrefillParams(),
                                             });
 
-                                            openExternalUrl(formUrl);
+                                            const popupResult = openPopupWithFallback(formUrl, {
+                                                name: "taurus-generate-quote",
+                                                width: 1200,
+                                                height: 860,
+                                            });
+
+                                            if (!popupResult.opened) {
+                                                setReadvanceError("Popup was blocked. Please allow popups and try again.");
+                                                return;
+                                            }
+
+                                            if (popupResult.usedFallback) {
+                                                setMessage("Popup was blocked, so the quote form was opened in a new tab.");
+                                            }
+
                                             setSellerReadvanceOpen(false);
                                         }}
                                     >
-                                        Open Readvance Form
+                                        Generate Quote
                                     </button>
                                     <button className="button readvance-modal-button" onClick={() => setSellerReadvanceOpen(false)}>
                                         Cancel

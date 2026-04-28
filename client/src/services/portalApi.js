@@ -39,6 +39,14 @@ function normalizeDeal(deal = {}) {
   const normalizedDealId = deal.dealId ?? deal.deal_id ?? deal["Deal_Id"] ?? deal["Deal Id"] ?? null;
   const normalizedPropertyRef = deal.propertyRefNumber ?? deal.property_ref_number ?? deal["Property Ref Number"] ?? null;
   const normalizedDescription = deal.propertyDescription ?? deal.property_description ?? deal["Property Description"] ?? null;
+  const normalizedAssetTypes =
+    deal.asset_types ??
+    deal.assetTypes ??
+    deal["Asset Types"] ??
+    deal["Asset_Types"] ??
+    deal["Asset types"] ??
+    deal["asset_types"] ??
+    null;
 
   return {
     ...deal,
@@ -47,6 +55,7 @@ function normalizeDeal(deal = {}) {
     dealId: normalizedDealId,
     propertyRefNumber: normalizedPropertyRef,
     propertyDescription: normalizedDescription,
+    asset_types: normalizedAssetTypes,
   };
 }
 

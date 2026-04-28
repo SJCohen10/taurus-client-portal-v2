@@ -1,10 +1,5 @@
 import React from "react";
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./Layout";
 import { usePortalContext } from "./PortalContext";
 import RoleBasedDashboard from "./pages/dashboard/RoleBasedDashboard";
@@ -23,7 +18,17 @@ const LOGIN_ATTEMPT_WINDOW_MS = 5 * 60 * 1000;
 
 function buildCatalystLoginUrl() {
   const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
-  loginUrl.searchParams.set("service_url", window.location.href);
+  const serviceUrl =
+    process.env.NODE_ENV === "production"
+      ? new URL("/app/", window.location.origin).toString()
+      : window.location.href;
+  loginUrl.searchParams.set("service_url", serviceUrl);
+  return loginUrl.toString();
+}
+
+function buildCatalystLoginUrlForServiceUrl(serviceUrl) {
+  const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
+  loginUrl.searchParams.set("service_url", serviceUrl);
   return loginUrl.toString();
 }
 
@@ -51,7 +56,7 @@ function PortalLoadingScreen() {
   return (
     <div style={{ padding: "2rem" }}>
       <h2>Taurus Client Portal</h2>
-      <p className="subtle">Loading portal…</p>
+      <p className="subtle">Loading Taurus Client Portal...</p>
     </div>
   );
 }
@@ -71,7 +76,7 @@ function ProtectedAppShell() {
 
     redirectAttemptedRef.current = true;
     window.sessionStorage.setItem(LOGIN_ATTEMPT_KEY, String(now));
-    window.location.replace(buildCatalystLoginUrl());
+    window.location.replace(buildCatalystLoginUrlForServiceUrl(window.location.href));
   }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.error]);
 
   React.useEffect(() => {
@@ -93,6 +98,12 @@ function ProtectedAppShell() {
 }
 
 export default function App() {
+  if (isProduction && window.location.pathname === "/") {
+    const appUrl = new URL("/app/", window.location.origin).toString();
+    window.location.replace(buildCatalystLoginUrlForServiceUrl(appUrl));
+    return <PortalLoadingScreen />;
+  }
+
   return (
     <BrowserRouter basename={basename}>
       <Routes>

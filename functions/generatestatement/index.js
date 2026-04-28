@@ -2,13 +2,15 @@
 
 const crypto = require("crypto");
 const { Buffer } = require("buffer");
-const { crmRequest, getOAuthAccessToken } = require("./lib/crm");
+const { getOAuthAccessToken } = require("./lib/crm");
 const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("./lib/security");
 const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
 
 const DEFAULT_SIGNING_SECRET = "change-me";
 const WORKDRIVE_BASE = process.env.ZOHO_WORKDRIVE_BASE || "https://www.zohoapis.com/workdrive/api/v1";
 const STATEMENTS_FOLDER_NAME = process.env.PORTAL_STATEMENTS_FOLDER_NAME || "Statements";
+const CREATOR_STATEMENT_DOWNLOAD_BASE_DEFAULT = "https://www.zohoapis.com/creator/custom/administrator_tauruscapital/downloadStatement";
+const CREATOR_STATEMENT_PUBLIC_KEY_DEFAULT = "3fdsV7X7R3ZVAugHnHrFuJJqx";
 
 function createRequestId() {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -31,6 +33,18 @@ function buildCreatorUrl(pageName, assetId) {
   const defaultBase = "https://creatorapp.zoho.com/administrator_tauruscapital/loan-management-system/#Page";
   const base = configuredBase.startsWith("https://creatorapp.zoho.com/") ? configuredBase : defaultBase;
   return `${base}:${pageName}?CrmAssetId=${assetId}`;
+}
+
+function buildStatementDownloadUrl(assetId) {
+  const configuredBase = String(process.env.ZOHO_CREATOR_STATEMENT_DOWNLOAD_BASE || "").trim();
+  const base = configuredBase || CREATOR_STATEMENT_DOWNLOAD_BASE_DEFAULT;
+  const publicKey =
+    String(process.env.ZOHO_CREATOR_STATEMENT_PUBLIC_KEY || "").trim() ||
+    CREATOR_STATEMENT_PUBLIC_KEY_DEFAULT;
+  const url = new URL(base);
+  url.searchParams.set("publickey", publicKey);
+  url.searchParams.set("CrmAssetId", String(assetId || "").trim());
+  return url.toString();
 }
 
 function getSigningSecret() {
@@ -330,19 +344,14 @@ module.exports = async (req, res) => {
       return sendJson(req, res, 403, { error: "Forbidden", requestId });
     }
 
-    const asset = (await crmRequest({ method: "GET", path: `/Assets/${assetId}`, requestId }))?.data?.[0] || {};
-    const assetType = String(asset.Asset_Type || "").trim().toLowerCase();
-    let statementPage = null;
-    if (assetType.includes("seller")) statementPage = "Seller_Statements";
-    else if (assetType.includes("agent")) statementPage = "Agent_Statements";
-    else if (assetType.includes("agency")) statementPage = "Agency_Statements";
-    else if (assetType.includes("bond")) statementPage = "Bond_Statements";
-    else if (assetType.includes("rafpay")) statementPage = "RAFPAY_Statements";
-    else if (assetType === "aa" || assetType.includes(" aa")) statementPage = "AA_Statements";
-    else if (assetType.includes("lwb")) statementPage = "LWB_Statements";
-    if (!statementPage) return sendJson(req, res, 404, { error: "No statement template for this asset", requestId });
+    const statementUrl = buildStatementDownloadUrl(assetId);
 
-    const creatorUrl = buildCreatorUrl(statementPage, assetId);
+    return sendJson(req, res, 200, {
+      ok: true,
+      statementUrl,
+      statementMode: "download",
+      requestId,
+    });
 
     const statementStorage = {
       attempted: false,

@@ -110,6 +110,19 @@ function readFileAsBase64(file) {
     });
 }
 
+function parseDelimitedList(rawValue) {
+    return String(rawValue || "")
+        .split(/[,\n;|]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+}
+
+function buildStatementOptionLabel(assetType, index) {
+    const safeType = String(assetType || "").trim();
+    if (!safeType) return `Statement ${index + 1}`;
+    return /statement$/i.test(safeType) ? safeType : `${safeType} Statement`;
+}
+
 export default function DealActions({ deal, portalEmail, accountId, onDealUpdate, onOpenExpectedLodgementDate }) {
     const navigate = useNavigate();
 
@@ -125,6 +138,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const [message, setMessage] = useState("");
     const [uploading, setUploading] = useState(false);
     const [statementLoading, setStatementLoading] = useState(false);
+    const [statementChooserOpen, setStatementChooserOpen] = useState(false);
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 0 });
     const buttonRef = useRef(null);
     // Readvance flow state
@@ -191,10 +205,13 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
 
     const assetIdsRaw = deal["Asset IDs"] || deal.asset_ids || deal.assetIds || null;
-    const assetIds = String(assetIdsRaw || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+    const assetTypesRaw = deal["Asset Types"] || deal.asset_types || deal.assetTypes || null;
+    const assetIds = parseDelimitedList(assetIdsRaw);
+    const assetTypes = parseDelimitedList(assetTypesRaw);
+    const statementOptions = assetIds.map((assetId, idx) => ({
+        assetId,
+        label: buildStatementOptionLabel(assetTypes[idx], idx),
+    }));
 
     const propertyFolderId =
         deal.propertyFolderId ||
@@ -233,6 +250,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             if (!inRoot && !inMenu && !inNotificationPopover) {
                 setOpen(false);
                 setNotificationOpen(false);
+                setStatementChooserOpen(false);
             }
         }
 
@@ -241,6 +259,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             if (e.key === "Escape") {
                 setOpen(false);
                 setNotificationOpen(false);
+                setStatementChooserOpen(false);
             }
         }
 
@@ -390,6 +409,48 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         }
     }
 
+    async function startStatementDownload(assetId) {
+        let newTab = null;
+
+        try {
+            setStatementLoading(true);
+            setMessage("");
+
+            // Open the tab immediately while still inside the user click
+            newTab = window.open("about:blank", "_blank");
+
+            if (!newTab) {
+                throw new Error("Your browser blocked the statement download window. Please allow popups for the Taurus Client Portal and try again.");
+            }
+
+            const response = await generateStatement({
+                assetId,
+                email: portalEmail,
+            });
+            if (!response?.statementUrl) {
+                throw new Error("No statement URL was returned.");
+            }
+
+            // Navigate the already-open tab to the final Creator URL
+            newTab.location.href = response.statementUrl;
+            setMessage("Statement download started.");
+            setOpen(false);
+            setStatementChooserOpen(false);
+        } catch (err) {
+            console.error("Generate statement failed", err);
+            console.error("Statement response/navigation debug", {
+                assetIds,
+                selectedAssetId: assetId,
+                portalEmail,
+                newTabExists: !!newTab,
+                newTabClosed: newTab ? newTab.closed : null,
+            });
+            setMessage(err.message || "Unable to generate a statement right now.");
+        } finally {
+            setStatementLoading(false);
+        }
+    }
+
     async function handleGenerateStatement(event) {
         event.stopPropagation();
 
@@ -403,55 +464,13 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             return;
         }
 
-        let newTab = null;
-
-        try {
-            setStatementLoading(true);
-            setMessage("");
-
-            // Open the tab immediately while still inside the user click
-            newTab = window.open("about:blank", "_blank");
-
-            if (!newTab) {
-                throw new Error("Popup was blocked. Please allow popups for this site.");
-            }
-
-            const primaryAssetId = assetIds[0];
-
-            const response = await generateStatement({
-                assetId: primaryAssetId,
-                email: portalEmail,
-            });
-            if (!response?.statementUrl) {
-                throw new Error("No statement URL was returned.");
-            }
-
-            // Navigate the already-open tab to the final Creator URL
-            newTab.location.href = response.statementUrl;
-
-            if (response?.statementStorage?.saved) {
-                setMessage("Statement generated and saved to the deal Statements folder.");
-            } else if (response?.statementStorage?.attempted) {
-                setMessage(
-                    response?.statementStorage?.message ||
-                    "Statement generated. Saving to the deal Statements folder is not yet available."
-                );
-            } else {
-                setMessage("Statement opened in a new tab.");
-            }
-            setOpen(false);
-        } catch (err) {
-            console.error("Generate statement failed", err);
-            console.error("Statement response/navigation debug", {
-                assetIds,
-                portalEmail,
-                newTabExists: !!newTab,
-                newTabClosed: newTab ? newTab.closed : null,
-            });
-            setMessage(err.message || "Unable to generate a statement right now.");
-        } finally {
-            setStatementLoading(false);
+        if (assetIds.length === 1) {
+            await startStatementDownload(assetIds[0]);
+            return;
         }
+
+        setStatementChooserOpen(true);
+        setOpen(false);
     }
 
     async function loadSellerBanks() {
@@ -1306,6 +1325,45 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                         type="button"
                                         className="button"
                                         onClick={() => setNoteOpen(false)}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+
+            {statementChooserOpen &&
+                ReactDOM.createPortal(
+                    <div className="modal-backdrop" onClick={() => setStatementChooserOpen(false)}>
+                        <div className="readvance-modal" onClick={(event) => event.stopPropagation()}>
+                            <div className="readvance-modal-header">
+                                <h3>Select Statement</h3>
+                            </div>
+                            <div className="readvance-modal-body">
+                                <p className="readvance-modal-subtitle">Choose which statement to download.</p>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    {statementOptions.map((option, index) => (
+                                        <button
+                                            key={`${option.assetId}-${index}`}
+                                            type="button"
+                                            className="button"
+                                            onClick={() => startStatementDownload(option.assetId)}
+                                            disabled={statementLoading}
+                                            style={{ width: "100%" }}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div style={{ marginTop: 12 }}>
+                                    <button
+                                        type="button"
+                                        className="button"
+                                        onClick={() => setStatementChooserOpen(false)}
+                                        disabled={statementLoading}
                                     >
                                         Cancel
                                     </button>

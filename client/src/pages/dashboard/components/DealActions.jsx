@@ -1085,7 +1085,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     cursor: "pointer",
                                 }}
                             >
-                                Generate Quote
+                                Readvance
                             </button>
                         )}
                     </div>,

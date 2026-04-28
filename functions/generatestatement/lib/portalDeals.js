@@ -206,6 +206,12 @@ function mapPortalDealRow(row) {
     deal_id: row["Deal_Id"] || null,
     asset_id: row["Asset Id"] || row["Asset_Id"] || row["Asset ID"] || row["asset_id"] || null,
     asset_ids: row["Asset IDs"] || row["Asset_IDs"] || row["Asset Ids"] || null,
+    asset_types:
+      row["Asset Types"] ||
+      row["Asset_Types"] ||
+      row["Asset types"] ||
+      row["asset_types"] ||
+      null,
     property_folder_id: row["Property Folder Id"] || row["Property_Folder_Id"] || row["Property Folder"] || null,
     property_ref_number: row["Property Ref Number"] || null,
     property_description: row["Property Description"] || null,

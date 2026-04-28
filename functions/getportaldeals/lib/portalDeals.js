@@ -93,6 +93,12 @@ function mapPortalDealRow(row) {
 
   const assetIds =
     row["Asset IDs"] || row["Asset_IDs"] || row["Asset Ids"] || null;
+  const assetTypes =
+    row["Asset Types"] ||
+    row["Asset_Types"] ||
+    row["Asset types"] ||
+    row["asset_types"] ||
+    null;
 
   const assetCreatorIds =
     row["Asset Creator IDs"] || row["Asset_Creator_IDs"] || null;
@@ -126,6 +132,7 @@ function mapPortalDealRow(row) {
     account_id: accountId,
     property_folder_id: propertyFolderId,
     asset_ids: assetIds,
+    asset_types: assetTypes,
     asset_creator_ids: assetCreatorIds,
     seller_account_id: sellerAccountId,
     seller_bank_detail_id: sellerBankDetailId,

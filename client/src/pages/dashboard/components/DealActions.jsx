@@ -509,8 +509,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     function openPopupWithFallback(url, { name = "portal-popup", width = 1100, height = 760 } = {}) {
         const dualScreenLeft = window.screenLeft !== undefined ? window.screenLeft : window.screenX;
         const dualScreenTop = window.screenTop !== undefined ? window.screenTop : window.screenY;
-        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || screen.width;
-        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || screen.height;
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || window.screen.width;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || window.screen.height;
 
         const left = Math.max(0, Math.round(dualScreenLeft + (viewportWidth - width) / 2));
         const top = Math.max(0, Math.round(dualScreenTop + (viewportHeight - height) / 2));
@@ -1085,7 +1085,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     cursor: "pointer",
                                 }}
                             >
-                                Generate Quote
+                                Readvance
                             </button>
                         )}
                     </div>,

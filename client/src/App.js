@@ -47,6 +47,15 @@ function AccessErrorScreen({ requestId = "" }) {
   );
 }
 
+function PortalLoadingScreen() {
+  return (
+    <div style={{ padding: "2rem" }}>
+      <h2>Taurus Client Portal</h2>
+      <p className="subtle">Loading portal…</p>
+    </div>
+  );
+}
+
 function ProtectedAppShell() {
   const portal = usePortalContext();
   const redirectAttemptedRef = React.useRef(false);
@@ -72,7 +81,7 @@ function ProtectedAppShell() {
   }, [portal?.authenticated]);
 
   if (portal?.loading) {
-    return <p className="subtle">Checking authentication…</p>;
+    return <PortalLoadingScreen />;
   }
 
   if (!portal?.authenticated) {

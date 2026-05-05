@@ -72,14 +72,7 @@ async function getContactAndAccountByEmail(email, requestId) {
   const contactMobile = contact.Mobile || contact.Phone || "";
 
   const accountId = portalUser.accountId;
-  if (!accountId) {
-    const err = new Error("CRM Contact has no linked Account");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const accountData = await crmRequest({ method: "GET", path: `/Accounts/${accountId}`, requestId });
-  const accountRecord = (accountData.data && accountData.data[0]) || {};
+  const accountRecord = portalUser.account || {};
 
   const bankDetails = await getAvsBankDetailsForAccount(accountId, requestId);
   const preferredLookup = accountRecord.Preferred_Quick_Rates_Bank_Accounts || null;
@@ -115,6 +108,7 @@ async function getContactAndAccountByEmail(email, requestId) {
     firmZipCode: accountRecord.Billing_Code || accountRecord.Shipping_Code || "",
     accountEmail: accountRecord.Email || contactEmail,
     canViewFirmDeals: portalUser.canViewFirmDeals,
+    portalAccess: portalUser.portalAccess,
     accountMobile: accountRecord.Phone || contactMobile,
     directorName: accountRecord.Quick_Rates_Director_Name,
     directorEmail: accountRecord.Quick_Rates_Director_Email || "",
@@ -164,10 +158,16 @@ module.exports = async (req, res) => {
     enforceRateLimit({ key: `getportalusercontext:${email}`, limit: 30, windowMs: 60000 });
 
     const context = await getContactAndAccountByEmail(email, requestId);
+    console.info("getPortalUserContext access granted", { requestId, emailDomain: email.split("@")[1] || "" });
     return sendJson(req, res, 200, { ...context, requestId });
   } catch (err) {
-    console.error("getPortalUserContext failed", { requestId, message: err.message, details: err.details || null });
+    if (err.statusCode === 403) {
+      console.warn("getPortalUserContext access denied", { requestId, reasonCode: err.reasonCode || "ACCESS_DENIED", message: err.message });
+    } else {
+      console.error("getPortalUserContext failed", { requestId, message: err.message, details: err.details || null });
+    }
     const payload = { error: err.statusCode ? err.message : "Internal server error", requestId };
+    if (err.reasonCode) payload.reasonCode = err.reasonCode;
     if (isDebugDetailsEnabled() && err.details) payload.details = err.details;
     return sendJson(req, res, err.statusCode || 500, payload);
   }

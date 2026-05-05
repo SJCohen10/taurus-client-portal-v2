@@ -31,6 +31,13 @@ function buildCatalystLoginUrlForServiceUrl(serviceUrl) {
   loginUrl.searchParams.set("service_url", serviceUrl);
   return loginUrl.toString();
 }
+function getSafeServiceUrl() {
+  const { origin, pathname, search, hash } = window.location;
+  if (pathname.startsWith("/__catalyst/")) return new URL("/app/", origin).toString();
+  if (pathname === "/" || pathname === "/app" || pathname === "/app/") return new URL("/app/", origin).toString();
+  if (pathname.startsWith("/app/")) return `${origin}${pathname}${search}${hash}`;
+  return new URL("/app/", origin).toString();
+}
 
 function LoginRedirect() {
   React.useEffect(() => {
@@ -46,7 +53,7 @@ function AccessErrorScreen({ requestId = "" }) {
   return (
     <div style={{ padding: "2rem" }}>
       <h2>Portal Access Issue</h2>
-      <p>We could not verify your portal access. Please contact Taurus Capital to resolve this issue.</p>
+      <p>Your login was successful, but your Taurus portal access could not be verified. Please contact Taurus Capital if you believe this is incorrect.</p>
       {requestId ? <p className="subtle">requestId: {requestId}</p> : null}
     </div>
   );
@@ -66,7 +73,7 @@ function ProtectedAppShell() {
   const redirectAttemptedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (!isProduction || portal?.loading || portal?.authenticated || portal?.authFailure || portal?.error) return;
+    if (!isProduction || portal?.loading || portal?.authenticated || portal?.authFailure || portal?.serverFailure) return;
 
     const now = Date.now();
     const previous = Number(window.sessionStorage.getItem(LOGIN_ATTEMPT_KEY) || 0);
@@ -76,8 +83,13 @@ function ProtectedAppShell() {
 
     redirectAttemptedRef.current = true;
     window.sessionStorage.setItem(LOGIN_ATTEMPT_KEY, String(now));
-    window.location.replace(buildCatalystLoginUrlForServiceUrl(window.location.href));
-  }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.error]);
+    window.location.replace(buildCatalystLoginUrlForServiceUrl(getSafeServiceUrl()));
+  }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.serverFailure]);
+
+  React.useEffect(() => {
+    if (!isProduction || !portal?.needsLogin) return;
+    window.location.replace(buildCatalystLoginUrlForServiceUrl(getSafeServiceUrl()));
+  }, [portal?.needsLogin]);
 
   React.useEffect(() => {
     if (portal?.authenticated) {
@@ -90,17 +102,27 @@ function ProtectedAppShell() {
   }
 
   if (!portal?.authenticated) {
+    if (portal?.serverFailure) {
+      return (
+        <div style={{ padding: "2rem" }}>
+          <h2>Temporary Portal Error</h2>
+          <p>{portal?.error || "Temporary server issue while loading your portal access. Please try again shortly."}</p>
+          {portal?.requestId ? <p className="subtle">requestId: {portal.requestId}</p> : null}
+        </div>
+      );
+    }
     if (!isProduction) return <Layout />;
-    return <AccessErrorScreen requestId={portal?.requestId} />;
+    if (portal?.authFailure) return <AccessErrorScreen requestId={portal?.requestId} />;
+    return <PortalLoadingScreen />;
   }
 
   return <Layout />;
 }
 
 export default function App() {
-  if (isProduction && window.location.pathname === "/") {
+  if (isProduction && (window.location.pathname === "/" || window.location.pathname === "/app")) {
     const appUrl = new URL("/app/", window.location.origin).toString();
-    window.location.replace(buildCatalystLoginUrlForServiceUrl(appUrl));
+    window.location.replace(appUrl);
     return <PortalLoadingScreen />;
   }
 

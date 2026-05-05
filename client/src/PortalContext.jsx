@@ -28,6 +28,8 @@ export function PortalProvider({ children }) {
   const [error, setError] = useState("");
   const [requestId, setRequestId] = useState("");
   const [authFailure, setAuthFailure] = useState(false);
+  const [needsLogin, setNeedsLogin] = useState(false);
+  const [serverFailure, setServerFailure] = useState(false);
   const hasLoadedRef = useRef(false);
 
   async function resolveIdentity() {
@@ -57,6 +59,8 @@ export function PortalProvider({ children }) {
         setError("");
         setRequestId("");
         setAuthFailure(false);
+        setNeedsLogin(false);
+        setServerFailure(false);
 
         const identity = await resolveIdentity();
         setEmail(identity.email);
@@ -77,12 +81,17 @@ export function PortalProvider({ children }) {
         setAuthenticated(false);
         setContext(null);
 
-        if (e?.status === 401 || e?.status === 403) {
+        if (e?.status === 401) {
+          setNeedsLogin(true);
+          setError("Your session has expired. Redirecting to login.");
+          setRequestId(e.requestId || "");
+        } else if (e?.status === 403) {
           setAuthFailure(true);
-          setError("We could not verify your portal access. Please contact Taurus Capital to resolve this issue.");
+          setError("Your login was successful, but your Taurus portal access could not be verified. Please contact Taurus Capital if you believe this is incorrect.");
           setRequestId(e.requestId || "");
         } else {
-          setError(e.message || "Failed to load portal context");
+          setServerFailure(true);
+          setError("Temporary server issue while loading your portal access. Please try again shortly.");
           setRequestId(e.requestId || "");
         }
       } finally {
@@ -102,6 +111,8 @@ export function PortalProvider({ children }) {
         error,
         requestId,
         authFailure,
+        needsLogin,
+        serverFailure,
       }}
     >
       {children}

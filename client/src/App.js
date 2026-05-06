@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./Layout";
 import { usePortalContext } from "./PortalContext";
 import RoleBasedDashboard from "./pages/dashboard/RoleBasedDashboard";
@@ -8,21 +8,24 @@ import FaqPage from "./pages/faq/FaqPage";
 
 import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 
-// Use basename "/app" only in production (Catalyst hosting)
-const basename =
-  process.env.NODE_ENV === "production" ? "/app" : "/";
-
 const isProduction = process.env.NODE_ENV === "production";
 const LOGIN_ATTEMPT_KEY = "taurus_portal_login_attempted_at";
 const LOGIN_ATTEMPT_WINDOW_MS = 5 * 60 * 1000;
 
+function getCanonicalAppHashUrl(hashPath = "/") {
+  const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
+  return `${window.location.origin}/app/#${sanitized}`;
+}
+
+function getCurrentHashPath() {
+  const rawHash = window.location.hash || "";
+  const hashWithoutPrefix = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  return hashWithoutPrefix || "/";
+}
+
 function buildCatalystLoginUrl() {
   const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
-  const serviceUrl =
-    process.env.NODE_ENV === "production"
-      ? new URL("/app/", window.location.origin).toString()
-      : window.location.href;
-  loginUrl.searchParams.set("service_url", serviceUrl);
+  loginUrl.searchParams.set("service_url", getCanonicalAppHashUrl(getCurrentHashPath()));
   return loginUrl.toString();
 }
 
@@ -32,11 +35,11 @@ function buildCatalystLoginUrlForServiceUrl(serviceUrl) {
   return loginUrl.toString();
 }
 function getSafeServiceUrl() {
-  const { origin, pathname, search, hash } = window.location;
-  if (pathname.startsWith("/__catalyst/")) return new URL("/app/", origin).toString();
-  if (pathname === "/" || pathname === "/app" || pathname === "/app/") return new URL("/app/", origin).toString();
-  if (pathname.startsWith("/app/")) return `${origin}${pathname}${search}${hash}`;
-  return new URL("/app/", origin).toString();
+  const { pathname } = window.location;
+  if (pathname.startsWith("/__catalyst/")) return getCanonicalAppHashUrl("/");
+  if (pathname === "/" || pathname === "/app" || pathname === "/app/") return getCanonicalAppHashUrl(getCurrentHashPath());
+  if (pathname.startsWith("/app/")) return getCanonicalAppHashUrl(getCurrentHashPath());
+  return getCanonicalAppHashUrl("/");
 }
 
 function LoginRedirect() {
@@ -120,14 +123,13 @@ function ProtectedAppShell() {
 }
 
 export default function App() {
-  if (isProduction && (window.location.pathname === "/" || window.location.pathname === "/app")) {
-    const appUrl = new URL("/app/", window.location.origin).toString();
-    window.location.replace(appUrl);
+  if (isProduction && (window.location.pathname === "/" || window.location.pathname === "/app" || window.location.pathname === "/app/")) {
+    window.location.replace(getCanonicalAppHashUrl(getCurrentHashPath()));
     return <PortalLoadingScreen />;
   }
 
   return (
-    <BrowserRouter basename={basename}>
+    <HashRouter>
       <Routes>
         <Route path="/" element={<ProtectedAppShell />}>
           {/* Default + explicit dashboard routes */}
@@ -145,6 +147,6 @@ export default function App() {
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

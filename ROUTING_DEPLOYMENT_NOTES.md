@@ -31,8 +31,19 @@ After this change, portal routes are hash-based:
 - Removed the previous sessionStorage-based login cooldown guard that could suppress redirects and leave users on the loading screen when unauthenticated.
 - Auth redirect URL builders generate Catalyst-safe hash URLs under `/app/#/...`.
 - Safe `service_url` handling preserves the intended hash route for post-login return.
-- Production canonical redirect normalizes `/`, `/app`, and `/app/` to hash URLs.
+- Production canonical redirect now only runs when there is no valid hash route (`#/...`) so existing hash routes can render immediately.
 - Removed invalid Catalyst client config key `"404": "index.html"` from `client/client-package.json`.
+
+## Why pathname-only redirects broke render
+With `HashRouter`, a URL like `/app/#/seller-proceeds` still has:
+- `window.location.pathname === "/app/"`
+- `window.location.hash === "#/seller-proceeds"`
+
+If redirect/canonicalization logic checks only `pathname`, it treats valid hash routes as if they were missing routes and can repeatedly return a loading screen or redirect before routed content renders.
+
+The fix is to gate canonical redirects on **both**:
+- a base path (`/`, `/app`, `/app/`), and
+- **absence** of a valid hash route (`!hash.startsWith("#/")`).
 
 ## How to test after deployment
 1. Open `https://portal.tauruscapital.co.za/app/#/` and authenticate.
@@ -46,3 +57,13 @@ After this change, portal routes are hash-based:
 5. Verify back/forward browser navigation between pages.
 6. Confirm auth redirects return to `#/` or the requested hash route after login.
 7. Re-test API-backed pages/actions (dashboard, statements, notifications, uploads) to confirm no server route regressions.
+
+## Verify getPortalUserContext and page render
+1. Open browser DevTools → Network.
+2. Load `https://portal.tauruscapital.co.za/app/#/seller-proceeds` (or another hash route).
+3. Confirm `/server/getportalusercontext` returns 200 with expected context.
+4. Confirm the app transitions away from `Loading Taurus Client Portal...` and renders the selected route.
+5. (Temporary) set `REACT_APP_DEBUG_ROUTING=true` and verify logs:
+   - `app-bootstrap` shows `pathname`, `hash`, `hasHashRoute`, `shouldCanonicalRedirect`.
+   - `protected-shell-state` shows auth/loading state transitions.
+   - `portal-context-success` appears after successful context load.

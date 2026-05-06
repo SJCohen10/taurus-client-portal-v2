@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import { resolveAuthenticatedPortalIdentity } from "./auth/catalystAuth";
 
 const PortalContext = createContext(null);
+const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
 
 function getDevImpersonationEmail() {
   if (process.env.NODE_ENV !== "development") return "";
@@ -74,6 +75,14 @@ export function PortalProvider({ children }) {
         setAuthFailure(false);
         if (!identity.email && ctx?.contactEmail) setEmail(ctx.contactEmail);
         setRequestId(ctx?.requestId || "");
+        if (isDebugRouting) {
+          console.info("[routing-debug] portal-context-success", {
+            authenticated: true,
+            loading: false,
+            hasContext: Boolean(ctx),
+            requestId: ctx?.requestId || "",
+          });
+        }
 
 
       } catch (e) {
@@ -93,6 +102,14 @@ export function PortalProvider({ children }) {
           setServerFailure(true);
           setError("Temporary server issue while loading your portal access. Please try again shortly.");
           setRequestId(e.requestId || "");
+        }
+        if (isDebugRouting) {
+          console.info("[routing-debug] portal-context-failure", {
+            status: e?.status || "unknown",
+            authFailure: e?.status === 403,
+            needsLogin: e?.status === 401,
+            serverFailure: e?.status !== 401 && e?.status !== 403,
+          });
         }
       } finally {
         setLoading(false);

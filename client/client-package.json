@@ -1,5 +1,6 @@
 {
-    "name": "taurus-client-portal",
-    "version": "1.0.0",
-    "homepage": "index.html"
+  "name": "taurus-client-portal",
+  "version": "1.0.0",
+  "homepage": "index.html",
+  "404": "index.html"
 }

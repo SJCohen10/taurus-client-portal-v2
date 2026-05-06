@@ -9,6 +9,7 @@ import FaqPage from "./pages/faq/FaqPage";
 import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 
 const isProduction = process.env.NODE_ENV === "production";
+const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
 
 const buildAppHashUrl = (hashPath = "/") => {
   const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
@@ -18,7 +19,8 @@ const buildAppHashUrl = (hashPath = "/") => {
 function getCurrentHashPath() {
   const rawHash = window.location.hash || "";
   const hashWithoutPrefix = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
-  return hashWithoutPrefix || "/";
+  const normalized = hashWithoutPrefix || "/";
+  return normalized.startsWith("/") ? normalized : `/${normalized}`;
 }
 
 function buildCatalystLoginUrl() {
@@ -33,10 +35,13 @@ function buildCatalystLoginUrlForServiceUrl(serviceUrl) {
   return loginUrl.toString();
 }
 function getSafeServiceUrl() {
-  const { pathname } = window.location;
+  const { pathname, hash } = window.location;
+  const hasHashRoute = Boolean(hash && hash.startsWith("#/"));
   if (pathname.startsWith("/__catalyst/")) return buildAppHashUrl("/");
-  if (pathname === "/" || pathname === "/app" || pathname === "/app/") return buildAppHashUrl(getCurrentHashPath());
-  if (pathname.startsWith("/app/")) return buildAppHashUrl(getCurrentHashPath());
+  if (pathname === "/" || pathname === "/app" || pathname === "/app/") {
+    return hasHashRoute ? buildAppHashUrl(getCurrentHashPath()) : buildAppHashUrl("/");
+  }
+  if (pathname.startsWith("/app/")) return hasHashRoute ? buildAppHashUrl(getCurrentHashPath()) : buildAppHashUrl("/");
   return buildAppHashUrl("/");
 }
 
@@ -70,6 +75,31 @@ function PortalLoadingScreen() {
 function ProtectedAppShell() {
   const portal = usePortalContext();
   const redirectAttemptedRef = React.useRef(false);
+  const [showLongLoadingMessage, setShowLongLoadingMessage] = React.useState(false);
+  const safeServiceUrl = getSafeServiceUrl();
+
+  React.useEffect(() => {
+    if (!portal?.loading || portal?.authenticated || portal?.authFailure || portal?.serverFailure) {
+      setShowLongLoadingMessage(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setShowLongLoadingMessage(true);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [portal?.loading, portal?.authenticated, portal?.authFailure, portal?.serverFailure]);
+
+  React.useEffect(() => {
+    if (!isDebugRouting) return;
+    console.info("[routing-debug] protected-shell-state", {
+      loading: portal?.loading,
+      authenticated: portal?.authenticated,
+      authFailure: portal?.authFailure,
+      needsLogin: portal?.needsLogin,
+      serverFailure: portal?.serverFailure,
+      serviceUrl: safeServiceUrl,
+    });
+  }, [portal?.loading, portal?.authenticated, portal?.authFailure, portal?.needsLogin, portal?.serverFailure, safeServiceUrl]);
 
   React.useEffect(() => {
     if (portal?.loading || portal?.authenticated || portal?.authFailure || portal?.serverFailure) return;
@@ -77,15 +107,23 @@ function ProtectedAppShell() {
     if (redirectAttemptedRef.current) return;
 
     redirectAttemptedRef.current = true;
-    window.location.replace(buildCatalystLoginUrlForServiceUrl(getSafeServiceUrl()));
-  }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.serverFailure]);
+    window.location.replace(buildCatalystLoginUrlForServiceUrl(safeServiceUrl));
+  }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.serverFailure, safeServiceUrl]);
 
   React.useEffect(() => {
     if (!portal?.needsLogin) return;
-    window.location.replace(buildCatalystLoginUrlForServiceUrl(getSafeServiceUrl()));
-  }, [portal?.needsLogin]);
+    window.location.replace(buildCatalystLoginUrlForServiceUrl(safeServiceUrl));
+  }, [portal?.needsLogin, safeServiceUrl]);
 
   if (portal?.loading) {
+    if (showLongLoadingMessage) {
+      return (
+        <div style={{ padding: "2rem" }}>
+          <h2>Taurus Client Portal</h2>
+          <p className="subtle">Still loading portal context. Please refresh or contact Taurus Capital if this continues.</p>
+        </div>
+      );
+    }
     return <PortalLoadingScreen />;
   }
 
@@ -107,8 +145,23 @@ function ProtectedAppShell() {
 }
 
 export default function App() {
-  if (isProduction && (window.location.pathname === "/" || window.location.pathname === "/app" || window.location.pathname === "/app/")) {
-    window.location.replace(buildAppHashUrl(getCurrentHashPath()));
+  const { pathname, hash } = window.location;
+  const hasHashRoute = Boolean(hash && hash.startsWith("#/"));
+  const isCanonicalBasePath = pathname === "/" || pathname === "/app" || pathname === "/app/";
+  const shouldCanonicalRedirect = isProduction && !hasHashRoute && isCanonicalBasePath;
+
+  if (isDebugRouting) {
+    console.info("[routing-debug] app-bootstrap", {
+      pathname,
+      hash,
+      hasHashRoute,
+      serviceUrl: getSafeServiceUrl(),
+      shouldCanonicalRedirect,
+    });
+  }
+
+  if (shouldCanonicalRedirect) {
+    window.location.replace(buildAppHashUrl("/"));
     return <PortalLoadingScreen />;
   }
 

@@ -28,6 +28,7 @@ After this change, portal routes are hash-based:
 ## What changed
 - `App.js` now uses `HashRouter` globally (no BrowserRouter dev/prod split).
 - Login redirects now run consistently from the app shell and `/login` route, using the same Catalyst login URL builder flow.
+- Removed the previous sessionStorage-based login cooldown guard that could suppress redirects and leave users on the loading screen when unauthenticated.
 - Auth redirect URL builders generate Catalyst-safe hash URLs under `/app/#/...`.
 - Safe `service_url` handling preserves the intended hash route for post-login return.
 - Production canonical redirect normalizes `/`, `/app`, and `/app/` to hash URLs.

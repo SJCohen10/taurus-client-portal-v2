@@ -9,8 +9,17 @@ import FaqPage from "./pages/faq/FaqPage";
 import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 
 const isProduction = process.env.NODE_ENV === "production";
-const LOGIN_ATTEMPT_KEY = "taurus_portal_login_attempted_at";
-const LOGIN_ATTEMPT_WINDOW_MS = 5 * 60 * 1000;
+
+function getCanonicalAppHashUrl(hashPath = "/") {
+  const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
+  return `${window.location.origin}/app/#${sanitized}`;
+}
+
+function getCurrentHashPath() {
+  const rawHash = window.location.hash || "";
+  const hashWithoutPrefix = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  return hashWithoutPrefix || "/";
+}
 
 function getCanonicalAppHashUrl(hashPath = "/") {
   const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
@@ -76,14 +85,9 @@ function ProtectedAppShell() {
   React.useEffect(() => {
     if (portal?.loading || portal?.authenticated || portal?.authFailure || portal?.serverFailure) return;
 
-    const now = Date.now();
-    const previous = Number(window.sessionStorage.getItem(LOGIN_ATTEMPT_KEY) || 0);
-    const withinWindow = previous && now - previous < LOGIN_ATTEMPT_WINDOW_MS;
-
-    if (withinWindow || redirectAttemptedRef.current) return;
+    if (redirectAttemptedRef.current) return;
 
     redirectAttemptedRef.current = true;
-    window.sessionStorage.setItem(LOGIN_ATTEMPT_KEY, String(now));
     window.location.replace(buildCatalystLoginUrlForServiceUrl(getSafeServiceUrl()));
   }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.serverFailure]);
 
@@ -91,12 +95,6 @@ function ProtectedAppShell() {
     if (!portal?.needsLogin) return;
     window.location.replace(buildCatalystLoginUrlForServiceUrl(getSafeServiceUrl()));
   }, [portal?.needsLogin]);
-
-  React.useEffect(() => {
-    if (portal?.authenticated) {
-      window.sessionStorage.removeItem(LOGIN_ATTEMPT_KEY);
-    }
-  }, [portal?.authenticated]);
 
   if (portal?.loading) {
     return <PortalLoadingScreen />;

@@ -11,9 +11,21 @@ export default function Layout() {
   const loading = portal?.loading || false;
   const error = portal?.error || "";
   const requestId = portal?.requestId || portal?.context?.requestId || "";
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   const accountName = context?.accountName || "Account";
   const quickBridgeLimit = context?.quickBridgeLimit ?? null;
+
+  const handleLogout = async () => {
+    if (!portal?.logout || isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await portal.logout();
+    } catch (logoutError) {
+      console.error("[PortalAuth] Logout failed", logoutError);
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <div className="app-shell">
@@ -39,11 +51,16 @@ export default function Layout() {
             </small>
           </div>
 
-          <img
-            src={`${process.env.PUBLIC_URL}/taurus-capital-logo.png`}
-            alt="Taurus Capital"
-            className="app-header-logo"
-          />
+          <div className="app-header-actions">
+            <img
+              src={`${process.env.PUBLIC_URL}/taurus-capital-logo.png`}
+              alt="Taurus Capital"
+              className="app-header-logo"
+            />
+            <button type="button" className="button logout-button" onClick={handleLogout} disabled={isLoggingOut}>
+              {isLoggingOut ? "Signing out…" : "Logout"}
+            </button>
+          </div>
 
         </div>
 

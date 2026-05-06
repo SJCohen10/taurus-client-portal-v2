@@ -1,6 +1,7 @@
 import { request } from "./api/catalystClient";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { resolveAuthenticatedPortalIdentity } from "./auth/catalystAuth";
+import { LOGOUT_BROADCAST_CHANNEL, LOGOUT_BROADCAST_EVENT, LOGOUT_STORAGE_KEY, performPortalLogout } from "./auth/logout";
 
 const PortalContext = createContext(null);
 const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
@@ -32,6 +33,24 @@ export function PortalProvider({ children }) {
   const [needsLogin, setNeedsLogin] = useState(false);
   const [serverFailure, setServerFailure] = useState(false);
   const hasLoadedRef = useRef(false);
+
+  const resetAuthState = React.useCallback(() => {
+    setUser(null);
+    setEmail("");
+    setContext(null);
+    setAuthenticated(false);
+    setAuthFailure(false);
+    setNeedsLogin(true);
+    setServerFailure(false);
+    setError("");
+    setRequestId("");
+  }, []);
+
+  const logout = React.useCallback(async () => {
+    setLoading(true);
+    resetAuthState();
+    await performPortalLogout({ serviceUrl: `${window.location.origin}/app/#/` });
+  }, [resetAuthState]);
 
   async function resolveIdentity() {
     const identity = await resolveAuthenticatedPortalIdentity();
@@ -117,6 +136,31 @@ export function PortalProvider({ children }) {
     })();
   }, []);
 
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key === LOGOUT_STORAGE_KEY && event.newValue) {
+        resetAuthState();
+      }
+    };
+
+    window.addEventListener("storage", onStorage);
+
+    let channel = null;
+    if (typeof window.BroadcastChannel === "function") {
+      channel = new BroadcastChannel(LOGOUT_BROADCAST_CHANNEL);
+      channel.onmessage = (event) => {
+        if (event?.data?.type === LOGOUT_BROADCAST_EVENT) {
+          resetAuthState();
+        }
+      };
+    }
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      if (channel) channel.close();
+    };
+  }, [resetAuthState]);
+
   return (
     <PortalContext.Provider
       value={{
@@ -130,6 +174,7 @@ export function PortalProvider({ children }) {
         authFailure,
         needsLogin,
         serverFailure,
+        logout,
       }}
     >
       {children}

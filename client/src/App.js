@@ -44,9 +44,7 @@ function getSafeServiceUrl() {
 
 function LoginRedirect() {
   React.useEffect(() => {
-    if (isProduction) {
-      window.location.replace(buildCatalystLoginUrl());
-    }
+    window.location.replace(buildCatalystLoginUrl());
   }, []);
 
   return <p className="subtle">Redirecting to Catalyst login…</p>;
@@ -76,7 +74,7 @@ function ProtectedAppShell() {
   const redirectAttemptedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (!isProduction || portal?.loading || portal?.authenticated || portal?.authFailure || portal?.serverFailure) return;
+    if (portal?.loading || portal?.authenticated || portal?.authFailure || portal?.serverFailure) return;
 
     const now = Date.now();
     const previous = Number(window.sessionStorage.getItem(LOGIN_ATTEMPT_KEY) || 0);
@@ -90,7 +88,7 @@ function ProtectedAppShell() {
   }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.serverFailure]);
 
   React.useEffect(() => {
-    if (!isProduction || !portal?.needsLogin) return;
+    if (!portal?.needsLogin) return;
     window.location.replace(buildCatalystLoginUrlForServiceUrl(getSafeServiceUrl()));
   }, [portal?.needsLogin]);
 
@@ -114,7 +112,6 @@ function ProtectedAppShell() {
         </div>
       );
     }
-    if (!isProduction) return <Layout />;
     if (portal?.authFailure) return <AccessErrorScreen requestId={portal?.requestId} />;
     return <PortalLoadingScreen />;
   }

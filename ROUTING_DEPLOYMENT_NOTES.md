@@ -27,9 +27,10 @@ After this change, portal routes are hash-based:
 
 ## What changed
 - `App.js` now uses `HashRouter` globally (no BrowserRouter dev/prod split).
-- Auth redirect URL builders now always generate Catalyst-safe hash URLs under `/app/#/...`.
-- Safe `service_url` handling now preserves the intended hash route for post-login return.
-- Production canonical redirect now normalizes `/`, `/app`, and `/app/` to hash URLs.
+- Login redirects now run consistently from the app shell and `/login` route, using the same Catalyst login URL builder flow.
+- Auth redirect URL builders generate Catalyst-safe hash URLs under `/app/#/...`.
+- Safe `service_url` handling preserves the intended hash route for post-login return.
+- Production canonical redirect normalizes `/`, `/app`, and `/app/` to hash URLs.
 - Removed invalid Catalyst client config key `"404": "index.html"` from `client/client-package.json`.
 
 ## How to test after deployment

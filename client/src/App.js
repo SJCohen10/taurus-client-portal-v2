@@ -10,21 +10,10 @@ import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 
 const isProduction = process.env.NODE_ENV === "production";
 
-function getCanonicalAppHashUrl(hashPath = "/") {
+const buildAppHashUrl = (hashPath = "/") => {
   const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
   return `${window.location.origin}/app/#${sanitized}`;
-}
-
-function getCurrentHashPath() {
-  const rawHash = window.location.hash || "";
-  const hashWithoutPrefix = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
-  return hashWithoutPrefix || "/";
-}
-
-function getCanonicalAppHashUrl(hashPath = "/") {
-  const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
-  return `${window.location.origin}/app/#${sanitized}`;
-}
+};
 
 function getCurrentHashPath() {
   const rawHash = window.location.hash || "";
@@ -34,7 +23,7 @@ function getCurrentHashPath() {
 
 function buildCatalystLoginUrl() {
   const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
-  loginUrl.searchParams.set("service_url", getCanonicalAppHashUrl(getCurrentHashPath()));
+  loginUrl.searchParams.set("service_url", buildAppHashUrl(getCurrentHashPath()));
   return loginUrl.toString();
 }
 
@@ -45,10 +34,10 @@ function buildCatalystLoginUrlForServiceUrl(serviceUrl) {
 }
 function getSafeServiceUrl() {
   const { pathname } = window.location;
-  if (pathname.startsWith("/__catalyst/")) return getCanonicalAppHashUrl("/");
-  if (pathname === "/" || pathname === "/app" || pathname === "/app/") return getCanonicalAppHashUrl(getCurrentHashPath());
-  if (pathname.startsWith("/app/")) return getCanonicalAppHashUrl(getCurrentHashPath());
-  return getCanonicalAppHashUrl("/");
+  if (pathname.startsWith("/__catalyst/")) return buildAppHashUrl("/");
+  if (pathname === "/" || pathname === "/app" || pathname === "/app/") return buildAppHashUrl(getCurrentHashPath());
+  if (pathname.startsWith("/app/")) return buildAppHashUrl(getCurrentHashPath());
+  return buildAppHashUrl("/");
 }
 
 function LoginRedirect() {
@@ -119,7 +108,7 @@ function ProtectedAppShell() {
 
 export default function App() {
   if (isProduction && (window.location.pathname === "/" || window.location.pathname === "/app" || window.location.pathname === "/app/")) {
-    window.location.replace(getCanonicalAppHashUrl(getCurrentHashPath()));
+    window.location.replace(buildAppHashUrl(getCurrentHashPath()));
     return <PortalLoadingScreen />;
   }
 

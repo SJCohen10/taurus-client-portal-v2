@@ -21,6 +21,17 @@ function getCurrentHashPath() {
   return hashWithoutPrefix || "/";
 }
 
+function getCanonicalAppHashUrl(hashPath = "/") {
+  const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
+  return `${window.location.origin}/app/#${sanitized}`;
+}
+
+function getCurrentHashPath() {
+  const rawHash = window.location.hash || "";
+  const hashWithoutPrefix = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  return hashWithoutPrefix || "/";
+}
+
 function buildCatalystLoginUrl() {
   const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
   loginUrl.searchParams.set("service_url", getCanonicalAppHashUrl(getCurrentHashPath()));

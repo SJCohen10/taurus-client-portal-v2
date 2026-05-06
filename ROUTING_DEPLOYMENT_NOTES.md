@@ -1,34 +1,48 @@
 # ROUTING_DEPLOYMENT_NOTES
 
-## 1) Why refresh on nested routes caused a 404
-The app uses React Router with `BrowserRouter` and a production basename of `/app`, so routes like `/app/seller-proceeds`, `/app/quick-rates`, and `/app/faq` are client-side routes. On browser refresh, Catalyst receives a direct HTTP request for those paths. Without an SPA fallback configured, hosting treats those as missing files and returns a 404 instead of serving the React entry point.
+## Why BrowserRouter caused 404s on Catalyst
+`BrowserRouter` uses real path URLs (for example `/app/seller-proceeds`). On refresh, Zoho Catalyst hosting receives that exact path as a file request. Catalyst hosting does not provide SPA rewrite fallback for these nested React paths, so it returns its platform 404 page.
 
-## 2) Which file/config fixes it
-Updated `client/client-package.json` to add:
+## Why Catalyst rejected `"404": "index.html"`
+Catalyst client hosting rejects mapping the 404 page to the same file as the home page. Attempting to set:
 
-- `"404": "index.html"`
+```json
+{
+  "404": "index.html"
+}
+```
 
-This tells Catalyst Web Client Hosting to serve `index.html` when a client-side route path under the hosted app would otherwise 404, allowing React Router to resolve the route in-browser.
+produces the Catalyst validation error: `404 cannot be same as the HOME page: index.html`.
 
-## 3) How to test it after deployment
-After deploying the client:
+## Why HashRouter solves it
+`HashRouter` keeps the route after `#` (fragment), so the server only receives `/app/` and never sees nested client routes. The browser handles `#/seller-proceeds`, `#/quick-rates`, etc., fully on the client side. That avoids refresh 404s on Catalyst.
 
-1. Open and sign in at `https://portal.tauruscapital.co.za/app/`.
-2. Confirm in-app navigation works.
-3. Hard refresh each URL directly in the browser:
-   - `https://portal.tauruscapital.co.za/app/`
-   - `https://portal.tauruscapital.co.za/app/seller-proceeds`
-   - `https://portal.tauruscapital.co.za/app/quick-rates`
-   - `https://portal.tauruscapital.co.za/app/faq`
-4. Confirm each loads the SPA and renders the expected React page (not Catalyst 404).
-5. Also verify canonicalization:
-   - `https://portal.tauruscapital.co.za/app` should redirect to `/app/`.
+## Final URL structure
+After this change, portal routes are hash-based:
 
-## 4) Routes that must continue to bypass SPA fallback
-These should continue to be handled by Catalyst platform routing (not React fallback):
+- `/app/#/`
+- `/app/#/seller-proceeds`
+- `/app/#/quick-rates`
+- `/app/#/faq`
 
-- Function/API routes: `/server/*` (e.g. `/server/getportalusercontext`, `/server/getportaldeals`, `/server/uploaddealdocument`, `/server/generatestatement`)
-- Catalyst auth/system routes: `/__catalyst/*` (e.g. `/__catalyst/auth/login`)
-- Static asset paths (`/app/static/*`, manifest, icons, etc.)
+## What changed
+- `App.js` now uses `HashRouter` globally (no BrowserRouter dev/prod split).
+- Login redirects now run consistently from the app shell and `/login` route, using the same Catalyst login URL builder flow.
+- Removed the previous sessionStorage-based login cooldown guard that could suppress redirects and leave users on the loading screen when unauthenticated.
+- Auth redirect URL builders generate Catalyst-safe hash URLs under `/app/#/...`.
+- Safe `service_url` handling preserves the intended hash route for post-login return.
+- Production canonical redirect normalizes `/`, `/app`, and `/app/` to hash URLs.
+- Removed invalid Catalyst client config key `"404": "index.html"` from `client/client-package.json`.
 
-If any of the above are unexpectedly returning `index.html`, validate Catalyst route precedence in hosting/gateway settings so platform routes are matched before client 404 handling.
+## How to test after deployment
+1. Open `https://portal.tauruscapital.co.za/app/#/` and authenticate.
+2. Verify internal navigation using menu/links and buttons.
+3. Hard refresh each route:
+   - `https://portal.tauruscapital.co.za/app/#/`
+   - `https://portal.tauruscapital.co.za/app/#/seller-proceeds`
+   - `https://portal.tauruscapital.co.za/app/#/quick-rates`
+   - `https://portal.tauruscapital.co.za/app/#/faq`
+4. Paste each route directly into a new tab and confirm it loads correctly.
+5. Verify back/forward browser navigation between pages.
+6. Confirm auth redirects return to `#/` or the requested hash route after login.
+7. Re-test API-backed pages/actions (dashboard, statements, notifications, uploads) to confirm no server route regressions.

@@ -104,6 +104,23 @@ body {
   align-self: flex-start;
 }
 
+.app-header-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.logout-button {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: none;
+  padding: 0.45rem 1rem;
+}
+
+.logout-button:hover:not(:disabled) {
+  background: var(--color-orange);
+}
+
 @media (max-width: 768px) {
   .app-header {
     padding: 1rem 1.25rem;
@@ -115,6 +132,12 @@ body {
 
   .app-header-logo {
     width: min(170px, 38vw);
+  }
+
+  .app-header-actions {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
   }
 }
 

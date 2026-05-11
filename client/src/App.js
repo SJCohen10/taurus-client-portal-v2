@@ -53,12 +53,12 @@ function LoginRedirect() {
   return <p className="subtle">Redirecting to Catalyst login…</p>;
 }
 
-function AccessErrorScreen({ requestId = "" }) {
+function AccessErrorScreen() {
   return (
     <div style={{ padding: "2rem" }}>
       <h2>Portal Access Issue</h2>
       <p>Your login was successful, but your Taurus portal access could not be verified. Please contact Taurus Capital if you believe this is incorrect.</p>
-      {requestId ? <p className="subtle">requestId: {requestId}</p> : null}
+      
     </div>
   );
 }
@@ -133,11 +133,11 @@ function ProtectedAppShell() {
         <div style={{ padding: "2rem" }}>
           <h2>Temporary Portal Error</h2>
           <p>{portal?.error || "Temporary server issue while loading your portal access. Please try again shortly."}</p>
-          {portal?.requestId ? <p className="subtle">requestId: {portal.requestId}</p> : null}
+
         </div>
       );
     }
-    if (portal?.authFailure) return <AccessErrorScreen requestId={portal?.requestId} />;
+    if (portal?.authFailure) return <AccessErrorScreen />;
     return <PortalLoadingScreen />;
   }
 

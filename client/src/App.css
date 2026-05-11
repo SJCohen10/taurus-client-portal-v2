@@ -332,3 +332,15 @@ body {
   margin-bottom: 8px;
   line-height: 1.5;
 }
+
+
+.app-nav-button {
+  appearance: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-nav-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}

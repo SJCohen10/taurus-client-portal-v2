@@ -10,7 +10,6 @@ export default function Layout() {
   const context = portal?.context || null;
   const loading = portal?.loading || false;
   const error = portal?.error || "";
-  const requestId = portal?.requestId || portal?.context?.requestId || "";
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   const accountName = context?.accountName || "Account";
@@ -57,9 +56,6 @@ export default function Layout() {
               alt="Taurus Capital"
               className="app-header-logo"
             />
-            <button type="button" className="button logout-button" onClick={handleLogout} disabled={isLoggingOut}>
-              {isLoggingOut ? "Signing out…" : "Logout"}
-            </button>
           </div>
 
         </div>
@@ -95,14 +91,17 @@ export default function Layout() {
           >
             FAQ
           </Link>
+          <button type="button" className="app-nav-link app-nav-button" onClick={handleLogout} disabled={isLoggingOut}>
+            {isLoggingOut ? "Signing out…" : "Logout"}
+          </button>
         </nav>
 
         {loading && (
           <p className="subtle" style={{ marginTop: "0.5rem" }}>
-            Loading CRM context…
+            Loading your profile…
           </p>
         )}
-        {error && <p className="error">Error: {error}{requestId ? ` | requestId: ${requestId}` : ""}</p>}
+        {error && <p className="error">{error}</p>}
       </header>
 
       <main className="app-main">

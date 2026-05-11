@@ -65,7 +65,14 @@ export function PortalProvider({ children }) {
 
   async function loadContext(resolvedEmail) {
     const query = resolvedEmail ? { email: resolvedEmail } : undefined;
-    return request("/getportalusercontext", { query });
+    const timeoutMs = 12000;
+
+    return Promise.race([
+      request("/getportalusercontext", { query }),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Portal context request timed out")), timeoutMs);
+      }),
+    ]);
   }
 
 
@@ -111,7 +118,7 @@ export function PortalProvider({ children }) {
 
         if (e?.status === 401) {
           setNeedsLogin(true);
-          setError("Your session has expired. Redirecting to login.");
+          setError("Your session has expired. Redirecting you to sign in again.");
           setRequestId(e.requestId || "");
         } else if (e?.status === 403) {
           setAuthFailure(true);
@@ -119,7 +126,7 @@ export function PortalProvider({ children }) {
           setRequestId(e.requestId || "");
         } else {
           setServerFailure(true);
-          setError("Temporary server issue while loading your portal access. Please try again shortly.");
+          setError("We could not load your portal details right now. Please try again shortly.");
           setRequestId(e.requestId || "");
         }
         if (isDebugRouting) {

@@ -207,13 +207,13 @@ export default function SellerProceedsAdvance({
             {portal?.error && (
                 <p className="error" style={{ marginTop: "0.5rem" }}>
                     Unable to load your firm details at the moment. The form will still load
-                    without CRM prefill.
+                    without pre-filled firm details.
                 </p>
             )}
 
             {!portal?.loading && !portal?.error && !crm && (
                 <p className="error" style={{ marginTop: "0.5rem" }}>
-                    Firm context is unavailable. The form will load without CRM prefill.
+                    Firm context is unavailable. The form will load without pre-filled firm details.
                 </p>
             )}
 

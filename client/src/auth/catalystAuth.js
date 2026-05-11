@@ -43,7 +43,23 @@ function callbackToPromise(fn, timeoutMs = 1500) {
   });
 }
 
+
+function waitForCatalystAuth(timeoutMs = 4000) {
+  if (window?.catalyst?.auth) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const timer = setInterval(() => {
+      if (window?.catalyst?.auth || Date.now() - start >= timeoutMs) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 100);
+  });
+}
+
 async function resolveCatalystCurrentUser() {
+  await waitForCatalystAuth();
   const auth = window?.catalyst?.auth;
   if (!auth) return null;
 

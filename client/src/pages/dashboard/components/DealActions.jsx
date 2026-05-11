@@ -397,7 +397,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             const response = await uploadDealDocument(payload);
             setMessage(
                 response?.message ||
-                "Uploaded to WorkDrive. You can find it in the property folder."
+                "Document uploaded successfully."
             );
             setOpen(false);
         } catch (err) {
@@ -428,7 +428,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 email: portalEmail,
             });
             if (!response?.statementUrl) {
-                throw new Error("No statement URL was returned.");
+                throw new Error("We could not prepare the statement download. Please try again.");
             }
 
             // Navigate the already-open tab to the final Creator URL
@@ -460,7 +460,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         }
 
         if (!portalEmail) {
-            setMessage("Missing portal user email.");
+            setMessage("We could not verify your profile. Please sign in again.");
             return;
         }
 
@@ -648,17 +648,17 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         }
 
         if (!portalEmail) {
-            setExpectedLodgementError("Missing portal user email.");
+            setExpectedLodgementError("We could not verify your profile. Please sign in again.");
             return;
         }
 
         if (!/^\d+$/.test(String(dealId || ""))) {
-            setExpectedLodgementError("No CRM deal id is available for this row.");
+            setExpectedLodgementError("This deal is missing required details. Please contact Taurus Capital.");
             return;
         }
         const target = resolveNoteTarget();
         if (!target) {
-            setExpectedLodgementError("No Deal or Asset id is available for this row.");
+            setExpectedLodgementError("This item is missing required details. Please contact Taurus Capital.");
             return;
         }
 
@@ -683,7 +683,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             setExpectedLodgementReason("");
             setMessage("Expected Lodgement Date updated and note added.");
         } catch (error) {
-            setExpectedLodgementError(error.message || "Unable to update Expected Lodgement Date.");
+            setExpectedLodgementError(error.message || "We could not update the expected lodgement date right now.");
         } finally {
             setExpectedLodgementSaving(false);
         }
@@ -698,11 +698,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             return;
         }
         if (!portalEmail) {
-            setMatterLodgedError("Missing portal user email.");
+            setMatterLodgedError("We could not verify your profile. Please sign in again.");
             return;
         }
         if (!/^\d+$/.test(String(dealId || ""))) {
-            setMatterLodgedError("No CRM deal id is available for this row.");
+            setMatterLodgedError("This deal is missing required details. Please contact Taurus Capital.");
             return;
         }
 
@@ -720,7 +720,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             setMatterLodgedOpen(false);
             setMessage("Matter marked as lodged.");
         } catch (error) {
-            setMatterLodgedError(error.message || "Unable to update matter lodged status.");
+            setMatterLodgedError(error.message || "We could not update the matter lodged status right now.");
         } finally {
             setMatterLodgedSaving(false);
         }
@@ -833,7 +833,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
         const target = resolveNoteTarget();
         if (!target) {
-            setNoteError("No Deal or Asset id is available for this row.");
+            setNoteError("This item is missing required details. Please contact Taurus Capital.");
             return;
         }
 
@@ -980,7 +980,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                             role="menuitem"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={uploading || !canUploadDocument}
-                            title={!canUploadDocument ? "Missing WorkDrive folder or identifiers. Ask support to create a folder / fix Analytics mapping." : "Upload document"}
+                            title={!canUploadDocument ? "This deal is not ready for uploads yet. Please contact Taurus Capital for assistance." : "Upload document"}
                             style={{
                                 width: "100%",
                                 textAlign: "left",

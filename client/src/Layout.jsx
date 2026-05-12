@@ -91,7 +91,7 @@ export default function Layout() {
           >
             FAQ
           </Link>
-          <button type="button" className="app-nav-link app-nav-button" onClick={handleLogout} disabled={isLoggingOut}>
+          <button type="button" className="app-nav-link app-nav-button" style={{ fontWeight: 600 }} onClick={handleLogout} disabled={isLoggingOut}>
             {isLoggingOut ? "Signing out…" : "Logout"}
           </button>
         </nav>

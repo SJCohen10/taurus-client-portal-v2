@@ -28,13 +28,11 @@ async function request(path, { method = "GET", query, body, signal } = {}) {
     }
 
     const requestId = parsed?.requestId;
-    const baseMessage = parsed?.error || text || `API error ${res.status}`;
-    const message = requestId
-      ? `API error ${res.status}: ${baseMessage} (requestId: ${requestId})`
-      : `API error ${res.status}: ${baseMessage}`;
-    const error = new Error(message);
+    const technicalMessage = parsed?.error || text || `API error ${res.status}`;
+    const error = new Error(`Request failed with status ${res.status}`);
     error.status = res.status;
-    if (requestId) error.requestId = requestId;
+    error.requestId = requestId || "";
+    error.technicalMessage = technicalMessage;
     if (parsed?.details) error.details = parsed.details;
     throw error;
   }

@@ -11,6 +11,12 @@ export function getCatalystLoginUrl(serviceUrl = getAppReturnUrl()) {
   return loginUrl.toString();
 }
 
+export function getCatalystLogoutUrl(serviceUrl = getAppReturnUrl()) {
+  const logoutUrl = new URL("/__catalyst/auth/logout", window.location.origin);
+  logoutUrl.searchParams.set("service_url", serviceUrl);
+  return logoutUrl.toString();
+}
+
 export function authDebugLog(message, data = {}) {
   if (!isDebugAuth) return;
   console.info(`[PortalAuth] ${message}`, data);

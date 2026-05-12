@@ -93,18 +93,12 @@ function ProtectedAppShell() {
   }, [portal?.loading, portal?.authenticated, portal?.authFailure, portal?.needsLogin, portal?.serverFailure, safeServiceUrl]);
 
   React.useEffect(() => {
-    if (portal?.loading || portal?.authenticated || portal?.authFailure || portal?.serverFailure) return;
-
+    if (!portal?.needsLogin || portal?.loading || portal?.authenticated) return;
     if (redirectAttemptedRef.current) return;
 
     redirectAttemptedRef.current = true;
     redirectToLogin(safeServiceUrl, "protected-shell-needs-login");
-  }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.serverFailure, safeServiceUrl]);
-
-  React.useEffect(() => {
-    if (!portal?.needsLogin) return;
-    redirectToLogin(safeServiceUrl, "protected-shell-unauthenticated");
-  }, [portal?.needsLogin, safeServiceUrl]);
+  }, [portal?.needsLogin, portal?.loading, portal?.authenticated, safeServiceUrl]);
 
   if (portal?.loading) {
     if (showLongLoadingMessage) {
@@ -129,6 +123,7 @@ function ProtectedAppShell() {
       );
     }
     if (portal?.authFailure) return <AccessErrorScreen />;
+    if (portal?.needsLogin) return <p className="subtle" style={{ padding: "2rem" }}>Redirecting to login…</p>;
     return <PortalLoadingScreen />;
   }
 

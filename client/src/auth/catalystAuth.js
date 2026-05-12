@@ -14,7 +14,7 @@ function extractEmail(candidate) {
   );
 }
 
-function waitForCatalystAuth(timeoutMs = 4000) {
+export function waitForCatalystAuthReady(timeoutMs = 5000) {
   if (window?.catalyst?.auth) return Promise.resolve();
 
   return new Promise((resolve) => {
@@ -29,7 +29,7 @@ function waitForCatalystAuth(timeoutMs = 4000) {
 }
 
 async function resolveCatalystCurrentUser() {
-  await waitForCatalystAuth();
+  await waitForCatalystAuthReady();
   const auth = window?.catalyst?.auth;
   if (!auth) return null;
 

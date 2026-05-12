@@ -1,6 +1,6 @@
 import { request } from "./api/catalystClient";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
-import { resolveAuthenticatedPortalIdentity } from "./auth/catalystAuth";
+import { resolveAuthenticatedPortalIdentity, waitForCatalystAuthReady } from "./auth/catalystAuth";
 import { LOGOUT_BROADCAST_CHANNEL, LOGOUT_BROADCAST_EVENT, LOGOUT_STORAGE_KEY, logoutAndRedirect } from "./auth/logout";
 import { authDebugLog, clearPortalAuthState, getAppReturnUrl } from "./auth/portalAuth";
 
@@ -64,12 +64,12 @@ export function PortalProvider({ children }) {
     };
   }
 
-  async function loadContext(resolvedEmail) {
+  async function loadContext(resolvedEmail, signal) {
     const query = resolvedEmail ? { email: resolvedEmail } : undefined;
     const timeoutMs = 12000;
 
     return Promise.race([
-      request("/getportalusercontext", { query }),
+      request("/getportalusercontext", { query, signal }),
       new Promise((_, reject) => {
         setTimeout(() => reject(new Error("Portal context request timed out")), timeoutMs);
       }),
@@ -81,6 +81,8 @@ export function PortalProvider({ children }) {
     if (process.env.NODE_ENV === "development" && hasLoadedRef.current) return;
     hasLoadedRef.current = true;
 
+    const controller = new AbortController();
+
     (async () => {
       try {
         setLoading(true);
@@ -90,13 +92,24 @@ export function PortalProvider({ children }) {
         setNeedsLogin(false);
         setServerFailure(false);
 
+        await waitForCatalystAuthReady();
         const identity = await resolveIdentity();
-        setEmail(identity.email);
+        const resolvedEmail = String(identity.email || "").trim().toLowerCase();
 
-        // optional: keep whichever Catalyst/portal user object was found
+        setEmail(resolvedEmail);
         setUser(identity.user || null);
 
-        const ctx = await loadContext(identity.email);
+        if (!resolvedEmail) {
+          clearPortalAuthState();
+          setNeedsLogin(true);
+          setAuthenticated(false);
+          setContext(null);
+          setError("");
+          setRequestId("");
+          return;
+        }
+
+        const ctx = await loadContext(resolvedEmail, controller.signal);
         setContext(ctx);
         setAuthenticated(true);
         setAuthFailure(false);
@@ -113,6 +126,7 @@ export function PortalProvider({ children }) {
 
 
       } catch (e) {
+        if (e?.name === "AbortError") return;
         console.error(e);
         setAuthenticated(false);
         setContext(null);

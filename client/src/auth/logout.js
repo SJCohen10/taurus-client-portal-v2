@@ -1,28 +1,8 @@
+import { authDebugLog, clearPortalAuthState, getAppReturnUrl, getCatalystLoginUrl } from "./portalAuth";
+
 const LOGOUT_BROADCAST_CHANNEL = "taurus-portal-auth";
 const LOGOUT_BROADCAST_EVENT = "logout";
 const LOGOUT_STORAGE_KEY = "taurus.portal.logout";
-
-function buildCatalystLoginUrl(serviceUrl = `${window.location.origin}/app/#/`) {
-  const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
-  loginUrl.searchParams.set("service_url", serviceUrl);
-  return loginUrl.toString();
-}
-
-function clearAuthStorage() {
-  const shouldRemoveKey = (key) => /auth|catalyst|portal/i.test(String(key || ""));
-  [window.localStorage, window.sessionStorage].forEach((storage) => {
-    try {
-      const keysToRemove = [];
-      for (let index = 0; index < storage.length; index += 1) {
-        const key = storage.key(index);
-        if (shouldRemoveKey(key)) keysToRemove.push(key);
-      }
-      keysToRemove.forEach((key) => storage.removeItem(key));
-    } catch (error) {
-      console.warn("[PortalAuth] Failed to clear storage", error);
-    }
-  });
-}
 
 async function catalystSignOut() {
   const auth = window?.catalyst?.auth;
@@ -52,19 +32,21 @@ function notifyLogoutToOtherTabs() {
   }
 }
 
-export async function performPortalLogout({ serviceUrl } = {}) {
-  const loginUrl = buildCatalystLoginUrl(serviceUrl);
+export async function logoutAndRedirect({ serviceUrl = getAppReturnUrl() } = {}) {
+  const loginUrl = getCatalystLoginUrl(serviceUrl);
 
   try {
     await catalystSignOut();
+    authDebugLog("logout-sdk-signout-success");
   } catch (error) {
-    console.error("[PortalAuth] Catalyst sign out failed", error);
+    authDebugLog("logout-sdk-signout-failed", { message: error?.message || String(error) });
   } finally {
-    clearAuthStorage();
+    clearPortalAuthState();
     notifyLogoutToOtherTabs();
+    authDebugLog("logout-state-cleared", { loginUrl, serviceUrl });
   }
 
   window.location.replace(loginUrl);
 }
 
-export { LOGOUT_BROADCAST_CHANNEL, LOGOUT_BROADCAST_EVENT, LOGOUT_STORAGE_KEY, clearAuthStorage };
+export { LOGOUT_BROADCAST_CHANNEL, LOGOUT_BROADCAST_EVENT, LOGOUT_STORAGE_KEY, clearPortalAuthState };

@@ -1,7 +1,8 @@
 import { request } from "./api/catalystClient";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { resolveAuthenticatedPortalIdentity } from "./auth/catalystAuth";
-import { LOGOUT_BROADCAST_CHANNEL, LOGOUT_BROADCAST_EVENT, LOGOUT_STORAGE_KEY, performPortalLogout } from "./auth/logout";
+import { LOGOUT_BROADCAST_CHANNEL, LOGOUT_BROADCAST_EVENT, LOGOUT_STORAGE_KEY, logoutAndRedirect } from "./auth/logout";
+import { authDebugLog, clearPortalAuthState, getAppReturnUrl } from "./auth/portalAuth";
 
 const PortalContext = createContext(null);
 const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
@@ -49,7 +50,7 @@ export function PortalProvider({ children }) {
   const logout = React.useCallback(async () => {
     setLoading(true);
     resetAuthState();
-    await performPortalLogout({ serviceUrl: `${window.location.origin}/app/#/` });
+    await logoutAndRedirect({ serviceUrl: getAppReturnUrl() });
   }, [resetAuthState]);
 
   async function resolveIdentity() {
@@ -117,10 +118,13 @@ export function PortalProvider({ children }) {
         setContext(null);
 
         if (e?.status === 401) {
+          clearPortalAuthState();
           setNeedsLogin(true);
-          setError("Your session has expired. Redirecting you to sign in again.");
+          setError("");
           setRequestId(e.requestId || "");
+          authDebugLog("portal-context-unauthorized", { status: e?.status, requestId: e?.requestId || "" });
         } else if (e?.status === 403) {
+          clearPortalAuthState();
           setAuthFailure(true);
           setError("Your login was successful, but your Taurus portal access could not be verified. Please contact Taurus Capital if you believe this is incorrect.");
           setRequestId(e.requestId || "");

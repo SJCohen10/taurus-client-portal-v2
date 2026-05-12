@@ -338,6 +338,9 @@ body {
   appearance: none;
   font: inherit;
   cursor: pointer;
+  background: transparent;
+  border: 0;
+  color: var(--color-white);
 }
 
 .app-nav-button:disabled {

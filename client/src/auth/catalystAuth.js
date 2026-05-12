@@ -14,36 +14,6 @@ function extractEmail(candidate) {
   );
 }
 
-function callbackToPromise(fn, timeoutMs = 1500) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const timeout = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        reject(new Error("Catalyst auth callback timed out"));
-      }
-    }, timeoutMs);
-
-    const done = (result) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      resolve(result);
-    };
-
-    try {
-      fn(done);
-    } catch (err) {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timeout);
-        reject(err);
-      }
-    }
-  });
-}
-
-
 function waitForCatalystAuth(timeoutMs = 4000) {
   if (window?.catalyst?.auth) return Promise.resolve();
 
@@ -77,12 +47,6 @@ async function resolveCatalystCurrentUser() {
       const result = await auth.isUserAuthenticated();
       if (result && typeof result === "object") return result;
     } catch {
-      try {
-        const result = await callbackToPromise((done) => auth.isUserAuthenticated(done));
-        if (result && typeof result === "object") return result;
-      } catch {
-        // fall through
-      }
     }
   }
 

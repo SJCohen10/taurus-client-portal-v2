@@ -7,9 +7,11 @@ import QuickRatesAdvance from "./pages/forms/property/QuickRatesAdvance";
 import FaqPage from "./pages/faq/FaqPage";
 
 import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
+import { getAppReturnUrl, redirectToLogin } from "./auth/portalAuth";
 
 const isProduction = process.env.NODE_ENV === "production";
 const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
+
 
 const buildAppHashUrl = (hashPath = "/") => {
   const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
@@ -23,17 +25,6 @@ function getCurrentHashPath() {
   return normalized.startsWith("/") ? normalized : `/${normalized}`;
 }
 
-function buildCatalystLoginUrl() {
-  const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
-  loginUrl.searchParams.set("service_url", buildAppHashUrl(getCurrentHashPath()));
-  return loginUrl.toString();
-}
-
-function buildCatalystLoginUrlForServiceUrl(serviceUrl) {
-  const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
-  loginUrl.searchParams.set("service_url", serviceUrl);
-  return loginUrl.toString();
-}
 function getSafeServiceUrl() {
   const { pathname, hash } = window.location;
   const hasHashRoute = Boolean(hash && hash.startsWith("#/"));
@@ -47,7 +38,7 @@ function getSafeServiceUrl() {
 
 function LoginRedirect() {
   React.useEffect(() => {
-    window.location.replace(buildCatalystLoginUrl());
+    redirectToLogin(getAppReturnUrl(), "route-login");
   }, []);
 
   return <p className="subtle">Redirecting to Catalyst login…</p>;
@@ -107,12 +98,12 @@ function ProtectedAppShell() {
     if (redirectAttemptedRef.current) return;
 
     redirectAttemptedRef.current = true;
-    window.location.replace(buildCatalystLoginUrlForServiceUrl(safeServiceUrl));
+    redirectToLogin(safeServiceUrl, "protected-shell-needs-login");
   }, [portal?.authenticated, portal?.loading, portal?.authFailure, portal?.serverFailure, safeServiceUrl]);
 
   React.useEffect(() => {
     if (!portal?.needsLogin) return;
-    window.location.replace(buildCatalystLoginUrlForServiceUrl(safeServiceUrl));
+    redirectToLogin(safeServiceUrl, "protected-shell-unauthenticated");
   }, [portal?.needsLogin, safeServiceUrl]);
 
   if (portal?.loading) {

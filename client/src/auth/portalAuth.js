@@ -1,21 +1,14 @@
+import { buildCatalystLoginUrl, buildCatalystLogoutUrl, getCleanAppReturnUrl } from "./authUrls";
+
 const isDebugAuth =
   process.env.NODE_ENV !== "production" || process.env.REACT_APP_DEBUG_AUTH === "true";
 
 export function getAppReturnUrl() {
-  return `${window.location.origin}/app/#/`;
+  return getCleanAppReturnUrl();
 }
 
-export function getCatalystLoginUrl(serviceUrl = getAppReturnUrl()) {
-  const loginUrl = new URL("/__catalyst/auth/login", window.location.origin);
-  loginUrl.searchParams.set("service_url", serviceUrl);
-  return loginUrl.toString();
-}
-
-export function getCatalystLogoutUrl(serviceUrl = getAppReturnUrl()) {
-  const logoutUrl = new URL("/__catalyst/auth/logout", window.location.origin);
-  logoutUrl.searchParams.set("service_url", serviceUrl);
-  return logoutUrl.toString();
-}
+export const getCatalystLoginUrl = buildCatalystLoginUrl;
+export const getCatalystLogoutUrl = buildCatalystLogoutUrl;
 
 export function authDebugLog(message, data = {}) {
   if (!isDebugAuth) return;

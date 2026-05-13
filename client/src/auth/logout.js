@@ -1,4 +1,4 @@
-import { authDebugLog, clearPortalAuthState, getAppReturnUrl, getCatalystLoginUrl, getCatalystLogoutUrl } from "./portalAuth";
+import { authDebugLog, clearPortalAuthState, getAppReturnUrl, getCatalystLogoutUrl } from "./portalAuth";
 
 const LOGOUT_BROADCAST_CHANNEL = "taurus-portal-auth";
 const LOGOUT_BROADCAST_EVENT = "logout";
@@ -33,8 +33,7 @@ function notifyLogoutToOtherTabs() {
 }
 
 export async function logoutAndRedirect({ serviceUrl = getAppReturnUrl() } = {}) {
-  const loginUrl = getCatalystLoginUrl(serviceUrl);
-  const logoutUrl = getCatalystLogoutUrl(loginUrl);
+  const logoutUrl = getCatalystLogoutUrl(serviceUrl);
 
   try {
     await catalystSignOut();
@@ -44,7 +43,7 @@ export async function logoutAndRedirect({ serviceUrl = getAppReturnUrl() } = {})
   } finally {
     clearPortalAuthState();
     notifyLogoutToOtherTabs();
-    authDebugLog("logout-state-cleared", { loginUrl, logoutUrl, serviceUrl });
+    authDebugLog("logout-state-cleared", { logoutUrl, serviceUrl });
   }
 
   window.location.replace(logoutUrl);

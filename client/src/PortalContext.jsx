@@ -33,7 +33,7 @@ export function PortalProvider({ children }) {
   const [authFailure, setAuthFailure] = useState(false);
   const [needsLogin, setNeedsLogin] = useState(false);
   const [serverFailure, setServerFailure] = useState(false);
-  const hasLoadedRef = useRef(false);
+  const bootstrapStartedRef = useRef(false);
 
   const resetAuthState = React.useCallback(() => {
     setUser(null);
@@ -78,8 +78,8 @@ export function PortalProvider({ children }) {
 
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "development" && hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
+    if (bootstrapStartedRef.current) return;
+    bootstrapStartedRef.current = true;
 
     const controller = new AbortController();
 
@@ -92,14 +92,14 @@ export function PortalProvider({ children }) {
         setNeedsLogin(false);
         setServerFailure(false);
 
-        await waitForCatalystAuthReady();
+        await waitForCatalystAuthReady({ timeoutMs: 5000 });
         const identity = await resolveIdentity();
         const resolvedEmail = String(identity.email || "").trim().toLowerCase();
 
         setEmail(resolvedEmail);
         setUser(identity.user || null);
 
-        if (!resolvedEmail) {
+        if (!resolvedEmail || identity.readinessStatus === "unauthenticated") {
           clearPortalAuthState();
           setNeedsLogin(true);
           setAuthenticated(false);

@@ -64,12 +64,11 @@ export function PortalProvider({ children }) {
     };
   }
 
-  async function loadContext(resolvedEmail, signal) {
-    const query = resolvedEmail ? { email: resolvedEmail } : undefined;
+  async function loadContext(_resolvedEmail, signal) {
     const timeoutMs = 12000;
 
     return Promise.race([
-      request("/getportalusercontext", { query, signal }),
+      request("/getportalusercontext", { signal }),
       new Promise((_, reject) => {
         setTimeout(() => reject(new Error("Portal context request timed out")), timeoutMs);
       }),
@@ -92,22 +91,14 @@ export function PortalProvider({ children }) {
         setNeedsLogin(false);
         setServerFailure(false);
 
-        await waitForCatalystAuthReady({ timeoutMs: 5000 });
-        const identity = await resolveIdentity();
-        const resolvedEmail = String(identity.email || "").trim().toLowerCase();
+        // Do NOT call Catalyst Web SDK current-user methods here.
+        // On first load they can call /baas/.../project-user/current before the
+        // Catalyst browser session is ready, causing AUTHENTICATION_FAILURE.
+        // The backend endpoint is the authoritative auth check.
+        const ctx = await loadContext("", controller.signal);
 
-        setEmail(resolvedEmail);
-        setUser(identity.user || null);
-
-        if (!resolvedEmail || identity.readinessStatus === "unauthenticated") {
-          clearPortalAuthState();
-          setNeedsLogin(true);
-          setAuthenticated(false);
-          setContext(null);
-          setError("");
-          setRequestId("");
-          return;
-        }
+        setEmail(String(ctx?.contactEmail || ctx?.email || "").trim().toLowerCase());
+        setUser(ctx?.user || null);
 
         const ctx = await loadContext(resolvedEmail, controller.signal);
         setContext(ctx);

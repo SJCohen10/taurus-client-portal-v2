@@ -14,63 +14,65 @@ function extractEmail(candidate) {
   );
 }
 
-export function waitForCatalystAuthReady(timeoutMs = 5000) {
-  if (window?.catalyst?.auth) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const timer = setInterval(() => {
-      if (window?.catalyst?.auth || Date.now() - start >= timeoutMs) {
-        clearInterval(timer);
-        resolve();
-      }
-    }, 100);
-  });
+function isRetryableAuthFailure(error) {
+  const code = error?.data?.error_code || error?.error_code;
+  return code === "AUTHENTICATION_FAILURE";
 }
 
-async function resolveCatalystCurrentUser() {
-  await waitForCatalystAuthReady();
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForCatalystAuthReady({ timeoutMs = 5000, intervalMs = 100 } = {}) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (window?.catalyst?.auth) return { status: "authenticated" };
+    await sleep(intervalMs);
+  }
+  return { status: "auth_unavailable" };
+}
+
+async function resolveCatalystCurrentUser({ timeoutMs = 2500 } = {}) {
+  const ready = await waitForCatalystAuthReady({ timeoutMs });
+  if (ready.status === "auth_unavailable") return { status: "auth_unavailable", user: null };
+
   const auth = window?.catalyst?.auth;
-  if (!auth) return null;
+  const start = Date.now();
+  let attempt = 0;
 
-  if (typeof auth.getCurrentUser === "function") {
+  while (Date.now() - start < timeoutMs) {
+    attempt += 1;
     try {
-      const user = await auth.getCurrentUser();
-      if (user) return user;
-    } catch {
-      // fall through
+      if (typeof auth?.getCurrentUser === "function") {
+        const user = await auth.getCurrentUser();
+        if (user) return { status: "authenticated", user };
+      }
+
+      if (typeof auth?.isUserAuthenticated === "function") {
+        const result = await auth.isUserAuthenticated();
+        if (result && typeof result === "object") return { status: "authenticated", user: result };
+      }
+
+      if (auth?.currentUser && typeof auth.currentUser === "object") {
+        return { status: "authenticated", user: auth.currentUser };
+      }
+    } catch (error) {
+      if (!isRetryableAuthFailure(error) || Date.now() - start >= timeoutMs) {
+        return { status: isRetryableAuthFailure(error) ? "unauthenticated" : "error", user: null, error };
+      }
     }
+
+    await sleep(Math.min(100 * 2 ** (attempt - 1), 500));
   }
 
-  if (typeof auth.isUserAuthenticated === "function") {
-    try {
-      const result = await auth.isUserAuthenticated();
-      if (result && typeof result === "object") return result;
-    } catch {
-    }
-  }
-
-  if (auth.currentUser && typeof auth.currentUser === "object") {
-    return auth.currentUser;
-  }
-
-  return null;
+  return { status: "unauthenticated", user: null };
 }
 
 export async function resolveAuthenticatedPortalIdentity() {
-  const catalyst = window?.catalyst;
-  const auth = catalyst?.auth;
   const portalUser = window?.portalUser || null;
-  const debugState = {
-    catalystExists: Boolean(catalyst),
-    catalystAuthExists: Boolean(auth),
-    getCurrentUserExists: typeof auth?.getCurrentUser === "function",
-    isUserAuthenticatedExists: typeof auth?.isUserAuthenticated === "function",
-    authCurrentUserExists: Boolean(auth?.currentUser),
-    portalUserExists: Boolean(portalUser),
-  };
+  const identity = await resolveCatalystCurrentUser();
+  const catalystUser = identity.user;
 
-  const catalystUser = await resolveCatalystCurrentUser();
   const catalystEmail = extractEmail(catalystUser);
   const catalystContentEmail = extractEmail(catalystUser?.content);
   const portalUserEmail = extractEmail(portalUser);
@@ -84,21 +86,12 @@ export async function resolveAuthenticatedPortalIdentity() {
         ? "window_portal_user"
         : "none";
 
-  const user =
-    source === "catalyst_auth_content"
-      ? catalystUser?.content || catalystUser || portalUser
-      : catalystUser || portalUser;
-
-  console.debug("[PortalAuth] Identity resolution", {
-    ...debugState,
-    source,
-    emailFound: Boolean(email),
-    email,
-  });
+  const user = source === "catalyst_auth_content" ? catalystUser?.content || catalystUser || portalUser : catalystUser || portalUser;
 
   return {
     user,
     email,
     source,
+    readinessStatus: identity.status,
   };
 }

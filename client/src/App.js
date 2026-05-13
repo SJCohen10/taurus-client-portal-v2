@@ -8,6 +8,7 @@ import FaqPage from "./pages/faq/FaqPage";
 
 import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 import { getAppReturnUrl, redirectToLogin } from "./auth/portalAuth";
+import { normalizePortalReturnUrl } from "./auth/authUrls";
 
 const isProduction = process.env.NODE_ENV === "production";
 const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
@@ -28,12 +29,9 @@ function getCurrentHashPath() {
 function getSafeServiceUrl() {
   const { pathname, hash } = window.location;
   const hasHashRoute = Boolean(hash && hash.startsWith("#/"));
-  if (pathname.startsWith("/__catalyst/")) return buildAppHashUrl("/");
-  if (pathname === "/" || pathname === "/app" || pathname === "/app/") {
-    return hasHashRoute ? buildAppHashUrl(getCurrentHashPath()) : buildAppHashUrl("/");
-  }
-  if (pathname.startsWith("/app/")) return hasHashRoute ? buildAppHashUrl(getCurrentHashPath()) : buildAppHashUrl("/");
-  return buildAppHashUrl("/");
+  if (pathname.startsWith("/__catalyst/")) return getAppReturnUrl();
+  const preferred = hasHashRoute ? buildAppHashUrl(getCurrentHashPath()) : getAppReturnUrl();
+  return normalizePortalReturnUrl(preferred);
 }
 
 function LoginRedirect() {

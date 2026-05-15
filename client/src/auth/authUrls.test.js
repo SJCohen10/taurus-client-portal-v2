@@ -1,34 +1,51 @@
 import {
   buildCatalystLoginUrl,
   buildCatalystLogoutUrl,
-  getCleanAppReturnUrl,
   normalizePortalReturnUrl,
 } from "./authUrls";
 
-describe("auth URL helpers", () => {
-  beforeEach(() => {
-    delete window.location;
-    window.location = new URL("https://portal.tauruscapital.co.za/app/#/dashboard");
+describe("production-safe auth urls", () => {
+  test("production login URL shape", () => {
+    const origin = window.location.origin;
+    const loginUrl = buildCatalystLoginUrl(`${origin}/app/#/`);
+    expect(loginUrl).toBe(
+      `${origin}/__catalyst/auth/login?service_url=${encodeURIComponent(`${origin}/app/#/`)}`
+    );
   });
 
-  test("builds login url with clean app return url", () => {
-    const url = buildCatalystLoginUrl("https://portal.tauruscapital.co.za/app/");
-    expect(url).toBe("https://portal.tauruscapital.co.za/__catalyst/auth/login?service_url=https%3A%2F%2Fportal.tauruscapital.co.za%2Fapp%2F");
+  test("production logout URL shape", () => {
+    const origin = window.location.origin;
+    const logoutUrl = buildCatalystLogoutUrl(`${origin}/app/#/`);
+    expect(logoutUrl).toBe(
+      `${origin}/__catalyst/auth/logout?service_url=${encodeURIComponent(`${origin}/app/`)}`
+    );
   });
 
-  test("builds logout url with clean app return url", () => {
-    const url = buildCatalystLogoutUrl("https://portal.tauruscapital.co.za/app/");
-    expect(url).toBe("https://portal.tauruscapital.co.za/__catalyst/auth/logout?service_url=https%3A%2F%2Fportal.tauruscapital.co.za%2Fapp%2F");
+  test("never generates development domain", () => {
+    const loginUrl = buildCatalystLoginUrl("https://taurus-client-portal-889090616.development.catalystserverless.com/app/#/");
+    expect(loginUrl).not.toContain("development.catalystserverless.com");
   });
 
-  test("normalizes nested catalyst auth url back to app", () => {
-    const nested = "https://portal.tauruscapital.co.za/__catalyst/auth/login?service_url=https%3A%2F%2Fportal.tauruscapital.co.za%2Fapp%2F%23%2F";
-    expect(normalizePortalReturnUrl(nested)).toBe(getCleanAppReturnUrl());
+  test("nested auth service urls are normalized", () => {
+    const origin = window.location.origin;
+    const normalized = normalizePortalReturnUrl(
+      `${origin}/__catalyst/auth/login?service_url=${encodeURIComponent(`${origin}/app/#/`)}`
+    );
+    expect(normalized).toBe(`${origin}/app/#/`);
   });
 
-  test("logout service url never points at catalyst login", () => {
-    const nested = "https://portal.tauruscapital.co.za/__catalyst/auth/login?service_url=https%3A%2F%2Fportal.tauruscapital.co.za%2Fapp%2F";
-    const url = buildCatalystLogoutUrl(nested);
-    expect(decodeURIComponent(url)).not.toContain("/__catalyst/auth/login");
+  test("external origins are rejected", () => {
+    const origin = window.location.origin;
+    expect(normalizePortalReturnUrl("https://evil.example/app/#/")).toBe(`${origin}/app/#/`);
+  });
+
+  test("/app becomes /app/", () => {
+    const origin = window.location.origin;
+    expect(normalizePortalReturnUrl(`${origin}/app`)).toBe(`${origin}/app/`);
+  });
+
+  test("safe hash routes are preserved", () => {
+    const origin = window.location.origin;
+    expect(normalizePortalReturnUrl(`${origin}/app/#/dashboard`)).toBe(`${origin}/app/#/dashboard`);
   });
 });

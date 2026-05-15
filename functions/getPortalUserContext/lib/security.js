@@ -30,6 +30,10 @@ function getIdentityCandidates(req) {
     { source: "header.x-forwarded-user-email", value: headers["x-forwarded-user-email"] },
   ];
 }
+function getRefererOrigin(referer) {
+  try { return referer ? new URL(referer).origin : ""; } catch { return ""; }
+}
+
 function getAuthContextDebugMeta(req) {
   const headers = req?.headers || {};
   const user = req?.user || null;
@@ -48,6 +52,9 @@ function getAuthContextDebugMeta(req) {
     "x-zc-userdetails",
   ].filter((name) => Boolean(headers[name]));
   return {
+    host: headers.host || "",
+    origin: headers.origin || "",
+    refererOrigin: getRefererOrigin(headers.referer || headers.referrer || ""),
     hadReqUser: Boolean(user),
     reqUserKeys: user ? Object.keys(user) : [],
     presentIdentityHeaders,
@@ -66,11 +73,8 @@ function getAuthenticatedEmail(req) {
 function resolveUserContext(req, requestedEmail) {
   const authEmail = getAuthenticatedEmail(req);
   const requested = normalizeEmail(requestedEmail);
-  const allowQueryOverrideInProd = String(process.env.PORTAL_ALLOW_EMAIL_QUERY_OVERRIDE || "false").toLowerCase() === "true";
-  const allowRequestedFallback = process.env.NODE_ENV !== "production" || allowQueryOverrideInProd;
   if (authEmail && requested && authEmail !== requested) { const err = new Error("User mismatch"); err.statusCode = 403; throw err; }
   if (authEmail) return { email: authEmail, source: "authenticated_user" };
-  if (requested && allowRequestedFallback) return { email: requested, source: allowQueryOverrideInProd ? "query_override" : "query_fallback" };
   const err = new Error("Missing authenticated user context");
   err.statusCode = 401;
   throw err;

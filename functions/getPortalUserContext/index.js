@@ -140,9 +140,13 @@ module.exports = async (req, res) => {
       console.warn("getPortalUserContext identity resolution failed", {
         requestId,
         message: identityErr.message,
+        host: authDebugMeta.host,
+        origin: authDebugMeta.origin,
+        refererOrigin: authDebugMeta.refererOrigin,
         hadReqUser: authDebugMeta.hadReqUser,
         reqUserKeys: authDebugMeta.reqUserKeys,
         presentIdentityHeaders: authDebugMeta.presentIdentityHeaders,
+        userDetailsParsed: authDebugMeta.userDetailsParsed,
         parsedUserDetailsKeys: authDebugMeta.parsedUserDetailsKeys,
         hasAnyCandidateEmail: authDebugMeta.hasAnyCandidateEmail,
         hasRequestedEmail: Boolean(String(requestedEmail || "").trim()),

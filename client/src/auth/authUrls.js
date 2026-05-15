@@ -1,11 +1,16 @@
 const APP_BASE_PATH = "/app/";
+const APP_HASH_HOME = "#/";
 
 function getPortalBaseUrl() {
   return window.location.origin;
 }
 
+function canonicalAppServiceUrl() {
+  return new URL(`${APP_BASE_PATH}${APP_HASH_HOME}`, getPortalBaseUrl()).toString();
+}
+
 export function getCleanAppReturnUrl() {
-  return new URL(APP_BASE_PATH, getPortalBaseUrl()).toString();
+  return canonicalAppServiceUrl();
 }
 
 export function isCatalystAuthUrl(url) {
@@ -18,41 +23,35 @@ export function isCatalystAuthUrl(url) {
 }
 
 export function normalizePortalReturnUrl(url) {
-  const fallback = getCleanAppReturnUrl();
+  const fallback = canonicalAppServiceUrl();
   if (!url) return fallback;
 
   try {
     const parsed = new URL(url, getPortalBaseUrl());
-    if (isCatalystAuthUrl(parsed.toString())) {
-      return fallback;
-    }
-
-    if (parsed.origin !== getPortalBaseUrl()) {
-      return fallback;
-    }
-
-    if (!parsed.pathname.startsWith(APP_BASE_PATH)) {
-      return fallback;
-    }
+    if (isCatalystAuthUrl(parsed.toString())) return fallback;
+    if (parsed.origin !== getPortalBaseUrl()) return fallback;
 
     if (parsed.pathname === "/app") parsed.pathname = APP_BASE_PATH;
+    if (!parsed.pathname.startsWith(APP_BASE_PATH)) return fallback;
+
+    if (parsed.hash && !parsed.hash.startsWith("#/")) return fallback;
     return parsed.toString();
   } catch {
     return fallback;
   }
 }
 
-export function buildCatalystLoginUrl(returnUrl = getCleanAppReturnUrl()) {
+export function buildCatalystLoginUrl(returnUrl = canonicalAppServiceUrl()) {
   const safeReturnUrl = normalizePortalReturnUrl(returnUrl);
   const loginUrl = new URL("/__catalyst/auth/login", getPortalBaseUrl());
-  loginUrl.searchParams.set("service_url", safeReturnUrl);
+  loginUrl.search = new URLSearchParams({ service_url: safeReturnUrl }).toString();
   return loginUrl.toString();
 }
 
-export function buildCatalystLogoutUrl(postLogoutUrl = getCleanAppReturnUrl()) {
-  // Catalyst rejects nested auth URLs in service_url. Always pass a clean app route.
-  const safePostLogoutUrl = normalizePortalReturnUrl(postLogoutUrl);
+export function buildCatalystLogoutUrl(postLogoutUrl = new URL(APP_BASE_PATH, getPortalBaseUrl()).toString()) {
+  const parsed = new URL(normalizePortalReturnUrl(postLogoutUrl));
+  parsed.hash = "";
   const logoutUrl = new URL("/__catalyst/auth/logout", getPortalBaseUrl());
-  logoutUrl.searchParams.set("service_url", safePostLogoutUrl);
+  logoutUrl.search = new URLSearchParams({ service_url: parsed.toString() }).toString();
   return logoutUrl.toString();
 }

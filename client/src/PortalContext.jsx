@@ -6,7 +6,8 @@ import {
   LOGOUT_STORAGE_KEY,
   logoutAndRedirect,
 } from "./auth/logout";
-import { authDebugLog, clearPortalAuthState, getAppReturnUrl } from "./auth/portalAuth";
+import { authDebugLog, clearPortalAuthState, getAppReturnUrl, getCatalystLoginUrl, getCatalystLogoutUrl } from "./auth/portalAuth";
+import { resolveCatalystSessionStatus } from "./auth/catalystAuth";
 
 const PortalContext = createContext(null);
 const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
@@ -78,10 +79,21 @@ export function PortalProvider({ children }) {
         setNeedsLogin(false);
         setServerFailure(false);
 
-        // Do NOT call Catalyst Web SDK current-user methods here.
-        // On first load they can call /baas/.../project-user/current before the
-        // Catalyst browser session is ready, causing AUTHENTICATION_FAILURE.
-        // The backend endpoint is the authoritative auth check.
+        const sdkStatus = await resolveCatalystSessionStatus();
+        authDebugLog("startup-auth-diagnostics", {
+          origin: window.location.origin,
+          serviceUrl: getAppReturnUrl(),
+          loginUrl: getCatalystLoginUrl(getAppReturnUrl()),
+          logoutUrl: getCatalystLogoutUrl(getAppReturnUrl()),
+          sdkAuthStatus: sdkStatus.status,
+        });
+
+        if (sdkStatus.status !== "authenticated") {
+          setNeedsLogin(true);
+          setAuthenticated(false);
+          return;
+        }
+
         const ctx = await loadContext(controller.signal);
 
         setContext(ctx);
@@ -124,12 +136,14 @@ export function PortalProvider({ children }) {
 
         if (e?.status === 401) {
           clearPortalAuthState();
-          setNeedsLogin(true);
-          setError("");
+          setNeedsLogin(false);
+          setServerFailure(true);
+          setError("Session/configuration problem: login succeeded but authenticated user context was missing on the server. Please contact support.");
           setRequestId(e.requestId || "");
           authDebugLog("portal-context-unauthorized", {
             status: e?.status,
             requestId: e?.requestId || "",
+            technicalMessage: e?.technicalMessage || "",
           });
         } else if (e?.status === 403) {
           clearPortalAuthState();

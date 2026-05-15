@@ -1,7 +1,7 @@
 import React from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./Layout";
-import { usePortalContext } from "./PortalContext";
+import { PortalProvider, usePortalContext } from "./PortalContext";
 import RoleBasedDashboard from "./pages/dashboard/RoleBasedDashboard";
 import QuickRatesAdvance from "./pages/forms/property/QuickRatesAdvance";
 import FaqPage from "./pages/faq/FaqPage";
@@ -150,24 +150,26 @@ export default function App() {
   }
 
   return (
-    <HashRouter>
-      <Routes>
-        <Route path="/" element={<ProtectedAppShell />}>
-          {/* Default + explicit dashboard routes */}
-          <Route index element={<RoleBasedDashboard />} />
-          <Route path="dashboard" element={<RoleBasedDashboard />} />
+    <PortalProvider>
+      <HashRouter>
+        <Routes>
+          <Route path="/" element={<ProtectedAppShell />}>
+            {/* Default + explicit dashboard routes */}
+            <Route index element={<RoleBasedDashboard />} />
+            <Route path="dashboard" element={<RoleBasedDashboard />} />
 
-          {/* Existing Quick Rates route */}
-          <Route path="quick-rates" element={<QuickRatesAdvance />} />
-          <Route path="seller-proceeds" element={<SellerProceedsStart />} />
-          <Route path="faq" element={<FaqPage />} />
+            {/* Existing Quick Rates route */}
+            <Route path="quick-rates" element={<QuickRatesAdvance />} />
+            <Route path="seller-proceeds" element={<SellerProceedsStart />} />
+            <Route path="faq" element={<FaqPage />} />
 
-        </Route>
-        <Route path="/login" element={<LoginRedirect />} />
+          </Route>
+          <Route path="/login" element={<LoginRedirect />} />
 
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </HashRouter>
+          {/* Catch-all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </HashRouter>
+    </PortalProvider>
   );
 }

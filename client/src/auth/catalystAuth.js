@@ -7,6 +7,19 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const err = new Error(timeoutMessage);
+      err.code = "TIMEOUT";
+      reject(err);
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
 export async function waitForCatalystAuthReady({ timeoutMs = 5000, intervalMs = 100 } = {}) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -28,12 +41,20 @@ export async function resolveCatalystSessionStatus({ timeoutMs = 4000 } = {}) {
     attempt += 1;
     try {
       if (typeof auth?.isUserAuthenticated === "function") {
-        const result = await auth.isUserAuthenticated();
+        const result = await withTimeout(
+          auth.isUserAuthenticated(),
+          1500,
+          "Timed out while checking Catalyst authentication status"
+        );
         if (result) return { status: "authenticated", source: "isUserAuthenticated" };
       }
 
       if (typeof auth?.getCurrentUser === "function") {
-        const user = await auth.getCurrentUser();
+        const user = await withTimeout(
+          auth.getCurrentUser(),
+          1500,
+          "Timed out while loading Catalyst current user"
+        );
         if (user) return { status: "authenticated", source: "getCurrentUser" };
       }
 
@@ -41,7 +62,9 @@ export async function resolveCatalystSessionStatus({ timeoutMs = 4000 } = {}) {
         return { status: "authenticated", source: "currentUser" };
       }
     } catch (error) {
-      if (!isRetryableAuthFailure(error)) return { status: "error", error };
+      if (isRetryableAuthFailure(error)) return { status: "unauthenticated", source: "authentication_failure" };
+      const safeMessage = error?.message || "Unexpected Catalyst auth error";
+      return { status: "error", error: safeMessage };
     }
 
     await sleep(Math.min(120 * 2 ** (attempt - 1), 700));

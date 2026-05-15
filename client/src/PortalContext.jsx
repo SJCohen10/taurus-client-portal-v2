@@ -39,7 +39,7 @@ export function PortalProvider({ children }) {
   const [sdkStatus, setSdkStatus] = useState("unknown");
   const [lastAuthStep, setLastAuthStep] = useState("initializing");
   const [diagnostics, setDiagnostics] = useState({});
-  const bootstrapStartedRef = useRef(false);
+  const bootRunIdRef = useRef(0);
 
   const resetAuthState = React.useCallback(() => {
     setUser(null);
@@ -73,39 +73,41 @@ export function PortalProvider({ children }) {
   }
 
   useEffect(() => {
-    if (bootstrapStartedRef.current) return;
-    bootstrapStartedRef.current = true;
-
+    const runId = bootRunIdRef.current + 1;
+    bootRunIdRef.current = runId;
+    let cancelled = false;
     const controller = new AbortController();
+    const startedAt = Date.now();
+
+    setBootStartedAt(startedAt);
+    setBootStage("waiting_for_catalyst_sdk");
+    setLastAuthStep("starting_bootstrap");
+    setDiagnostics({
+      currentUrl: window.location.href,
+      pathname: window.location.pathname,
+      hash: window.location.hash,
+      origin: window.location.origin,
+      serviceUrl: getAppReturnUrl(),
+      sdkStatus: "unknown",
+      contextRequestStarted: false,
+      contextRequestCompleted: false,
+      elapsedMs: 0,
+    });
 
     (async () => {
-      const startedAt = Date.now();
       try {
-        const startedAt = Date.now();
+        if (cancelled || bootRunIdRef.current !== runId) return;
         setLoading(true);
         setError("");
         setRequestId("");
         setAuthFailure(false);
         setNeedsLogin(false);
         setServerFailure(false);
-        setBootStartedAt(startedAt);
-        setBootStage("waiting_for_catalyst_sdk");
-        setLastAuthStep("starting_bootstrap");
-        setDiagnostics({
-          currentUrl: window.location.href,
-          pathname: window.location.pathname,
-          hash: window.location.hash,
-          origin: window.location.origin,
-          serviceUrl: getAppReturnUrl(),
-          sdkStatus: "unknown",
-          contextRequestStarted: false,
-          contextRequestCompleted: false,
-          elapsedMs: 0,
-        });
 
         setLastAuthStep("resolve_catalyst_session_status");
         setBootStage("checking_catalyst_session");
         const sdkStatus = await resolveCatalystSessionStatus();
+        if (cancelled || bootRunIdRef.current !== runId) return;
         setSdkStatus(sdkStatus.status);
         setDiagnostics((prev) => ({ ...prev, sdkStatus: sdkStatus.status, elapsedMs: Date.now() - startedAt }));
         authDebugLog("startup-auth-diagnostics", {
@@ -136,6 +138,7 @@ export function PortalProvider({ children }) {
         setLastAuthStep("load_portal_context");
         setDiagnostics((prev) => ({ ...prev, contextRequestStarted: true, elapsedMs: Date.now() - startedAt }));
         const ctx = await loadContext(controller.signal);
+        if (cancelled || bootRunIdRef.current !== runId) return;
 
         setContext(ctx);
         setAuthenticated(true);
@@ -178,6 +181,7 @@ export function PortalProvider({ children }) {
         }
       } catch (e) {
         if (e?.name === "AbortError") return;
+        if (cancelled || bootRunIdRef.current !== runId) return;
 
         console.error(e);
         setAuthenticated(false);
@@ -232,11 +236,13 @@ export function PortalProvider({ children }) {
           });
         }
       } finally {
+        if (cancelled || bootRunIdRef.current !== runId) return;
         setLoading(false);
       }
     })();
 
     return () => {
+      cancelled = true;
       controller.abort();
     };
   }, []);

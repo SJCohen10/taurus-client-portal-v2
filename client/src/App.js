@@ -72,6 +72,7 @@ function ProtectedAppShell() {
   const portal = usePortalContext();
   const redirectAttemptedRef = React.useRef(false);
   const [showLongLoadingMessage, setShowLongLoadingMessage] = React.useState(false);
+  const [loadingTick, setLoadingTick] = React.useState(0);
   const safeServiceUrl = getSafeServiceUrl();
 
   React.useEffect(() => {
@@ -84,6 +85,14 @@ function ProtectedAppShell() {
     }, 15000);
     return () => clearTimeout(timer);
   }, [portal?.loading, portal?.authenticated, portal?.authFailure, portal?.serverFailure]);
+
+  React.useEffect(() => {
+    if (!portal?.loading) return undefined;
+    const interval = setInterval(() => {
+      setLoadingTick((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [portal?.loading]);
 
   React.useEffect(() => {
     if (!isDebugRouting) return;
@@ -114,7 +123,9 @@ function ProtectedAppShell() {
         </div>
       );
     }
-    return <PortalLoadingScreen bootStage={portal?.bootStage} elapsedMs={portal?.diagnostics?.elapsedMs || 0} diagnostics={portal?.diagnostics} />;
+    const startedAt = portal?.bootStartedAt || Date.now();
+    const elapsedMs = Math.max(portal?.diagnostics?.elapsedMs || 0, Date.now() - startedAt);
+    return <PortalLoadingScreen bootStage={portal?.bootStage} elapsedMs={elapsedMs} diagnostics={portal?.diagnostics} key={loadingTick} />;
   }
 
   if (portal?.bootStage === "timeout") {

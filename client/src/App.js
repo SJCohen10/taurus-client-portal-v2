@@ -12,6 +12,7 @@ import { normalizePortalReturnUrl } from "./auth/authUrls";
 
 const isProduction = process.env.NODE_ENV === "production";
 const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
+const isDebugAuth = process.env.REACT_APP_DEBUG_AUTH === "true";
 
 
 const buildAppHashUrl = (hashPath = "/") => {
@@ -52,11 +53,17 @@ function AccessErrorScreen() {
   );
 }
 
-function PortalLoadingScreen() {
+function PortalLoadingScreen({ bootStage = "initializing", elapsedMs = 0, diagnostics = null }) {
   return (
     <div style={{ padding: "2rem" }}>
       <h2>Taurus Client Portal</h2>
       <p className="subtle">Loading Taurus Client Portal...</p>
+      <p className="subtle" style={{ fontSize: "0.85rem" }}>Stage: {bootStage} • {Math.floor(elapsedMs / 1000)}s</p>
+      {(isDebugRouting || isDebugAuth) && diagnostics ? (
+        <pre style={{ fontSize: "0.75rem", background: "#f5f5f5", padding: "0.5rem", borderRadius: "6px", overflowX: "auto" }}>
+          {JSON.stringify(diagnostics, null, 2)}
+        </pre>
+      ) : null}
     </div>
   );
 }
@@ -107,7 +114,25 @@ function ProtectedAppShell() {
         </div>
       );
     }
-    return <PortalLoadingScreen />;
+    return <PortalLoadingScreen bootStage={portal?.bootStage} elapsedMs={portal?.diagnostics?.elapsedMs || 0} diagnostics={portal?.diagnostics} />;
+  }
+
+  if (portal?.bootStage === "timeout") {
+    return (
+      <div style={{ padding: "2rem" }}>
+        <h2>Portal loading timed out</h2>
+        <p className="subtle">Please retry. If this repeats, contact support with the diagnostics below.</p>
+        <ul>
+          <li>bootStage: {portal?.bootStage}</li>
+          <li>sdkStatus: {portal?.sdkStatus}</li>
+          <li>currentUrl: {portal?.diagnostics?.currentUrl || ""}</li>
+          <li>serviceUrl: {portal?.diagnostics?.serviceUrl || ""}</li>
+          <li>contextRequestStarted: {String(portal?.diagnostics?.contextRequestStarted)}</li>
+          <li>contextRequestCompleted: {String(portal?.diagnostics?.contextRequestCompleted)}</li>
+        </ul>
+        <button type="button" onClick={() => window.location.reload()}>Retry</button>
+      </div>
+    );
   }
 
   if (!portal?.authenticated) {
@@ -122,7 +147,7 @@ function ProtectedAppShell() {
     }
     if (portal?.authFailure) return <AccessErrorScreen />;
     if (portal?.needsLogin) return <p className="subtle" style={{ padding: "2rem" }}>Redirecting to login…</p>;
-    return <PortalLoadingScreen />;
+    return <PortalLoadingScreen bootStage={portal?.bootStage} elapsedMs={portal?.diagnostics?.elapsedMs || 0} diagnostics={portal?.diagnostics} />;
   }
 
   return <Layout />;

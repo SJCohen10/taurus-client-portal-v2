@@ -79,6 +79,7 @@ export function PortalProvider({ children }) {
     const controller = new AbortController();
 
     (async () => {
+      const startedAt = Date.now();
       try {
         const startedAt = Date.now();
         setLoading(true);

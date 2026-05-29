@@ -70,7 +70,6 @@ function PortalLoadingScreen({ bootStage = "initializing", elapsedMs = 0, diagno
 
 function ProtectedAppShell() {
   const portal = usePortalContext();
-  const redirectAttemptedRef = React.useRef(false);
   const [showLongLoadingMessage, setShowLongLoadingMessage] = React.useState(false);
   const [loadingTick, setLoadingTick] = React.useState(0);
   const safeServiceUrl = getSafeServiceUrl();
@@ -105,14 +104,6 @@ function ProtectedAppShell() {
       serviceUrl: safeServiceUrl,
     });
   }, [portal?.loading, portal?.authenticated, portal?.authFailure, portal?.needsLogin, portal?.serverFailure, safeServiceUrl]);
-
-  React.useEffect(() => {
-    if (!portal?.needsLogin || portal?.loading || portal?.authenticated) return;
-    if (redirectAttemptedRef.current) return;
-
-    redirectAttemptedRef.current = true;
-    redirectToLogin(safeServiceUrl, "protected-shell-needs-login");
-  }, [portal?.needsLogin, portal?.loading, portal?.authenticated, safeServiceUrl]);
 
   if (portal?.loading) {
     if (showLongLoadingMessage) {

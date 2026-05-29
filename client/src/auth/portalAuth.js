@@ -1,7 +1,6 @@
 import { buildCatalystLoginUrl, buildCatalystLogoutUrl, getCleanAppReturnUrl } from "./authUrls";
 
-const isDebugAuth =
-  process.env.NODE_ENV !== "production" || process.env.REACT_APP_DEBUG_AUTH === "true";
+const isDebugAuth = process.env.REACT_APP_DEBUG_AUTH === "true" || process.env.REACT_APP_DEBUG_ROUTING === "true";
 
 export function getAppReturnUrl() {
   return getCleanAppReturnUrl();

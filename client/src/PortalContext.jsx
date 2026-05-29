@@ -6,7 +6,14 @@ import {
   LOGOUT_STORAGE_KEY,
   logoutAndRedirect,
 } from "./auth/logout";
-import { authDebugLog, clearPortalAuthState, getAppReturnUrl, getCatalystLoginUrl, getCatalystLogoutUrl } from "./auth/portalAuth";
+import {
+  authDebugLog,
+  clearPortalAuthState,
+  getAppReturnUrl,
+  getCatalystLoginUrl,
+  getCatalystLogoutUrl,
+  redirectToLogin,
+} from "./auth/portalAuth";
 import { resolveCatalystSessionStatus } from "./auth/catalystAuth";
 
 const PortalContext = createContext(null);
@@ -40,6 +47,11 @@ export function PortalProvider({ children }) {
   const [lastAuthStep, setLastAuthStep] = useState("initializing");
   const [diagnostics, setDiagnostics] = useState({});
   const bootRunIdRef = useRef(0);
+  const bootStateRef = useRef({ authenticated: false, bootStage: "initializing", loading: true });
+
+  useEffect(() => {
+    bootStateRef.current = { authenticated, bootStage, loading };
+  }, [authenticated, bootStage, loading]);
 
   const resetAuthState = React.useCallback(() => {
     setUser(null);
@@ -111,26 +123,51 @@ export function PortalProvider({ children }) {
         setSdkStatus(sdkStatus.status);
         setDiagnostics((prev) => ({ ...prev, sdkStatus: sdkStatus.status, elapsedMs: Date.now() - startedAt }));
         authDebugLog("startup-auth-diagnostics", {
+          currentUrl: window.location.href,
           origin: window.location.origin,
           serviceUrl: getAppReturnUrl(),
           loginUrl: getCatalystLoginUrl(getAppReturnUrl()),
           logoutUrl: getCatalystLogoutUrl(getAppReturnUrl()),
           sdkAuthStatus: sdkStatus.status,
+          sdkAuthSource: sdkStatus.source || "unknown",
         });
 
         if (sdkStatus.status !== "authenticated") {
           if (sdkStatus.status === "unauthenticated") {
-            setBootStage("catalyst_unauthenticated");
-            setLastAuthStep("catalyst_unauthenticated");
+            const serviceUrl = getAppReturnUrl();
+            const loginUrl = getCatalystLoginUrl(serviceUrl);
+            bootStateRef.current = { authenticated: false, bootStage: "redirecting_to_login", loading: false };
+            setBootStage("redirecting_to_login");
+            setLastAuthStep("redirecting_to_login");
             setNeedsLogin(true);
-          } else {
-            setBootStage("server_error");
-            setLastAuthStep("catalyst_sdk_error");
-            setServerFailure(true);
-            setNeedsLogin(false);
-            setError("Catalyst authentication is currently unavailable. Please refresh and try again.");
+            setServerFailure(false);
+            setAuthenticated(false);
+            setLoading(false);
+            setDiagnostics((prev) => ({
+              ...prev,
+              sdkStatus: sdkStatus.status,
+              sdkAuthSource: sdkStatus.source || "unknown",
+              serviceUrl,
+              loginUrl,
+              elapsedMs: Date.now() - startedAt,
+            }));
+            authDebugLog("catalyst-unauthenticated", {
+              currentUrl: window.location.href,
+              serviceUrl,
+              loginUrl,
+              sdkStatus: sdkStatus.status,
+              sdkSource: sdkStatus.source || "unknown",
+            });
+            redirectToLogin(serviceUrl, "catalyst-unauthenticated");
+            return;
           }
+
+          setBootStage("server_error");
+          setLastAuthStep("catalyst_sdk_error");
+          setServerFailure(true);
+          setNeedsLogin(false);
           setAuthenticated(false);
+          setError("Catalyst authentication is currently unavailable. Please refresh and try again.");
           return;
         }
 
@@ -248,18 +285,24 @@ export function PortalProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!loading || bootStage === "authenticated") return undefined;
+    const ignoredStages = new Set(["redirecting_to_login", "catalyst_unauthenticated", "authenticated"]);
+    if (!loading || authenticated || ignoredStages.has(bootStage)) return undefined;
+
     const timer = setTimeout(() => {
+      const latest = bootStateRef.current;
+      if (!latest.loading || latest.authenticated || ignoredStages.has(latest.bootStage)) return;
+
       setBootStage("timeout");
       setLastAuthStep("bootstrap_timeout");
       setServerFailure(true);
+      setNeedsLogin(false);
       setError("Portal loading timed out. Please retry.");
       setLoading(false);
       setDiagnostics((prev) => ({ ...prev, elapsedMs: Date.now() - bootStartedAt }));
     }, BOOT_TIMEOUT_MS);
 
     return () => clearTimeout(timer);
-  }, [loading, bootStage, bootStartedAt]);
+  }, [loading, authenticated, bootStage, bootStartedAt]);
 
   useEffect(() => {
     const onStorage = (event) => {

@@ -5,28 +5,18 @@ module.exports = (context, basicIO) => {
     .userManagement()
     .getSignupValidationRequest(basicIO);
   if (requestDetails) {
-    if (requestDetails.user_details.email_id.includes("@zylker.com")) {
-      // The actions that occur in the event of a successful authentication can be customized
-      basicIO.write(
-        JSON.stringify({
-          status: "success",
-          user_details: {
-            first_name: requestDetails.user_details.first_name,
-            last_name: requestDetails.user_details.last_name,
-            email_id: requestDetails.user_details.email_id,
-            role_identifier: "App User", // If you want to override the default role, you can specify the role id/name here.
-            org_id: "", // If you are providing the Org ID, make sure it is copied exactly from the console.
-          },
-        })
-      );
-    } else {
-      // The user has failed authentication
-      basicIO.write(
-        JSON.stringify({
-          status: "failure",
-        })
-      );
-    }
+    basicIO.write(
+      JSON.stringify({
+        status: "success",
+        user_details: {
+          first_name: requestDetails.user_details.first_name,
+          last_name: requestDetails.user_details.last_name,
+          email_id: requestDetails.user_details.email_id,
+          role_identifier: "App User",
+          org_id: "",
+        },
+      })
+    );
   }
   context.close();
 };

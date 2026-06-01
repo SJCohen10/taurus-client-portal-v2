@@ -14,6 +14,7 @@ import {
   getCatalystLogoutUrl,
   redirectToLogin,
 } from "./auth/portalAuth";
+import { normalizePortalReturnUrl } from "./auth/authUrls";
 import { resolveCatalystSessionStatus } from "./auth/catalystAuth";
 
 const PortalContext = createContext(null);
@@ -134,7 +135,11 @@ export function PortalProvider({ children }) {
 
         if (sdkStatus.status !== "authenticated") {
           if (sdkStatus.status === "unauthenticated") {
-            const serviceUrl = getAppReturnUrl();
+            const { hash } = window.location;
+            const hasDeepLink = Boolean(hash && hash.startsWith("#/"));
+            const serviceUrl = hasDeepLink
+              ? normalizePortalReturnUrl(`${window.location.origin}/app/${hash}`)
+              : getAppReturnUrl();
             const loginUrl = getCatalystLoginUrl(serviceUrl);
             bootStateRef.current = { authenticated: false, bootStage: "redirecting_to_login", loading: false };
             setBootStage("redirecting_to_login");

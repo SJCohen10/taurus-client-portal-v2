@@ -37,7 +37,7 @@ function getSafeServiceUrl() {
 
 function LoginRedirect() {
   React.useEffect(() => {
-    redirectToLogin(getAppReturnUrl(), "route-login");
+    redirectToLogin(getSafeServiceUrl(), "route-login");
   }, []);
 
   return <p className="subtle">Redirecting to Catalyst login…</p>;

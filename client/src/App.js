@@ -105,6 +105,11 @@ function ProtectedAppShell() {
     });
   }, [portal?.loading, portal?.authenticated, portal?.authFailure, portal?.needsLogin, portal?.serverFailure, safeServiceUrl]);
 
+  React.useEffect(() => {
+    if (!portal?.needsLogin || portal?.loading || portal?.authenticated) return;
+    redirectToLogin(safeServiceUrl, "protected-shell-needs-login-fallback");
+  }, [portal?.needsLogin, portal?.loading, portal?.authenticated, safeServiceUrl]);
+
   if (portal?.loading) {
     if (showLongLoadingMessage) {
       return (
@@ -138,6 +143,10 @@ function ProtectedAppShell() {
   }
 
   if (!portal?.authenticated) {
+    if (portal?.needsLogin) {
+      return <p className="subtle" style={{ padding: "2rem" }}>Redirecting to login…</p>;
+    }
+
     if (portal?.serverFailure) {
       return (
         <div style={{ padding: "2rem" }}>
@@ -147,8 +156,9 @@ function ProtectedAppShell() {
         </div>
       );
     }
+
     if (portal?.authFailure) return <AccessErrorScreen />;
-    if (portal?.needsLogin) return <p className="subtle" style={{ padding: "2rem" }}>Redirecting to login…</p>;
+
     return <PortalLoadingScreen bootStage={portal?.bootStage} elapsedMs={portal?.diagnostics?.elapsedMs || 0} diagnostics={portal?.diagnostics} />;
   }
 
@@ -158,8 +168,10 @@ function ProtectedAppShell() {
 export default function App() {
   const { pathname, hash } = window.location;
   const hasHashRoute = Boolean(hash && hash.startsWith("#/"));
-  const isCanonicalBasePath = pathname === "/" || pathname === "/app" || pathname === "/app/";
-  const shouldCanonicalRedirect = isProduction && !hasHashRoute && isCanonicalBasePath;
+  const isRootPath = pathname === "/";
+  const isAppPathWithoutHash = (pathname === "/app" || pathname === "/app/") && !hasHashRoute;
+  const shouldRedirectRootToLogin = isProduction && isRootPath && !hasHashRoute;
+  const shouldCanonicalRedirect = isProduction && isAppPathWithoutHash;
 
   if (isDebugRouting) {
     console.info("[routing-debug] app-bootstrap", {
@@ -167,8 +179,14 @@ export default function App() {
       hash,
       hasHashRoute,
       serviceUrl: getSafeServiceUrl(),
+      shouldRedirectRootToLogin,
       shouldCanonicalRedirect,
     });
+  }
+
+  if (shouldRedirectRootToLogin) {
+    redirectToLogin(buildAppHashUrl("/"), "production-root-entry");
+    return <p className="subtle" style={{ padding: "2rem" }}>Redirecting to login…</p>;
   }
 
   if (shouldCanonicalRedirect) {

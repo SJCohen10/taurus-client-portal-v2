@@ -9,7 +9,7 @@ export const faqItems = [
       { label: "Closed", text: "The deal has successfully registered and all funds have been repaid to Taurus Capital." },
       { label: "Declined", text: "We can no longer proceed with this deal." },
     ],
-  }, ,
+  },
   {
     id: "expected-lodgement",
     question: "How do I update the Expected Lodgement Date?",
@@ -35,7 +35,7 @@ export const faqItems = [
       "Navigate to the desired deal, open the deal Actions menu, and click on 'Generate Statement'. You can then download the statement as needed.",
   },
   {
-    id: "statements",
+    id: "upload-documents",
     question: "When and how should I upload documents?",
     answer:
       "Navigate to the desired deal, open the deal Actions menu, and click on 'Upload Documents'. You can then upload the required documents as needed. Any supporting documents related to the deal can be uploaded here to ensure Taurus Capital has all necessary information for review and processing.",

@@ -69,7 +69,7 @@ function verifyToken(token) {
   } catch {
     return null;
   }
-  if (Date.now() > Number(parsed.exp || 0)) return null;
+  if (!parsed.exp || Date.now() > Number(parsed.exp)) return null;
   return parsed;
 }
 
@@ -350,74 +350,6 @@ module.exports = async (req, res) => {
       ok: true,
       statementUrl,
       statementMode: "download",
-      requestId,
-    });
-
-    const statementStorage = {
-      attempted: false,
-      saved: false,
-      dealId: deal?.deal_id || null,
-      dealFolderId: deal?.property_folder_id || null,
-      statementsFolderId: null,
-      fileName: null,
-      fileId: null,
-      fileUrl: null,
-      reason: null,
-      message: null,
-    };
-
-    const baseDealFolderId = String(deal?.property_folder_id || "").trim();
-    if (!baseDealFolderId) {
-      statementStorage.attempted = true;
-      statementStorage.reason = "missing_deal_folder";
-      statementStorage.message = "Statement generated, but this deal has no mapped WorkDrive folder yet.";
-      return sendJson(req, res, 200, { ok: true, statementUrl: creatorUrl, statementStorage, requestId });
-    }
-
-    if (!process.env.ZOHO_WORKDRIVE_CLIENT_ID || !process.env.ZOHO_WORKDRIVE_CLIENT_SECRET || !process.env.ZOHO_WORKDRIVE_REFRESH_TOKEN) {
-      statementStorage.attempted = true;
-      statementStorage.reason = "missing_workdrive_oauth";
-      statementStorage.message = "Statement generated, but WorkDrive OAuth env vars are missing for statement file storage.";
-      return sendJson(req, res, 200, { ok: true, statementUrl: creatorUrl, statementStorage, requestId });
-    }
-
-    statementStorage.attempted = true;
-    const accessToken = await getWorkDriveAccessToken({ requestId });
-    const statementsFolderId = await ensureFolder({
-      accessToken,
-      parentFolderId: baseDealFolderId,
-      folderName: STATEMENTS_FOLDER_NAME,
-    });
-    statementStorage.statementsFolderId = statementsFolderId;
-
-    // TODO: Wire binary PDF retrieval here if/when CRM/Creator statement generation provides file content.
-    const statementFileBase64 = null;
-
-    if (!statementFileBase64) {
-      statementStorage.reason = "no_statement_binary_available";
-      statementStorage.message = "Statements folder resolved, but the current statement function only returns a Creator URL and does not provide PDF file content to save.";
-      return sendJson(req, res, 200, { ok: true, statementUrl: creatorUrl, statementStorage, requestId });
-    }
-
-    const fileName = buildStatementFileName({ deal, assetId });
-    const uploadResult = await uploadFileToFolder({
-      accessToken,
-      folderId: statementsFolderId,
-      fileName,
-      mimeType: "application/pdf",
-      fileBase64: statementFileBase64,
-    });
-
-    statementStorage.saved = true;
-    statementStorage.fileName = fileName;
-    statementStorage.fileId = uploadResult?.id || null;
-    statementStorage.fileUrl = uploadResult?.attributes?.permalink || uploadResult?.permalink || null;
-    statementStorage.message = "Statement generated and saved to WorkDrive.";
-
-    return sendJson(req, res, 200, {
-      ok: true,
-      statementUrl: creatorUrl,
-      statementStorage,
       requestId,
     });
   } catch (err) {

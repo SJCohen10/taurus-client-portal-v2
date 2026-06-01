@@ -220,7 +220,11 @@ export function PortalProvider({ children }) {
         if (e?.name === "AbortError") return;
         if (cancelled || bootRunIdRef.current !== runId) return;
 
-        console.error(e);
+        authDebugLog("portal-context-error", {
+          status: e?.status || "unknown",
+          requestId: e?.requestId || "",
+          message: e?.message || "Portal context request failed",
+        });
         setAuthenticated(false);
         setContext(null);
         setDiagnostics((prev) => ({
@@ -268,8 +272,8 @@ export function PortalProvider({ children }) {
           console.info("[routing-debug] portal-context-failure", {
             status: e?.status || "unknown",
             authFailure: e?.status === 403,
-            needsLogin: e?.status === 401,
-            serverFailure: e?.status !== 401 && e?.status !== 403,
+            needsLogin: false,
+            serverFailure: e?.status !== 403,
           });
         }
       } finally {

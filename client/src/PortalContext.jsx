@@ -134,7 +134,7 @@ export function PortalProvider({ children }) {
         });
 
         if (sdkStatus.status !== "authenticated") {
-          if (sdkStatus.status === "unauthenticated") {
+          if (sdkStatus.status === "unauthenticated" || sdkStatus.status === "auth_unavailable") {
             const { hash } = window.location;
             const hasDeepLink = Boolean(hash && hash.startsWith("#/"));
             const serviceUrl = hasDeepLink

@@ -7,7 +7,11 @@ import QuickRatesAdvance from "./pages/forms/property/QuickRatesAdvance";
 import FaqPage from "./pages/faq/FaqPage";
 
 import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
-import { getAppReturnUrl, redirectToLogin } from "./auth/portalAuth";
+import {
+  getAppReturnUrl,
+  getCatalystLoginUrl,
+  redirectToLogin,
+} from "./auth/portalAuth";
 import { normalizePortalReturnUrl } from "./auth/authUrls";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -248,10 +252,10 @@ export default function App() {
   const { pathname, hash } = window.location;
   const hasHashRoute = Boolean(hash && hash.startsWith("#/"));
   const isRootPath = pathname === "/";
+  const shouldRootLoginRedirect = isProduction && isRootPath && !hasHashRoute;
   const isAppPathWithoutHash =
     (pathname === "/app" || pathname === "/app/") && !hasHashRoute;
-  const shouldCanonicalRedirect =
-    isProduction && ((isRootPath && !hasHashRoute) || isAppPathWithoutHash);
+  const shouldCanonicalRedirect = isProduction && isAppPathWithoutHash;
 
   if (isDebugRouting) {
     console.info("[routing-debug] app-bootstrap", {
@@ -259,8 +263,21 @@ export default function App() {
       hash,
       hasHashRoute,
       serviceUrl: getSafeServiceUrl(),
+      shouldRootLoginRedirect,
       shouldCanonicalRedirect,
     });
+  }
+
+  if (shouldRootLoginRedirect) {
+    const loginUrl = getCatalystLoginUrl(getAppReturnUrl());
+    if (isDebugRouting) {
+      console.info("[routing-debug] production-root-login-redirect", {
+        currentUrl: window.location.href,
+        loginUrl,
+      });
+    }
+    window.location.replace(loginUrl);
+    return <PortalLoadingScreen />;
   }
 
   if (shouldCanonicalRedirect) {

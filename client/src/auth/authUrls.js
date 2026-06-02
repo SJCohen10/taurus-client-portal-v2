@@ -47,10 +47,3 @@ export function buildCatalystLoginUrl(returnUrl = canonicalAppServiceUrl()) {
   loginUrl.search = new URLSearchParams({ service_url: safeReturnUrl }).toString();
   return loginUrl.toString();
 }
-
-export function buildCatalystLogoutUrl(postLogoutUrl = canonicalAppServiceUrl()) {
-  const safeReturnUrl = normalizePortalReturnUrl(postLogoutUrl);
-  const logoutUrl = new URL("/__catalyst/auth/logout", getPortalBaseUrl());
-  logoutUrl.search = new URLSearchParams({ service_url: safeReturnUrl }).toString();
-  return logoutUrl.toString();
-}

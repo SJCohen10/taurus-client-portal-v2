@@ -255,7 +255,7 @@ export default function App() {
   const shouldRootLoginRedirect = isProduction && isRootPath && !hasHashRoute;
   const isAppPathWithoutHash =
     (pathname === "/app" || pathname === "/app/") && !hasHashRoute;
-  const shouldCanonicalRedirect = isProduction && isAppPathWithoutHash;
+  const shouldAppWithoutHashLoginRedirect = isProduction && isAppPathWithoutHash;
 
   if (isDebugRouting) {
     console.info("[routing-debug] app-bootstrap", {
@@ -264,7 +264,7 @@ export default function App() {
       hasHashRoute,
       serviceUrl: getSafeServiceUrl(),
       shouldRootLoginRedirect,
-      shouldCanonicalRedirect,
+      shouldAppWithoutHashLoginRedirect,
     });
   }
 
@@ -280,8 +280,15 @@ export default function App() {
     return <PortalLoadingScreen />;
   }
 
-  if (shouldCanonicalRedirect) {
-    window.location.replace(buildAppHashUrl("/"));
+  if (shouldAppWithoutHashLoginRedirect) {
+    const loginUrl = getCatalystLoginUrl(getAppReturnUrl());
+    if (isDebugRouting) {
+      console.info("[routing-debug] production-app-without-hash-login-redirect", {
+        currentUrl: window.location.href,
+        loginUrl,
+      });
+    }
+    window.location.replace(loginUrl);
     return <PortalLoadingScreen />;
   }
 

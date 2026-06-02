@@ -121,6 +121,16 @@ async function getContactAndAccountByEmail(email, requestId) {
 
 module.exports = async (req, res) => {
   const requestId = createRequestId();
+  console.info("getPortalUserContext raw request diagnostics", {
+    requestId,
+    method: req.method,
+    url: req.url,
+    hasUser: Boolean(req.user),
+    userKeys: req.user ? Object.keys(req.user) : [],
+    headerNames: Object.keys(req.headers || {}).sort(),
+    hasCookieHeader: Boolean(req.headers?.cookie),
+    hasAuthorizationHeader: Boolean(req.headers?.authorization),
+  });
   try {
     if (handleOptions(req, res)) return;
     if (req.method !== "GET") return sendJson(req, res, 405, { error: "Method not allowed. Use GET.", requestId });

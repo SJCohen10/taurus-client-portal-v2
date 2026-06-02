@@ -1,15 +1,18 @@
-import { authDebugLog, clearPortalAuthState, getAppReturnUrl, getCatalystLogoutUrl } from "./portalAuth";
+import { authDebugLog, clearPortalAuthState, getAppReturnUrl, getCatalystLoginUrl } from "./portalAuth";
 
 const LOGOUT_BROADCAST_CHANNEL = "taurus-portal-auth";
 const LOGOUT_BROADCAST_EVENT = "logout";
 const LOGOUT_STORAGE_KEY = "taurus.portal.logout";
 
 async function catalystSignOut() {
-  const auth = window?.catalyst?.auth;
+  const auth = window.catalyst?.auth;
   if (!auth) return;
 
-  const signOutFn = auth.signOut || auth.logout || auth.signout;
-  if (typeof signOutFn === "function") {
+  const signOutFn = [auth.signOut, auth.logout, auth.signout].find(
+    (candidate) => typeof candidate === "function",
+  );
+
+  if (signOutFn) {
     await signOutFn.call(auth);
   }
 }
@@ -33,7 +36,7 @@ function notifyLogoutToOtherTabs() {
 }
 
 export async function logoutAndRedirect({ serviceUrl = getAppReturnUrl() } = {}) {
-  const logoutUrl = getCatalystLogoutUrl(serviceUrl);
+  const loginUrl = getCatalystLoginUrl(serviceUrl);
 
   try {
     await catalystSignOut();
@@ -43,10 +46,10 @@ export async function logoutAndRedirect({ serviceUrl = getAppReturnUrl() } = {})
   } finally {
     clearPortalAuthState();
     notifyLogoutToOtherTabs();
-    authDebugLog("logout-state-cleared", { logoutUrl, serviceUrl });
+    authDebugLog("logout-state-cleared", { loginUrl, serviceUrl });
   }
 
-  window.location.replace(logoutUrl);
+  window.location.replace(loginUrl);
 }
 
 export { LOGOUT_BROADCAST_CHANNEL, LOGOUT_BROADCAST_EVENT, LOGOUT_STORAGE_KEY, clearPortalAuthState };

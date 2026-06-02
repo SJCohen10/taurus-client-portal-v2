@@ -1,4 +1,4 @@
-import { buildCatalystLoginUrl, buildCatalystLogoutUrl, getCleanAppReturnUrl } from "./authUrls";
+import { buildCatalystLoginUrl, getCleanAppReturnUrl } from "./authUrls";
 
 const isDebugAuth = process.env.REACT_APP_DEBUG_AUTH === "true" || process.env.REACT_APP_DEBUG_ROUTING === "true";
 
@@ -7,7 +7,6 @@ export function getAppReturnUrl() {
 }
 
 export const getCatalystLoginUrl = buildCatalystLoginUrl;
-export const getCatalystLogoutUrl = buildCatalystLogoutUrl;
 
 export function authDebugLog(message, data = {}) {
   if (!isDebugAuth) return;

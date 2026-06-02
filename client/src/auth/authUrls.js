@@ -48,10 +48,9 @@ export function buildCatalystLoginUrl(returnUrl = canonicalAppServiceUrl()) {
   return loginUrl.toString();
 }
 
-export function buildCatalystLogoutUrl(postLogoutUrl = new URL(APP_BASE_PATH, getPortalBaseUrl()).toString()) {
-  const parsed = new URL(normalizePortalReturnUrl(postLogoutUrl));
-  parsed.hash = "";
+export function buildCatalystLogoutUrl(postLogoutUrl = canonicalAppServiceUrl()) {
+  const safeReturnUrl = normalizePortalReturnUrl(postLogoutUrl);
   const logoutUrl = new URL("/__catalyst/auth/logout", getPortalBaseUrl());
-  logoutUrl.search = new URLSearchParams({ service_url: parsed.toString() }).toString();
+  logoutUrl.search = new URLSearchParams({ service_url: safeReturnUrl }).toString();
   return logoutUrl.toString();
 }

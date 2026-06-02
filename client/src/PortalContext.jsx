@@ -1,5 +1,11 @@
 import { request } from "./api/catalystClient";
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   LOGOUT_BROADCAST_CHANNEL,
   LOGOUT_BROADCAST_EVENT,
@@ -11,17 +17,18 @@ import {
   clearPortalAuthState,
   getAppReturnUrl,
   getCatalystLoginUrl,
-  getCatalystLogoutUrl,
   redirectToLogin,
 } from "./auth/portalAuth";
 import { normalizePortalReturnUrl } from "./auth/authUrls";
-import { resolveCatalystSessionStatus } from "./auth/catalystAuth";
 
 const PortalContext = createContext(null);
 const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
 const BOOT_TIMEOUT_MS = 15000;
 
-export function resolvePortalEmail(portalUser = {}, devImpersonationEmail = "") {
+export function resolvePortalEmail(
+  portalUser = {},
+  devImpersonationEmail = "",
+) {
   return (
     portalUser.email ||
     portalUser.email_id ||
@@ -48,7 +55,11 @@ export function PortalProvider({ children }) {
   const [lastAuthStep, setLastAuthStep] = useState("initializing");
   const [diagnostics, setDiagnostics] = useState({});
   const bootRunIdRef = useRef(0);
-  const bootStateRef = useRef({ authenticated: false, bootStage: "initializing", loading: true });
+  const bootStateRef = useRef({
+    authenticated: false,
+    bootStage: "initializing",
+    loading: true,
+  });
 
   useEffect(() => {
     bootStateRef.current = { authenticated, bootStage, loading };
@@ -80,7 +91,10 @@ export function PortalProvider({ children }) {
     return Promise.race([
       request("/getportalusercontext", { signal }),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Portal context request timed out")), timeoutMs);
+        setTimeout(
+          () => reject(new Error("Portal context request timed out")),
+          timeoutMs,
+        );
       }),
     ]);
   }
@@ -91,19 +105,26 @@ export function PortalProvider({ children }) {
     let cancelled = false;
     const controller = new AbortController();
     const startedAt = Date.now();
+    const { hash } = window.location;
+    const hasDeepLink = Boolean(hash && hash.startsWith("#/"));
+    const serviceUrl = normalizePortalReturnUrl(
+      hasDeepLink ? `${window.location.origin}/app/${hash}` : getAppReturnUrl(),
+    );
 
     setBootStartedAt(startedAt);
-    setBootStage("waiting_for_catalyst_sdk");
-    setLastAuthStep("starting_bootstrap");
+    setBootStage("loading_portal_context");
+    setLastAuthStep("starting_backend_context_bootstrap");
+    setSdkStatus("not_used");
     setDiagnostics({
       currentUrl: window.location.href,
       pathname: window.location.pathname,
       hash: window.location.hash,
       origin: window.location.origin,
-      serviceUrl: getAppReturnUrl(),
-      sdkStatus: "unknown",
+      serviceUrl,
       contextRequestStarted: false,
       contextRequestCompleted: false,
+      contextStatus: "pending",
+      requestId: "",
       elapsedMs: 0,
     });
 
@@ -117,68 +138,26 @@ export function PortalProvider({ children }) {
         setNeedsLogin(false);
         setServerFailure(false);
 
-        setLastAuthStep("resolve_catalyst_session_status");
-        setBootStage("checking_catalyst_session");
-        const sdkStatus = await resolveCatalystSessionStatus();
-        if (cancelled || bootRunIdRef.current !== runId) return;
-        setSdkStatus(sdkStatus.status);
-        setDiagnostics((prev) => ({ ...prev, sdkStatus: sdkStatus.status, elapsedMs: Date.now() - startedAt }));
         authDebugLog("startup-auth-diagnostics", {
           currentUrl: window.location.href,
+          pathname: window.location.pathname,
+          hash: window.location.hash,
           origin: window.location.origin,
-          serviceUrl: getAppReturnUrl(),
-          loginUrl: getCatalystLoginUrl(getAppReturnUrl()),
-          logoutUrl: getCatalystLogoutUrl(getAppReturnUrl()),
-          sdkAuthStatus: sdkStatus.status,
-          sdkAuthSource: sdkStatus.source || "unknown",
+          serviceUrl,
+          loginUrl: getCatalystLoginUrl(serviceUrl),
+          authSource: "backend_portal_context",
         });
-
-        if (sdkStatus.status !== "authenticated") {
-          if (sdkStatus.status === "unauthenticated" || sdkStatus.status === "auth_unavailable") {
-            const { hash } = window.location;
-            const hasDeepLink = Boolean(hash && hash.startsWith("#/"));
-            const serviceUrl = hasDeepLink
-              ? normalizePortalReturnUrl(`${window.location.origin}/app/${hash}`)
-              : getAppReturnUrl();
-            const loginUrl = getCatalystLoginUrl(serviceUrl);
-            bootStateRef.current = { authenticated: false, bootStage: "redirecting_to_login", loading: false };
-            setBootStage("redirecting_to_login");
-            setLastAuthStep("redirecting_to_login");
-            setNeedsLogin(true);
-            setServerFailure(false);
-            setAuthenticated(false);
-            setLoading(false);
-            setDiagnostics((prev) => ({
-              ...prev,
-              sdkStatus: sdkStatus.status,
-              sdkAuthSource: sdkStatus.source || "unknown",
-              serviceUrl,
-              loginUrl,
-              elapsedMs: Date.now() - startedAt,
-            }));
-            authDebugLog("catalyst-unauthenticated", {
-              currentUrl: window.location.href,
-              serviceUrl,
-              loginUrl,
-              sdkStatus: sdkStatus.status,
-              sdkSource: sdkStatus.source || "unknown",
-            });
-            redirectToLogin(serviceUrl, "catalyst-unauthenticated");
-            return;
-          }
-
-          setBootStage("server_error");
-          setLastAuthStep("catalyst_sdk_error");
-          setServerFailure(true);
-          setNeedsLogin(false);
-          setAuthenticated(false);
-          setError("Catalyst authentication is currently unavailable. Please refresh and try again.");
-          return;
-        }
 
         setBootStage("loading_portal_context");
         setLastAuthStep("load_portal_context");
-        setDiagnostics((prev) => ({ ...prev, contextRequestStarted: true, elapsedMs: Date.now() - startedAt }));
+        setDiagnostics((prev) => ({
+          ...prev,
+          serviceUrl,
+          contextRequestStarted: true,
+          contextStatus: "pending",
+          elapsedMs: Date.now() - startedAt,
+        }));
+
         const ctx = await loadContext(controller.signal);
         if (cancelled || bootRunIdRef.current !== runId) return;
 
@@ -198,7 +177,7 @@ export function PortalProvider({ children }) {
             ctx?.user?.email_id ||
             ctx?.user?.user_mailid ||
             ctx?.user?.user_email ||
-            ""
+            "",
         )
           .trim()
           .toLowerCase();
@@ -209,6 +188,7 @@ export function PortalProvider({ children }) {
         setDiagnostics((prev) => ({
           ...prev,
           contextRequestCompleted: true,
+          contextStatus: 200,
           requestId: ctx?.requestId || "",
           elapsedMs: Date.now() - startedAt,
         }));
@@ -225,60 +205,95 @@ export function PortalProvider({ children }) {
         if (e?.name === "AbortError") return;
         if (cancelled || bootRunIdRef.current !== runId) return;
 
+        const status = e?.status || "network_error";
+        const nextRequestId = e?.requestId || "";
         authDebugLog("portal-context-error", {
-          status: e?.status || "unknown",
-          requestId: e?.requestId || "",
+          status,
+          requestId: nextRequestId,
           message: e?.message || "Portal context request failed",
         });
         setAuthenticated(false);
         setContext(null);
+        setUser(null);
+        setEmail("");
+        setRequestId(nextRequestId);
         setDiagnostics((prev) => ({
           ...prev,
           contextRequestCompleted: true,
-          contextStatus: e?.status || "network_error",
-          requestId: e?.requestId || "",
+          contextStatus: status,
+          requestId: nextRequestId,
           elapsedMs: Date.now() - startedAt,
         }));
 
         if (e?.status === 401) {
-          setBootStage("server_unauthorized_after_sdk_auth");
-          setLastAuthStep("context_401_after_sdk_auth");
+          const loginUrl = getCatalystLoginUrl(serviceUrl);
+          setBootStage("redirecting_to_login");
+          setLastAuthStep("context_401_redirecting_to_login");
           clearPortalAuthState();
-          setNeedsLogin(false);
-          setServerFailure(true);
-          setError("Session/configuration problem: login succeeded but authenticated user context was missing on the server. Please contact support.");
-          setRequestId(e.requestId || "");
+          setAuthFailure(false);
+          setNeedsLogin(true);
+          setServerFailure(false);
+          setError("");
+          bootStateRef.current = {
+            authenticated: false,
+            bootStage: "redirecting_to_login",
+            loading: false,
+          };
+          setDiagnostics((prev) => ({
+            ...prev,
+            serviceUrl,
+            loginUrl,
+            contextRequestCompleted: true,
+            contextStatus: 401,
+            requestId: nextRequestId,
+            elapsedMs: Date.now() - startedAt,
+          }));
           authDebugLog("portal-context-unauthorized", {
             status: e?.status,
-            requestId: e?.requestId || "",
+            requestId: nextRequestId,
+            serviceUrl,
+            loginUrl,
             technicalMessage: e?.technicalMessage || "",
           });
-        } else if (e?.status === 403) {
+          setLoading(false);
+          redirectToLogin(serviceUrl, "portal-context-401");
+          return;
+        }
+
+        if (e?.status === 403) {
           setBootStage("unauthorized");
           setLastAuthStep("context_403_unauthorized");
-          clearPortalAuthState();
           setAuthFailure(true);
           setNeedsLogin(false);
           setServerFailure(false);
           setError(
-            "Your login was successful, but your Taurus portal access could not be verified. Please contact Taurus Capital if you believe this is incorrect."
+            "Your login was successful, but your Taurus portal access could not be verified. Please contact Taurus Capital if you believe this is incorrect.",
           );
-          setRequestId(e.requestId || "");
         } else {
-          setBootStage("server_error");
-          setLastAuthStep("context_server_error");
+          setBootStage(
+            e?.message === "Portal context request timed out"
+              ? "timeout"
+              : "server_error",
+          );
+          setLastAuthStep(
+            e?.message === "Portal context request timed out"
+              ? "context_timeout"
+              : "context_server_error",
+          );
+          setAuthFailure(false);
           setServerFailure(true);
           setNeedsLogin(false);
-          setError("We could not load your portal details right now. Please try again shortly.");
-          setRequestId(e.requestId || "");
+          setError(
+            "We could not load your portal details right now. Please try again shortly.",
+          );
         }
 
         if (isDebugRouting) {
           console.info("[routing-debug] portal-context-failure", {
-            status: e?.status || "unknown",
+            status,
             authFailure: e?.status === 403,
-            needsLogin: false,
-            serverFailure: e?.status !== 403,
+            needsLogin: e?.status === 401,
+            serverFailure: e?.status !== 401 && e?.status !== 403,
           });
         }
       } finally {
@@ -294,12 +309,22 @@ export function PortalProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const ignoredStages = new Set(["redirecting_to_login", "catalyst_unauthenticated", "authenticated"]);
-    if (!loading || authenticated || ignoredStages.has(bootStage)) return undefined;
+    const ignoredStages = new Set([
+      "redirecting_to_login",
+      "catalyst_unauthenticated",
+      "authenticated",
+    ]);
+    if (!loading || authenticated || ignoredStages.has(bootStage))
+      return undefined;
 
     const timer = setTimeout(() => {
       const latest = bootStateRef.current;
-      if (!latest.loading || latest.authenticated || ignoredStages.has(latest.bootStage)) return;
+      if (
+        !latest.loading ||
+        latest.authenticated ||
+        ignoredStages.has(latest.bootStage)
+      )
+        return;
 
       setBootStage("timeout");
       setLastAuthStep("bootstrap_timeout");
@@ -307,7 +332,10 @@ export function PortalProvider({ children }) {
       setNeedsLogin(false);
       setError("Portal loading timed out. Please retry.");
       setLoading(false);
-      setDiagnostics((prev) => ({ ...prev, elapsedMs: Date.now() - bootStartedAt }));
+      setDiagnostics((prev) => ({
+        ...prev,
+        elapsedMs: Date.now() - bootStartedAt,
+      }));
     }, BOOT_TIMEOUT_MS);
 
     return () => clearTimeout(timer);

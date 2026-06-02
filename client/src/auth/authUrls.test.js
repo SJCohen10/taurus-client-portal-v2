@@ -17,8 +17,10 @@ describe("production-safe auth urls", () => {
     const origin = window.location.origin;
     const logoutUrl = buildCatalystLogoutUrl(`${origin}/app/#/`);
     expect(logoutUrl).toBe(
-      `${origin}/__catalyst/auth/logout?service_url=${encodeURIComponent(`${origin}/app/`)}`
+      `${origin}/__catalyst/auth/logout?service_url=${encodeURIComponent(`${origin}/app/#/`)}`
     );
+    expect(logoutUrl).toContain("%2Fapp%2F%23%2F");
+    expect(logoutUrl).not.toContain("service_url=" + encodeURIComponent(`${origin}/app/`));
   });
 
   test("never generates development domain", () => {

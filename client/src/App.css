@@ -336,11 +336,13 @@ body {
 
 .app-nav-button {
   appearance: none;
-  font: inherit;
-  cursor: pointer;
-  background: transparent;
   border: 0;
+  background: transparent;
+  font: inherit;
   color: var(--color-white);
+  cursor: pointer;
+  line-height: normal;
+  margin: 0;
 }
 
 .app-nav-button:disabled {

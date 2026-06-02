@@ -12,6 +12,9 @@ function isDebugDetailsEnabled() {
 function isAuthContextDebugEnabled() {
   return String(process.env.PORTAL_DEBUG_AUTH_CONTEXT || "false").toLowerCase() === "true";
 }
+function isRawRequestDiagnosticsEnabled() {
+  return process.env.NODE_ENV !== "production" || String(process.env.PORTAL_DEBUG_RAW_REQUEST || "false").toLowerCase() === "true";
+}
 
 function getEnvPresenceSummary() {
   const accountsUrlUsed = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
@@ -121,16 +124,29 @@ async function getContactAndAccountByEmail(email, requestId) {
 
 module.exports = async (req, res) => {
   const requestId = createRequestId();
-  console.info("getPortalUserContext raw request diagnostics", {
+  const catalystIdentityMeta = {
+    hasZcUserId: Boolean(req.headers?.["x-zc-user-id"]),
+    hasZcUserCredToken: Boolean(req.headers?.["x-zc-user-cred-token"]),
+    userType: String(req.headers?.["x-zc-user-type"] || ""),
+  };
+  console.info("getPortalUserContext request", {
     requestId,
     method: req.method,
-    url: req.url,
-    hasUser: Boolean(req.user),
-    userKeys: req.user ? Object.keys(req.user) : [],
-    headerNames: Object.keys(req.headers || {}).sort(),
-    hasCookieHeader: Boolean(req.headers?.cookie),
-    hasAuthorizationHeader: Boolean(req.headers?.authorization),
+    hasZcUserId: catalystIdentityMeta.hasZcUserId,
+    userType: catalystIdentityMeta.userType,
   });
+  if (isRawRequestDiagnosticsEnabled()) {
+    console.info("getPortalUserContext raw request diagnostics", {
+      requestId,
+      method: req.method,
+      url: req.url,
+      hasUser: Boolean(req.user),
+      userKeys: req.user ? Object.keys(req.user) : [],
+      headerNames: Object.keys(req.headers || {}).sort(),
+      hasCookieHeader: Boolean(req.headers?.cookie),
+      hasAuthorizationHeader: Boolean(req.headers?.authorization),
+    });
+  }
   try {
     if (handleOptions(req, res)) return;
     if (req.method !== "GET") return sendJson(req, res, 405, { error: "Method not allowed. Use GET.", requestId });
@@ -145,19 +161,14 @@ module.exports = async (req, res) => {
     }
     let resolvedUser;
     try {
-      resolvedUser = resolveUserContext(req, requestedEmail);
+      resolvedUser = await resolveUserContext(req, requestedEmail, requestId);
     } catch (identityErr) {
       console.warn("getPortalUserContext identity resolution failed", {
         requestId,
         message: identityErr.message,
-        host: authDebugMeta.host,
-        origin: authDebugMeta.origin,
-        refererOrigin: authDebugMeta.refererOrigin,
+        hasZcUserId: catalystIdentityMeta.hasZcUserId,
+        userType: catalystIdentityMeta.userType,
         hadReqUser: authDebugMeta.hadReqUser,
-        reqUserKeys: authDebugMeta.reqUserKeys,
-        presentIdentityHeaders: authDebugMeta.presentIdentityHeaders,
-        userDetailsParsed: authDebugMeta.userDetailsParsed,
-        parsedUserDetailsKeys: authDebugMeta.parsedUserDetailsKeys,
         hasAnyCandidateEmail: authDebugMeta.hasAnyCandidateEmail,
         hasRequestedEmail: Boolean(String(requestedEmail || "").trim()),
       });

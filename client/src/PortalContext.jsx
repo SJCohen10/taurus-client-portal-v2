@@ -225,10 +225,17 @@ export function PortalProvider({ children }) {
           elapsedMs: Date.now() - startedAt,
         }));
 
-        if (e?.status === 401) {
+        const technicalMessage = String(e?.technicalMessage || "");
+        const isCatalystUnauthenticated =
+          e?.status !== 403 &&
+          (e?.status === 401 ||
+            e?.errorCode === "NO_ACCESS" ||
+            technicalMessage.includes("No privilege to perform this action"));
+
+        if (isCatalystUnauthenticated) {
           const loginUrl = getCatalystLoginUrl(serviceUrl);
           setBootStage("redirecting_to_login");
-          setLastAuthStep("context_401_redirecting_to_login");
+          setLastAuthStep("context_unauthenticated_redirecting_to_login");
           clearPortalAuthState();
           setAuthFailure(false);
           setNeedsLogin(true);
@@ -244,19 +251,21 @@ export function PortalProvider({ children }) {
             serviceUrl,
             loginUrl,
             contextRequestCompleted: true,
-            contextStatus: 401,
+            contextStatus: status,
             requestId: nextRequestId,
             elapsedMs: Date.now() - startedAt,
+            errorCode: e?.errorCode || "",
           }));
-          authDebugLog("portal-context-unauthorized", {
+          authDebugLog("portal-context-unauthenticated", {
             status: e?.status,
+            errorCode: e?.errorCode || "",
             requestId: nextRequestId,
             serviceUrl,
             loginUrl,
-            technicalMessage: e?.technicalMessage || "",
+            technicalMessage,
           });
           setLoading(false);
-          redirectToLogin(serviceUrl, "portal-context-401");
+          redirectToLogin(serviceUrl, "portal-context-unauthenticated");
           return;
         }
 

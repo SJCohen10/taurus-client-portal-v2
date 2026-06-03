@@ -82,7 +82,7 @@ export function PortalProvider({ children }) {
   const logout = React.useCallback(async () => {
     setLoading(true);
     resetAuthState();
-    await logoutAndRedirect({ serviceUrl: getAppReturnUrl() });
+    await logoutAndRedirect();
   }, [resetAuthState]);
 
   async function loadContext(signal) {

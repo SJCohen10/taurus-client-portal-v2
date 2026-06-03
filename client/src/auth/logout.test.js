@@ -21,64 +21,86 @@ function mockLocationReplace() {
 
 describe("portal logout", () => {
   let locationMock;
+  let originalFetch;
 
   beforeEach(() => {
     locationMock = mockLocationReplace();
+    originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue(undefined);
     window.localStorage.clear();
     window.sessionStorage.clear();
   });
 
   afterEach(() => {
     delete window.catalyst;
+    global.fetch = originalFetch;
     locationMock.restore();
     jest.restoreAllMocks();
   });
 
-  test("uses Catalyst SDK signOut, clears local state, broadcasts, and redirects to login", async () => {
-    const signOut = jest.fn().mockResolvedValue(undefined);
+  test("uses Catalyst SDK signOut with hashless redirect, clears state, broadcasts, and does not await or replace", async () => {
+    const signOut = jest.fn();
     window.catalyst = { auth: { signOut } };
     window.localStorage.setItem("catalyst-token", "token");
     window.sessionStorage.setItem("portal-user", "user");
 
-    await logoutAndRedirect({ serviceUrl: `${window.location.origin}/app/#/` });
+    await logoutAndRedirect();
 
     expect(signOut).toHaveBeenCalledTimes(1);
+    expect(signOut).toHaveBeenCalledWith(`${window.location.origin}/app/`);
     expect(window.localStorage.getItem("catalyst-token")).toBeNull();
     expect(window.sessionStorage.getItem("portal-user")).toBeNull();
     expect(window.localStorage.getItem(LOGOUT_STORAGE_KEY)).toEqual(expect.any(String));
-    expect(locationMock.replace).toHaveBeenCalledWith(
-      `${window.location.origin}/__catalyst/auth/login?service_url=${encodeURIComponent(
-        `${window.location.origin}/app/#/`,
-      )}`,
-    );
-    expect(locationMock.replace.mock.calls[0][0]).not.toContain("/__catalyst/auth/logout");
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(locationMock.replace).not.toHaveBeenCalled();
   });
 
-  test("still clears state and redirects to login when SDK logout fails", async () => {
-    const signOut = jest.fn().mockRejectedValue(new Error("SDK logout failed"));
-    window.catalyst = { auth: { signOut } };
+  test("falls back to BaaS logout and hashless redirect when SDK signOut is unavailable", async () => {
+    window.catalyst = { auth: {} };
     window.localStorage.setItem("portal-auth", "cached");
 
-    await logoutAndRedirect({ serviceUrl: `${window.location.origin}/app/#/` });
+    await logoutAndRedirect();
 
-    expect(signOut).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem("portal-auth")).toBeNull();
-    expect(locationMock.replace).toHaveBeenCalledWith(
-      expect.stringContaining("/__catalyst/auth/login?service_url="),
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${window.location.origin}/baas/logout?logout=true&PROJECT_ID=23570000000015028`,
+      {
+        method: "GET",
+        credentials: "include",
+        keepalive: true,
+      },
     );
+    expect(locationMock.replace).toHaveBeenCalledWith(`${window.location.origin}/app/`);
     expect(locationMock.replace.mock.calls[0][0]).not.toContain("/__catalyst/auth/logout");
   });
 
-  test("falls back to auth.logout or auth.signout when signOut is unavailable", async () => {
-    const logout = jest.fn().mockResolvedValue(undefined);
-    const signout = jest.fn().mockResolvedValue(undefined);
-    window.catalyst = { auth: { logout, signout } };
+  test("falls back to BaaS logout and hashless redirect when SDK signOut throws synchronously", async () => {
+    const signOut = jest.fn(() => {
+      throw new Error("SDK logout failed");
+    });
+    window.catalyst = { auth: { signOut } };
 
-    await logoutAndRedirect({ serviceUrl: `${window.location.origin}/app/#/` });
+    await logoutAndRedirect();
 
-    expect(logout).toHaveBeenCalledTimes(1);
-    expect(signout).not.toHaveBeenCalled();
-    expect(locationMock.replace.mock.calls[0][0]).toContain("/__catalyst/auth/login?service_url=");
+    expect(signOut).toHaveBeenCalledWith(`${window.location.origin}/app/`);
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${window.location.origin}/baas/logout?logout=true&PROJECT_ID=23570000000015028`,
+      expect.objectContaining({
+        credentials: "include",
+        keepalive: true,
+      }),
+    );
+    expect(locationMock.replace).toHaveBeenCalledWith(`${window.location.origin}/app/`);
+    expect(locationMock.replace.mock.calls[0][0]).not.toContain("/__catalyst/auth/logout");
+  });
+
+  test("still redirects to hashless app URL when BaaS logout fetch fails", async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("network failure"));
+
+    await logoutAndRedirect();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(locationMock.replace).toHaveBeenCalledWith(`${window.location.origin}/app/`);
     expect(locationMock.replace.mock.calls[0][0]).not.toContain("/__catalyst/auth/logout");
   });
 });

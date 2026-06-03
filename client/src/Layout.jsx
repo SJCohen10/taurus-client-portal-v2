@@ -21,7 +21,9 @@ export default function Layout() {
     try {
       await portal.logout();
     } catch (logoutError) {
-      console.error("[PortalAuth] Logout failed", logoutError);
+      console.error("[PortalAuth] Logout failed", {
+        message: logoutError?.message || "Unexpected logout error",
+      });
       setIsLoggingOut(false);
     }
   };
@@ -45,7 +47,7 @@ export default function Layout() {
                   )}
                 </>
               ) : (
-                "Checking login…"
+                "Preparing your portal…"
               )}
             </small>
           </div>

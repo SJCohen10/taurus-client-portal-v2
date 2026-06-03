@@ -1,6 +1,8 @@
 import { buildCatalystLoginUrl, getCleanAppReturnUrl } from "./authUrls";
 
-const isDebugAuth = process.env.REACT_APP_DEBUG_AUTH === "true" || process.env.REACT_APP_DEBUG_ROUTING === "true";
+export const isAuthDebugEnabled = process.env.REACT_APP_DEBUG_AUTH === "true";
+export const isRoutingDebugEnabled = process.env.REACT_APP_DEBUG_ROUTING === "true";
+
 
 export function getAppReturnUrl() {
   return getCleanAppReturnUrl();
@@ -9,8 +11,13 @@ export function getAppReturnUrl() {
 export const getCatalystLoginUrl = buildCatalystLoginUrl;
 
 export function authDebugLog(message, data = {}) {
-  if (!isDebugAuth) return;
+  if (!isAuthDebugEnabled && !isRoutingDebugEnabled) return;
   console.info(`[PortalAuth] ${message}`, data);
+}
+
+export function routingDebugLog(message, data = {}) {
+  if (!isRoutingDebugEnabled) return;
+  console.info(`[routing-debug] ${message}`, data);
 }
 
 export function redirectToLogin(serviceUrl = getAppReturnUrl(), reason = "") {

@@ -18,11 +18,11 @@ import {
   getAppReturnUrl,
   getCatalystLoginUrl,
   redirectToLogin,
+  routingDebugLog,
 } from "./auth/portalAuth";
 import { normalizePortalReturnUrl } from "./auth/authUrls";
 
 const PortalContext = createContext(null);
-const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
 const BOOT_TIMEOUT_MS = 15000;
 
 export function resolvePortalEmail(
@@ -193,14 +193,12 @@ export function PortalProvider({ children }) {
           elapsedMs: Date.now() - startedAt,
         }));
 
-        if (isDebugRouting) {
-          console.info("[routing-debug] portal-context-success", {
-            authenticated: true,
-            loading: false,
-            hasContext: Boolean(ctx),
-            requestId: ctx?.requestId || "",
-          });
-        }
+        routingDebugLog("portal-context-success", {
+          authenticated: true,
+          loading: false,
+          hasContext: Boolean(ctx),
+          requestId: ctx?.requestId || "",
+        });
       } catch (e) {
         if (e?.name === "AbortError") return;
         if (cancelled || bootRunIdRef.current !== runId) return;
@@ -276,7 +274,7 @@ export function PortalProvider({ children }) {
           setNeedsLogin(false);
           setServerFailure(false);
           setError(
-            "Your login was successful, but your Taurus portal access could not be verified. Please contact Taurus Capital if you believe this is incorrect.",
+            "You signed in successfully, but your portal access has not been enabled for this account. Please contact Taurus Capital for assistance.",
           );
         } else {
           setBootStage(
@@ -293,18 +291,16 @@ export function PortalProvider({ children }) {
           setServerFailure(true);
           setNeedsLogin(false);
           setError(
-            "We could not load your portal details right now. Please try again shortly.",
+            "Please refresh the page. If the issue continues, contact Taurus Capital for assistance.",
           );
         }
 
-        if (isDebugRouting) {
-          console.info("[routing-debug] portal-context-failure", {
-            status,
-            authFailure: e?.status === 403,
-            needsLogin: e?.status === 401,
-            serverFailure: e?.status !== 401 && e?.status !== 403,
-          });
-        }
+        routingDebugLog("portal-context-failure", {
+          status,
+          authFailure: e?.status === 403,
+          needsLogin: e?.status === 401,
+          serverFailure: e?.status !== 401 && e?.status !== 403,
+        });
       } finally {
         if (cancelled || bootRunIdRef.current !== runId) return;
         setLoading(false);
@@ -339,7 +335,7 @@ export function PortalProvider({ children }) {
       setLastAuthStep("bootstrap_timeout");
       setServerFailure(true);
       setNeedsLogin(false);
-      setError("Portal loading timed out. Please retry.");
+      setError("Please refresh the page. If the issue continues, contact Taurus Capital for assistance.");
       setLoading(false);
       setDiagnostics((prev) => ({
         ...prev,

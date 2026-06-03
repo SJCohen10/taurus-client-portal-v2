@@ -15,6 +15,13 @@ function isAuthContextDebugEnabled() {
 function isRawRequestDiagnosticsEnabled() {
   return process.env.NODE_ENV !== "production" || String(process.env.PORTAL_DEBUG_RAW_REQUEST || "false").toLowerCase() === "true";
 }
+function isPortalContextDebugEnabled() {
+  return process.env.NODE_ENV !== "production" || String(process.env.PORTAL_DEBUG_USER_CONTEXT || "false").toLowerCase() === "true";
+}
+function portalContextDebugLog(message, data = {}) {
+  if (!isPortalContextDebugEnabled()) return;
+  console.info(message, data);
+}
 
 function getEnvPresenceSummary() {
   const accountsUrlUsed = process.env.ZOHO_ACCOUNTS_URL || "https://accounts.zoho.com";
@@ -28,20 +35,20 @@ function getEnvPresenceSummary() {
 
 function assertRequiredOAuthEnv(requestId) {
   const summary = getEnvPresenceSummary();
-  console.info("getPortalUserContext env check", { requestId, ...summary });
-
   const missing = [];
   if (!summary.clientIdPresent) missing.push("ZOHO_CLIENT_ID");
   if (!summary.clientSecretPresent) missing.push("ZOHO_CLIENT_SECRET");
   if (!summary.refreshTokenPresent) missing.push("ZOHO_REFRESH_TOKEN");
 
   if (missing.length) {
+    console.error("getPortalUserContext env check failed", { requestId, missing, accountsUrlUsed: summary.accountsUrlUsed });
     const err = new Error(`Missing required OAuth env vars for getportalusercontext: ${missing.join(", ")}`);
     err.statusCode = 500;
     err.details = { missing, accountsUrlUsed: summary.accountsUrlUsed };
     throw err;
   }
 
+  portalContextDebugLog("getPortalUserContext env check", { requestId, ...summary });
   return summary;
 }
 
@@ -129,7 +136,7 @@ module.exports = async (req, res) => {
     hasZcUserCredToken: Boolean(req.headers?.["x-zc-user-cred-token"]),
     userType: String(req.headers?.["x-zc-user-type"] || ""),
   };
-  console.info("getPortalUserContext request", {
+  portalContextDebugLog("getPortalUserContext request", {
     requestId,
     method: req.method,
     hasZcUserId: catalystIdentityMeta.hasZcUserId,
@@ -179,11 +186,11 @@ module.exports = async (req, res) => {
       console.warn("getPortalUserContext invalid resolved email", { requestId, source: resolvedUser.source });
       return sendJson(req, res, 400, { error: "Invalid email context", requestId });
     }
-    console.info("getPortalUserContext resolved identity", { requestId, source: resolvedUser.source, emailDomain: email.split("@")[1] || "" });
+    portalContextDebugLog("getPortalUserContext resolved identity", { requestId, source: resolvedUser.source, emailDomain: email.split("@")[1] || "" });
     enforceRateLimit({ key: `getportalusercontext:${email}`, limit: 30, windowMs: 60000 });
 
     const context = await getContactAndAccountByEmail(email, requestId);
-    console.info("getPortalUserContext access granted", { requestId, emailDomain: email.split("@")[1] || "" });
+    portalContextDebugLog("getPortalUserContext access granted", { requestId, emailDomain: email.split("@")[1] || "" });
     return sendJson(req, res, 200, { ...context, requestId });
   } catch (err) {
     if (err.statusCode === 403) {

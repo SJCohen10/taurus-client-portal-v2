@@ -22,6 +22,15 @@ const SELLER_READVANCE_FORM_URL =
 const ADD_BANK_DETAIL_FORM_URL =
     "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalAddBankDetail/formperma/sMwZkmaaClPpGJ9uLA_jm59z-DBs-l4LoPpWSA3UBr4";
 
+function safeConsoleError(label, error, details = {}) {
+    console.error(label, {
+        message: error?.message || String(error || "Unexpected error"),
+        status: error?.status || undefined,
+        requestId: error?.requestId || undefined,
+        ...details,
+    });
+}
+
 const INITIAL_OR_FURTHER_ADVANCE_ALIAS = "Initial_Advance_Further_Advance";
 const READVANCE_ONLY_PREFILL_PARAM_MAP = [
     { urlKey: "Property_Ref_Number", dealKeys: ["property_ref_number", "Property Ref Number"] },
@@ -359,7 +368,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 setNotificationsError("");
             } catch (err) {
                 if (cancelled) return;
-                console.error("[DealActions] preload notifications failed", err);
+                safeConsoleError("[DealActions] preload notifications failed", err);
                 setPersistedNotifications([]);
                 setNotificationsError(err?.message || "Failed to load notifications");
             }
@@ -401,7 +410,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             );
             setOpen(false);
         } catch (err) {
-            console.error("Document upload failed", err);
+            safeConsoleError("Document upload failed", err);
             setMessage(err.message || "Unable to upload document right now.");
         } finally {
             setUploading(false);
@@ -437,11 +446,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             setOpen(false);
             setStatementChooserOpen(false);
         } catch (err) {
-            console.error("Generate statement failed", err);
-            console.error("Statement response/navigation debug", {
-                assetIds,
-                selectedAssetId: assetId,
-                portalEmail,
+            safeConsoleError("Generate statement failed", err, {
                 newTabExists: !!newTab,
                 newTabClosed: newTab ? newTab.closed : null,
             });
@@ -796,7 +801,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 if (err?.name === "AbortError") {
                     return;
                 }
-                console.error("[DealActions] Notifications fetch failure", err);
+                safeConsoleError("[DealActions] Notifications fetch failure", err);
                 if (!suppressError) {
                     setNotificationsError(err?.message || "Failed to load notifications");
                 }
@@ -1146,10 +1151,8 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                                     );
                                                     setNotificationOpen(false);
                                                 } catch (err) {
-                                                    console.warn("Failed to mark notification read", err);
+                                                    safeConsoleError("Failed to mark notification read", err);
                                                 }
-                                            } else if (n.source === "persisted") {
-                                                console.warn("Skipping mark read: persisted notification has no id", n);
                                             }
 
                                             handleNotificationClick(n);

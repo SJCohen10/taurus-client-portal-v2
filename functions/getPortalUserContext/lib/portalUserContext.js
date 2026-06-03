@@ -2,6 +2,15 @@
 
 const { crmRequest } = require("./crm");
 
+function isPortalContextDebugEnabled() {
+  return process.env.NODE_ENV !== "production" || String(process.env.PORTAL_DEBUG_USER_CONTEXT || "false").toLowerCase() === "true";
+}
+
+function portalContextDebugLog(message, data = {}) {
+  if (!isPortalContextDebugEnabled()) return;
+  console.info(message, data);
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -77,7 +86,7 @@ async function resolvePortalUserContextByEmail({ email, requestId }) {
     throw denyAccess("ACCOUNT_PORTAL_STATUS_NOT_ACTIVE", "Account portal status is not active");
   }
 
-  console.info("portal access validation passed", {
+  portalContextDebugLog("portal access validation passed", {
     requestId,
     emailDomain: normalizedEmail.split("@")[1] || "",
     contactId: contact.id || null,

@@ -10,13 +10,17 @@ import SellerProceedsStart from "./pages/forms/property/SellerProceedsStart";
 import {
   getAppReturnUrl,
   getCatalystLoginUrl,
+  isAuthDebugEnabled,
+  isRoutingDebugEnabled,
   redirectToLogin,
+  routingDebugLog,
 } from "./auth/portalAuth";
 import { normalizePortalReturnUrl } from "./auth/authUrls";
 
 const isProduction = process.env.NODE_ENV === "production";
-const isDebugRouting = process.env.REACT_APP_DEBUG_ROUTING === "true";
-const isDebugAuth = process.env.REACT_APP_DEBUG_AUTH === "true";
+const isDebugRouting = isRoutingDebugEnabled;
+const isDebugAuth = isAuthDebugEnabled;
+const isDebugMode = isDebugRouting || isDebugAuth;
 
 const buildAppHashUrl = (hashPath = "/") => {
   const sanitized = hashPath.startsWith("/") ? hashPath : `/${hashPath}`;
@@ -53,12 +57,44 @@ function LoginRedirect() {
 function AccessErrorScreen() {
   return (
     <div style={{ padding: "2rem" }}>
-      <h2>Portal Access Issue</h2>
-      <p>
-        Your login was successful, but your Taurus portal access could not be
-        verified. Please contact Taurus Capital if you believe this is
-        incorrect.
+      <h2>Portal access could not be verified</h2>
+      <p className="subtle">
+        You signed in successfully, but your portal access has not been enabled
+        for this account. Please contact Taurus Capital for assistance.
       </p>
+    </div>
+  );
+}
+
+function PortalErrorScreen({ diagnostics = null, requestId = "" }) {
+  return (
+    <div style={{ padding: "2rem" }}>
+      <h2>We couldn’t load your portal</h2>
+      <p className="subtle">
+        Please refresh the page. If the issue continues, contact Taurus Capital
+        for assistance.
+      </p>
+      {isDebugMode && requestId ? (
+        <p className="subtle" style={{ fontSize: "0.85rem" }}>
+          Reference: {requestId}
+        </p>
+      ) : null}
+      {isDebugMode && diagnostics ? (
+        <pre
+          style={{
+            fontSize: "0.75rem",
+            background: "#f5f5f5",
+            padding: "0.5rem",
+            borderRadius: "6px",
+            overflowX: "auto",
+          }}
+        >
+          {JSON.stringify(diagnostics, null, 2)}
+        </pre>
+      ) : null}
+      <button type="button" onClick={() => window.location.reload()}>
+        Refresh page
+      </button>
     </div>
   );
 }
@@ -71,11 +107,13 @@ function PortalLoadingScreen({
   return (
     <div style={{ padding: "2rem" }}>
       <h2>Taurus Client Portal</h2>
-      <p className="subtle">Loading Taurus Client Portal...</p>
-      <p className="subtle" style={{ fontSize: "0.85rem" }}>
-        Stage: {bootStage} • {Math.floor(elapsedMs / 1000)}s
-      </p>
-      {(isDebugRouting || isDebugAuth) && diagnostics ? (
+      <p className="subtle">Preparing your portal...</p>
+      {isDebugMode ? (
+        <p className="subtle" style={{ fontSize: "0.85rem" }}>
+          Stage: {bootStage} • {Math.floor(elapsedMs / 1000)}s
+        </p>
+      ) : null}
+      {isDebugMode && diagnostics ? (
         <pre
           style={{
             fontSize: "0.75rem",
@@ -104,6 +142,7 @@ function ProtectedAppShell() {
       !portal?.loading ||
       portal?.authenticated ||
       portal?.authFailure ||
+      portal?.needsLogin ||
       portal?.serverFailure
     ) {
       setShowLongLoadingMessage(false);
@@ -117,6 +156,7 @@ function ProtectedAppShell() {
     portal?.loading,
     portal?.authenticated,
     portal?.authFailure,
+    portal?.needsLogin,
     portal?.serverFailure,
   ]);
 
@@ -129,8 +169,7 @@ function ProtectedAppShell() {
   }, [portal?.loading]);
 
   React.useEffect(() => {
-    if (!isDebugRouting) return;
-    console.info("[routing-debug] protected-shell-state", {
+    routingDebugLog("protected-shell-state", {
       loading: portal?.loading,
       authenticated: portal?.authenticated,
       authFailure: portal?.authFailure,
@@ -163,9 +202,22 @@ function ProtectedAppShell() {
         <div style={{ padding: "2rem" }}>
           <h2>Taurus Client Portal</h2>
           <p className="subtle">
-            Still loading portal context. Please refresh or contact Taurus
-            Capital if this continues.
+            We’re still preparing your portal. Please refresh the page if this
+            continues.
           </p>
+          {isDebugMode && portal?.diagnostics ? (
+            <pre
+              style={{
+                fontSize: "0.75rem",
+                background: "#f5f5f5",
+                padding: "0.5rem",
+                borderRadius: "6px",
+                overflowX: "auto",
+              }}
+            >
+              {JSON.stringify(portal.diagnostics, null, 2)}
+            </pre>
+          ) : null}
         </div>
       );
     }
@@ -186,30 +238,14 @@ function ProtectedAppShell() {
 
   if (portal?.bootStage === "timeout") {
     return (
-      <div style={{ padding: "2rem" }}>
-        <h2>Portal loading timed out</h2>
-        <p className="subtle">
-          Please retry. If this repeats, contact support with the diagnostics
-          below.
-        </p>
-        <ul>
-          <li>bootStage: {portal?.bootStage}</li>
-          <li>sdkStatus: {portal?.sdkStatus}</li>
-          <li>currentUrl: {portal?.diagnostics?.currentUrl || ""}</li>
-          <li>serviceUrl: {portal?.diagnostics?.serviceUrl || ""}</li>
-          <li>
-            contextRequestStarted:{" "}
-            {String(portal?.diagnostics?.contextRequestStarted)}
-          </li>
-          <li>
-            contextRequestCompleted:{" "}
-            {String(portal?.diagnostics?.contextRequestCompleted)}
-          </li>
-        </ul>
-        <button type="button" onClick={() => window.location.reload()}>
-          Retry
-        </button>
-      </div>
+      <PortalErrorScreen
+        diagnostics={{
+          bootStage: portal?.bootStage,
+          sdkStatus: portal?.sdkStatus,
+          ...(portal?.diagnostics || {}),
+        }}
+        requestId={portal?.requestId}
+      />
     );
   }
 
@@ -224,13 +260,10 @@ function ProtectedAppShell() {
 
     if (portal?.serverFailure) {
       return (
-        <div style={{ padding: "2rem" }}>
-          <h2>Temporary Portal Error</h2>
-          <p>
-            {portal?.error ||
-              "Temporary server issue while loading your portal access. Please try again shortly."}
-          </p>
-        </div>
+        <PortalErrorScreen
+          diagnostics={portal?.diagnostics}
+          requestId={portal?.requestId}
+        />
       );
     }
 
@@ -258,7 +291,7 @@ export default function App() {
   const shouldAppWithoutHashLoginRedirect = isProduction && isAppPathWithoutHash;
 
   if (isDebugRouting) {
-    console.info("[routing-debug] app-bootstrap", {
+    routingDebugLog("app-bootstrap", {
       pathname,
       hash,
       hasHashRoute,
@@ -271,7 +304,7 @@ export default function App() {
   if (shouldRootLoginRedirect) {
     const loginUrl = getCatalystLoginUrl(getAppReturnUrl());
     if (isDebugRouting) {
-      console.info("[routing-debug] production-root-login-redirect", {
+      routingDebugLog("production-root-login-redirect", {
         currentUrl: window.location.href,
         loginUrl,
       });
@@ -283,7 +316,7 @@ export default function App() {
   if (shouldAppWithoutHashLoginRedirect) {
     const loginUrl = getCatalystLoginUrl(getAppReturnUrl());
     if (isDebugRouting) {
-      console.info("[routing-debug] production-app-without-hash-login-redirect", {
+      routingDebugLog("production-app-without-hash-login-redirect", {
         currentUrl: window.location.href,
         loginUrl,
       });

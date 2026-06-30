@@ -217,10 +217,15 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     const assetTypesRaw = deal["Asset Types"] || deal.asset_types || deal.assetTypes || null;
     const assetIds = parseDelimitedList(assetIdsRaw);
     const assetTypes = parseDelimitedList(assetTypesRaw);
-    const statementOptions = assetIds.map((assetId, idx) => ({
-        assetId,
-        label: buildStatementOptionLabel(assetTypes[idx], idx),
-    }));
+    // One statement option per typed asset (e.g. Seller, Estate Agent). Assets
+    // without a type are skipped — we can't route them to a statement page.
+    const statementOptions = assetIds
+        .map((assetId, idx) => ({
+            assetId,
+            statementType: (assetTypes[idx] || "").trim(),
+            label: buildStatementOptionLabel(assetTypes[idx], idx),
+        }))
+        .filter((option) => option.assetId && option.statementType);
 
     const propertyFolderId =
         deal.propertyFolderId ||
@@ -418,7 +423,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         }
     }
 
-    async function startStatementDownload(assetId) {
+    async function startStatementDownload(assetId, statementType) {
         let newTab = null;
 
         try {
@@ -435,6 +440,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             const response = await generateStatement({
                 assetId,
                 email: portalEmail,
+                statementType,
             });
             if (!response?.statementUrl) {
                 throw new Error("We could not prepare the statement download. Please try again.");
@@ -459,21 +465,22 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
     async function handleGenerateStatement(event) {
         event.stopPropagation();
 
-        if (!assetIds.length) {
-            setMessage("No Assets are linked to this deal yet.");
-            return;
-        }
-
         if (!portalEmail) {
             setMessage("We could not verify your profile. Please sign in again.");
             return;
         }
 
-        if (assetIds.length === 1) {
-            await startStatementDownload(assetIds[0]);
+        if (!statementOptions.length) {
+            setMessage(
+                assetIds.length
+                    ? "No statement is available for this deal yet."
+                    : "No Assets are linked to this deal yet."
+            );
             return;
         }
 
+        // Always let the user pick the statement type (Seller / Estate Agent),
+        // showing only the types this deal actually has.
         setStatementChooserOpen(true);
         setOpen(false);
     }
@@ -1353,7 +1360,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                             key={`${option.assetId}-${index}`}
                                             type="button"
                                             className="button"
-                                            onClick={() => startStatementDownload(option.assetId)}
+                                            onClick={() => startStatementDownload(option.assetId, option.statementType)}
                                             disabled={statementLoading}
                                             style={{ width: "100%" }}
                                         >

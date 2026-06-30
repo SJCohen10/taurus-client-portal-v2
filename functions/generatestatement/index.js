@@ -9,8 +9,6 @@ const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
 const DEFAULT_SIGNING_SECRET = "change-me";
 const WORKDRIVE_BASE = process.env.ZOHO_WORKDRIVE_BASE || "https://www.zohoapis.com/workdrive/api/v1";
 const STATEMENTS_FOLDER_NAME = process.env.PORTAL_STATEMENTS_FOLDER_NAME || "Statements";
-const CREATOR_STATEMENT_DOWNLOAD_BASE_DEFAULT = "https://www.zohoapis.com/creator/custom/administrator_tauruscapital/downloadStatement";
-const CREATOR_STATEMENT_PUBLIC_KEY_DEFAULT = "3fdsV7X7R3ZVAugHnHrFuJJqx";
 
 function createRequestId() {
   return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -35,14 +33,51 @@ function buildCreatorUrl(pageName, assetId) {
   return `${base}:${pageName}?CrmAssetId=${assetId}`;
 }
 
-function buildStatementDownloadUrl(assetId) {
-  const configuredBase = String(process.env.ZOHO_CREATOR_STATEMENT_DOWNLOAD_BASE || "").trim();
-  const base = configuredBase || CREATOR_STATEMENT_DOWNLOAD_BASE_DEFAULT;
-  const publicKey =
-    String(process.env.ZOHO_CREATOR_STATEMENT_PUBLIC_KEY || "").trim() ||
-    CREATOR_STATEMENT_PUBLIC_KEY_DEFAULT;
+// Statement download pages are public Creator page-perma URLs, one per asset
+// type. Defaults below work out of the box; new types can be added (or these
+// overridden) via the PORTAL_STATEMENT_URL_MAP JSON env var without a code change.
+const STATEMENT_URL_DEFAULTS = {
+  seller:
+    "https://creatorapp.zohopublic.com/administrator_tauruscapital/loan-management-system/page-perma/Seller_Statements_Download_Only/0aGPQhz07F1EqByZUqW5nup4NxZg6arwJxx4PpVaqNsq8WFnCwD0TFORutCSJAOvR19PSfC3v3UmWSqN0DjdgUuqhqPqV4M7vwgs?isc5page=tru",
+  "estate agent":
+    "https://creatorapp.zohopublic.com/administrator_tauruscapital/loan-management-system/page-perma/Agent_Statements_Download_Only/DBzG0QSdGUTJNqfDf828VPmx1SRU0t3TkgsQFAtrfFwePE1CCUfP0smR6wGDYVw4vbNEkz1baaNQ3OnFKmm7dGbKAAhFdWt7GufD?isc5page=tru",
+};
+
+// Data uses "Estate Agent"; allow "agent" to resolve to the same statement.
+const STATEMENT_TYPE_ALIASES = { agent: "estate agent" };
+
+function getStatementUrlMap() {
+  const map = { ...STATEMENT_URL_DEFAULTS };
+  const raw = String(process.env.PORTAL_STATEMENT_URL_MAP || "").trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      for (const [k, v] of Object.entries(parsed || {})) {
+        if (typeof v === "string" && v.trim()) map[String(k).trim().toLowerCase()] = v.trim();
+      }
+    } catch (e) {
+      console.warn("[generatestatement] invalid PORTAL_STATEMENT_URL_MAP JSON; using defaults", { message: e.message });
+    }
+  }
+  return map;
+}
+
+function resolveStatementUrl(assetId, statementType) {
+  const normalizedType = String(statementType || "").trim().toLowerCase();
+  if (!normalizedType) {
+    const err = new Error("Missing statement type");
+    err.statusCode = 400;
+    throw err;
+  }
+  const map = getStatementUrlMap();
+  const key = map[normalizedType] ? normalizedType : STATEMENT_TYPE_ALIASES[normalizedType] || normalizedType;
+  const base = map[key];
+  if (!base) {
+    const err = new Error(`No statement is available for "${statementType}" yet`);
+    err.statusCode = 400;
+    throw err;
+  }
   const url = new URL(base);
-  url.searchParams.set("publickey", publicKey);
   url.searchParams.set("CrmAssetId", String(assetId || "").trim());
   return url.toString();
 }
@@ -296,7 +331,7 @@ module.exports = async (req, res) => {
 
     if (req.method !== "POST") return sendJson(req, res, 405, { error: "Method not allowed", requestId });
     const body = await readJsonBody(req);
-    assertAllowedKeys(body, ["email", "assetId", "accountId"]);
+    assertAllowedKeys(body, ["email", "assetId", "accountId", "statementType"]);
 
     const bodyEmail = String(body.email || "").trim().toLowerCase();
     const callerEmail = getCallerEmail(req);
@@ -344,7 +379,13 @@ module.exports = async (req, res) => {
       return sendJson(req, res, 403, { error: "Forbidden", requestId });
     }
 
-    const statementUrl = buildStatementDownloadUrl(assetId);
+    const statementUrl = resolveStatementUrl(assetId, body.statementType);
+
+    console.info("[generatestatement] resolved statement url", {
+      requestId,
+      assetId,
+      statementType: String(body.statementType || "").trim(),
+    });
 
     return sendJson(req, res, 200, {
       ok: true,

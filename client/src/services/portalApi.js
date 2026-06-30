@@ -129,7 +129,7 @@ export async function fetchBankDetailsForAccount({ accountId, avsOnly = false })
 
 
 // Generate a statement using the Creator-backed logic
-export async function generateStatement({ assetId, email }) {
+export async function generateStatement({ assetId, email, statementType }) {
   const safeEmail = getPortalUserEmail(email);
 
   return request("/generatestatement", {
@@ -137,6 +137,7 @@ export async function generateStatement({ assetId, email }) {
     body: {
       assetId,
       email: safeEmail,
+      ...(statementType ? { statementType } : {}),
     },
   });
 }

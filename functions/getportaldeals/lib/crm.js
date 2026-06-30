@@ -192,10 +192,16 @@ async function crmRequest({ method = "GET", path, query = {}, body, requestId })
   });
 
   const raw = await res.text();
-  const parsed = raw ? JSON.parse(raw) : {};
+  let parsed = {};
+  try {
+    parsed = raw ? JSON.parse(raw) : {};
+  } catch {
+    parsed = {};
+  }
   if (!res.ok) {
     const err = new Error("CRM request failed");
     err.statusCode = res.status;
+    err.body = String(raw || "").slice(0, 500);
     throw err;
   }
   return parsed;

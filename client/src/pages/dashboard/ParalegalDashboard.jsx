@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePortalContext } from "../../PortalContext";
 import { fetchDealTransactions, fetchFirmDeals } from "../../services/portalApi";
@@ -184,6 +184,8 @@ export default function ParalegalDashboard() {
     const [view, setView] = useState("my");
     const [deals, setDeals] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState(null);
 
     const [error, setError] = useState("");
     const [agentReferralOpen, setAgentReferralOpen] = useState(false);
@@ -228,24 +230,54 @@ export default function ParalegalDashboard() {
         }
     }, [openSections, storageKey]);
 
+    // `background` refreshes (polling, focus, manual) update the table in place
+    // without flipping the whole view back to the "Loading…" state.
+    const loadDeals = useCallback(async ({ background = false } = {}) => {
+        if (!displayEmail) return;
+        try {
+            if (background) setRefreshing(true);
+            else setLoading(true);
+            setError("");
+            const data = await fetchFirmDeals({ accountId, fallbackEmail: displayEmail });
+            setDeals(data.deals || []);
+            setLastUpdated(new Date());
+        } catch {
+            if (!background) setError("Unable to load deals at the moment.");
+        } finally {
+            if (background) setRefreshing(false);
+            else setLoading(false);
+        }
+    }, [accountId, displayEmail]);
+
+    // Initial load (and when identity/account resolves).
     useEffect(() => {
         if (!displayEmail || portalContext?.loading || portalContext?.error) return;
-
-        async function loadDeals() {
-            try {
-                setLoading(true);
-                setError("");
-                const data = await fetchFirmDeals({ accountId, fallbackEmail: displayEmail });
-                setDeals(data.deals || []);
-            } catch {
-                setError("Unable to load deals at the moment.");
-            } finally {
-                setLoading(false);
-            }
-        }
-
         loadDeals();
-    }, [accountId, displayEmail, portalContext?.error, portalContext?.loading]);
+    }, [displayEmail, portalContext?.loading, portalContext?.error, loadDeals]);
+
+    // Poll while mounted so freshly-submitted deals appear (~3–5 min Zoho Flow
+    // delay) without the user re-logging in.
+    useEffect(() => {
+        if (!displayEmail || portalContext?.loading || portalContext?.error) return undefined;
+        const POLL_MS = 120000;
+        const id = setInterval(() => loadDeals({ background: true }), POLL_MS);
+        return () => clearInterval(id);
+    }, [displayEmail, portalContext?.loading, portalContext?.error, loadDeals]);
+
+    // Refresh when the user returns to the tab (e.g. after submitting a form).
+    useEffect(() => {
+        if (!displayEmail) return undefined;
+        const onFocus = () => loadDeals({ background: true });
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") loadDeals({ background: true });
+        };
+        window.addEventListener("focus", onFocus);
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => {
+            window.removeEventListener("focus", onFocus);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, [displayEmail, loadDeals]);
 
     const visibleDeals = useMemo(() => {
         const portalEmailLower = String(displayEmail || "").toLowerCase();
@@ -365,7 +397,9 @@ export default function ParalegalDashboard() {
         setTransactionsError("");
 
         const assetIds = deriveAssetIds(deal);
-        if (!assetIds.length || !displayEmail) {
+        // Pending (not-yet-synced) deals aren't authorized for transaction lookups
+        // and may not have transactions yet; show the deal fields without them.
+        if (deal?.source === "crm_pending" || !assetIds.length || !displayEmail) {
             setTransactions([]);
             return;
         }
@@ -449,12 +483,16 @@ export default function ParalegalDashboard() {
                                                 <td className="col-priority-medium" title={valueFor(deal, "upsell_available")}>{valueFor(deal, "upsell_available")}</td>
                                                 <td className="col-priority-medium" title={valueFor(deal, "created_time")}>{valueFor(deal, "created_time")}</td>
                                                 <td className="actions-cell" onClick={(event) => event.stopPropagation()}>
-                                                    <DealActions
-                                                        deal={deal}
-                                                        portalEmail={displayEmail}
-                                                        accountId={accountId}
-                                                        onDealUpdate={handleDealUpdate}
-                                                    />
+                                                    {deal.source === "crm_pending" ? (
+                                                        <span className="subtle" title="This deal was just submitted and is still being processed. Actions become available once it finishes syncing.">Processing…</span>
+                                                    ) : (
+                                                        <DealActions
+                                                            deal={deal}
+                                                            portalEmail={displayEmail}
+                                                            accountId={accountId}
+                                                            onDealUpdate={handleDealUpdate}
+                                                        />
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -536,6 +574,14 @@ export default function ParalegalDashboard() {
                         ))}
                     </select>
                     <button type="button" className="table-filter-clear" onClick={clearFilters}>Clear filters</button>
+                    <button type="button" className="table-filter-clear" onClick={() => loadDeals({ background: true })} disabled={refreshing}>
+                        {refreshing ? "Refreshing…" : "Refresh"}
+                    </button>
+                    {lastUpdated && (
+                        <span className="subtle" style={{ alignSelf: "center", fontSize: "0.8rem" }}>
+                            Updated {lastUpdated.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                    )}
                 </div>
 
                 {loading && <div className="dashboard-message">Loading deals…</div>}

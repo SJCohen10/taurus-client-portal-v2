@@ -2,8 +2,29 @@
 
 const { URL } = require("url");
 const { getDealsForPortal } = require("./lib/portalDeals");
+const { fetchPendingDealsFromCrm } = require("./lib/crmPendingDeals");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Merge freshly-submitted CRM deals into the Analytics list, Analytics-first:
+// when a deal_id exists in both, the richer Analytics row wins and the synthetic
+// pending row is dropped.
+function mergeDealsAnalyticsFirst(analyticsDeals, pendingDeals) {
+    const seen = new Set();
+    const merged = [];
+    for (const deal of analyticsDeals || []) {
+        const id = String(deal?.deal_id || "").trim();
+        if (id) seen.add(id);
+        merged.push(deal);
+    }
+    for (const deal of pendingDeals || []) {
+        const id = String(deal?.deal_id || "").trim();
+        if (id && seen.has(id)) continue;
+        if (id) seen.add(id);
+        merged.push(deal);
+    }
+    return merged;
+}
 
 
 function createRequestId() {
@@ -78,11 +99,26 @@ module.exports = async (req, res) => {
             });
         }
 
-        const deals = await getDealsForPortal({ email, requestId });
+        const [deals, pendingDeals] = await Promise.all([
+            getDealsForPortal({ email, requestId }),
+            fetchPendingDealsFromCrm({ email, requestId }).catch((err) => {
+                console.warn("getportaldeals pending CRM merge skipped", {
+                    requestId,
+                    message: err?.message || String(err),
+                    statusCode: err?.statusCode,
+                    body: err?.body,
+                    query: err?.query,
+                });
+                return [];
+            }),
+        ]);
+
+        const merged = mergeDealsAnalyticsFirst(deals, pendingDeals);
 
         return sendJson(res, 200, {
-            count: deals.length,
-            deals,
+            count: merged.length,
+            deals: merged,
+            pendingCount: pendingDeals.length,
             requestId,
         });
     } catch (err) {

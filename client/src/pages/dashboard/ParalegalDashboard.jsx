@@ -249,35 +249,15 @@ export default function ParalegalDashboard() {
         }
     }, [accountId, displayEmail]);
 
-    // Initial load (and when identity/account resolves).
+    // Initial load (and when identity/account resolves). Deals refresh only on
+    // this initial load and when the user clicks the Refresh button — there is
+    // deliberately no background polling or tab-focus auto-refresh, which was
+    // glitchy and could remount the table mid-interaction (e.g. dropping an
+    // in-progress document upload).
     useEffect(() => {
         if (!displayEmail || portalContext?.loading || portalContext?.error) return;
         loadDeals();
     }, [displayEmail, portalContext?.loading, portalContext?.error, loadDeals]);
-
-    // Poll while mounted so freshly-submitted deals appear (~3–5 min Zoho Flow
-    // delay) without the user re-logging in.
-    useEffect(() => {
-        if (!displayEmail || portalContext?.loading || portalContext?.error) return undefined;
-        const POLL_MS = 120000;
-        const id = setInterval(() => loadDeals({ background: true }), POLL_MS);
-        return () => clearInterval(id);
-    }, [displayEmail, portalContext?.loading, portalContext?.error, loadDeals]);
-
-    // Refresh when the user returns to the tab (e.g. after submitting a form).
-    useEffect(() => {
-        if (!displayEmail) return undefined;
-        const onFocus = () => loadDeals({ background: true });
-        const onVisibility = () => {
-            if (document.visibilityState === "visible") loadDeals({ background: true });
-        };
-        window.addEventListener("focus", onFocus);
-        document.addEventListener("visibilitychange", onVisibility);
-        return () => {
-            window.removeEventListener("focus", onFocus);
-            document.removeEventListener("visibilitychange", onVisibility);
-        };
-    }, [displayEmail, loadDeals]);
 
     const visibleDeals = useMemo(() => {
         const portalEmailLower = String(displayEmail || "").toLowerCase();
@@ -523,10 +503,10 @@ export default function ParalegalDashboard() {
             </header>
 
             <div className="dashboard-actions">
-                <div className="card action-card"><h3>Quick Bridge Application</h3><p className="subtle">Start a new application with your firm’s preferred Quick Bridge bank details.</p><Link className="button" to="/quick-rates">Start Quick Bridge Application</Link></div>
-                <div className="card action-card"><h3>Seller Application</h3><p className="subtle">Create a seller proceeds request and keep your pipeline moving.</p><Link className="button" to="/seller-proceeds">Start Seller Application</Link></div>
-                <div className="card action-card"><h3>Agent Referral</h3><p className="subtle">Refer an estate agent by completing a quick referral form.</p><button className="button" type="button" onClick={() => setAgentReferralOpen(true)}>Open Agent Referral Form</button></div>
-                <div className="card action-card"><h3>Generate Quote</h3><p className="subtle">Create and prepare a preliminary quotation.</p><a className="button" href="https://zfrmz.com/0AxyGWsAOSyjhYL7fpRf" target="_blank" rel="noopener noreferrer">Generate Quote</a></div>
+                <div className="card action-card"><h3>Quick Bridge Application</h3><p className="subtle">Start a new application with your firm’s preferred Quick Bridge bank details.</p><Link className="button accent" to="/quick-rates">Start Quick Bridge Application</Link></div>
+                <div className="card action-card"><h3>Seller Application</h3><p className="subtle">Create a seller proceeds request and keep your pipeline moving.</p><Link className="button accent" to="/seller-proceeds">Start Seller Application</Link></div>
+                <div className="card action-card"><h3>Agent Referral</h3><p className="subtle">Refer an estate agent by completing a quick referral form.</p><button className="button accent" type="button" onClick={() => setAgentReferralOpen(true)}>Open Agent Referral Form</button></div>
+                <div className="card action-card"><h3>Generate Quote</h3><p className="subtle">Create and prepare a preliminary quotation.</p><a className="button accent" href="https://zfrmz.com/0AxyGWsAOSyjhYL7fpRf" target="_blank" rel="noopener noreferrer">Generate Quote</a></div>
             </div>
 
 

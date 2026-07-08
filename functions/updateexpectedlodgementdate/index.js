@@ -22,42 +22,6 @@ function parseCanViewFirmDeals(value) {
   return value === true || value === "true" || value === "Yes";
 }
 
-function getTodayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getDealOwnerId(dealRecord) {
-  return String(dealRecord?.Owner?.id || "").trim();
-}
-
-async function notifyDealOwnerExpectedDateUpdated({ ownerId, dealId, expectedLodgementDate, actorEmail, requestId }) {
-  if (!ownerId) return;
-
-  const subject = "Portal update: Expected Lodgement Date";
-  const description = [
-    "Expected Lodgement Date was updated in the portal.",
-    `Deal ID: ${dealId}`,
-    `Updated by: ${actorEmail || "portal user"}`,
-    `New date: ${expectedLodgementDate}`,
-  ].join("\n");
-
-  await crmRequest({
-    method: "POST",
-    path: "/Tasks",
-    body: {
-      data: [
-        {
-          Subject: subject,
-          Description: description,
-          Owner: { id: ownerId },
-          Due_Date: getTodayIsoDate(),
-        },
-      ],
-    },
-    requestId,
-  });
-}
-
 function responseEnvelope({ status = "error", requestId, message, details, data = {} }) {
   return { status, requestId, message, ...(details ? { details } : {}), ...data };
 }
@@ -111,14 +75,6 @@ module.exports = async (req, res) => {
     const allowed = await withTimeout(() => getDealsForPortal({ email, accountId: scope.accountId }), AUTHZ_TIMEOUT_MS, "getDealsForPortal");
     if (!allowed.some((d) => String(d.deal_id) === dealId)) return sendJson(req, res, 403, responseEnvelope({ requestId, message: "Forbidden" }));
 
-    const dealRead = await withTimeout(
-      () => crmRequest({ method: "GET", path: `/Deals/${dealId}`, query: { fields: "Owner,Expected_Lodgement_Date" }, requestId }),
-      CRM_WRITE_TIMEOUT_MS,
-      "read CRM deal"
-    );
-    const dealRecord = (dealRead?.data || [])[0] || {};
-    const currentExpectedLodgementDate = String(dealRecord.Expected_Lodgement_Date || "").trim();
-
     const payload = {
       data: [
         {
@@ -135,24 +91,6 @@ module.exports = async (req, res) => {
     );
     const item = parsed?.data?.[0] || {};
     if (String(item.status || "").toLowerCase() !== "success") return sendJson(req, res, 502, responseEnvelope({ requestId, message: "CRM deal update failed" }));
-
-    if (currentExpectedLodgementDate !== expectedLodgementDate) {
-      const ownerId = getDealOwnerId(dealRecord);
-      try {
-        await withTimeout(
-          () => notifyDealOwnerExpectedDateUpdated({ ownerId, dealId, expectedLodgementDate, actorEmail: email, requestId }),
-          CRM_WRITE_TIMEOUT_MS,
-          "notify CRM owner"
-        );
-      } catch (notifyError) {
-        console.error("updateexpectedlodgementdate owner notify failed", {
-          requestId,
-          dealId,
-          ownerId,
-          message: notifyError.message,
-        });
-      }
-    }
 
     return sendJson(req, res, 200, responseEnvelope({ status: "success", requestId, message: "Expected lodgement date updated", data: { success: true } }));
   } catch (error) {

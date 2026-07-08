@@ -29,10 +29,10 @@ export default function QRFormEmbed({ baseUrl, prefill = {}, title = "Applicatio
       style={{
         width: "100%",
         minHeight: "80vh",
-        border: "none",
-        borderRadius: "0.75rem",
-        boxShadow: "0 8px 20px rgba(15, 23, 42, 0.08)",
-        background: "white",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-lg)",
+        boxShadow: "var(--shadow-sm)",
+        background: "var(--surface)",
       }}
       allowFullScreen
     />

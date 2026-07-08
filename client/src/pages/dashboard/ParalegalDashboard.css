@@ -1,526 +1,641 @@
-/* client/src/pages/dashboard/ParalegalDashboard.css */
+/* Paralegal dashboard — deals overview, stats, tables, detail modal.
+   Brand tokens & shared components live in styles/theme.css. */
 
 .dashboard-container {
-    padding: 24px 32px;
-    max-width: 1200px;
-    margin: 0 auto;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
+  font-family: var(--font-sans);
 }
 
+/* =============================================================================
+   Dashboard header
+   ========================================================================== */
+
 .dashboard-header {
-    display: flex;
-    justify-content: space-between;
-    gap: 24px;
-    align-items: flex-start;
-    margin-bottom: 24px;
-    background: #ffffff;
-    padding: 24px;
-    border-radius: 16px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-6);
+  align-items: flex-start;
+  margin-bottom: var(--space-6);
+  background: var(--surface);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .dashboard-title {
-    font-size: 2rem;
-    margin: 0;
-    color: #0f172a;
+  font-size: var(--text-2xl);
+  margin: 0;
+  color: var(--text);
 }
 
 .dashboard-subtitle {
-    margin: 6px 0 0;
-    color: #475569;
-    font-size: 0.95rem;
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
 }
 
 .dashboard-user-pill {
-    border-radius: 999px;
-    padding: 12px 18px;
-    background: #eef2ff;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .user-name {
-    font-weight: 600;
-    font-size: 0.98rem;
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-base);
+  color: var(--text);
 }
 
 .user-email {
-    font-size: 0.8rem;
-    color: #475569;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }
 
+/* =============================================================================
+   Primary action cards
+   ========================================================================== */
+
+.dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-6) 0 var(--space-8);
+}
+
+.dashboard-actions .action-card {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.dashboard-actions .action-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+}
+
+.dashboard-actions .action-card p {
+  margin: 0;
+  flex: 1;
+}
+
+.dashboard-actions .action-card .button {
+  margin-top: var(--space-4);
+  align-self: flex-start;
+}
+
+.info-card {
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+/* =============================================================================
+   View toggle (My / Firm deals)
+   ========================================================================== */
+
 .dashboard-toggle {
-    display: inline-flex;
-    border-radius: 999px;
-    border: 1px solid #cbd5f5;
-    overflow: hidden;
-    margin-bottom: 20px;
-    background: #eef2ff;
+  display: inline-flex;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  overflow: hidden;
+  margin-bottom: var(--space-5);
+  background: var(--surface);
 }
 
 .toggle-button {
-    border: none;
-    background: transparent;
-    padding: 8px 18px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    color: #1f2937;
+  border: none;
+  background: transparent;
+  padding: var(--space-2) var(--space-5);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background-color var(--transition), color var(--transition);
 }
 
 .toggle-button.active {
-    background: #1d4ed8;
-    color: #ffffff;
+  background: var(--navy);
+  color: var(--text-on-navy);
 }
 
 .toggle-button:not(.active):hover {
-    background: #f3f4f6;
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
+/* =============================================================================
+   Stats
+   ========================================================================== */
+
 .dashboard-stats {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-    margin: 24px 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
 }
 
 .stat-card {
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-    border: 1px solid rgba(148, 163, 184, 0.3);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
 }
 
 .stat-label {
-    font-size: 0.8rem;
-    color: #6b7280;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--weight-semibold);
 }
 
 .stat-value {
-    font-size: 1.3rem;
-    font-weight: 600;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+  line-height: 1.1;
 }
 
+/* =============================================================================
+   Table sections
+   ========================================================================== */
+
 .dashboard-table-section {
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 16px 16px 4px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .dashboard-table-section + .dashboard-table-section {
-    margin-top: 14px;
+  margin-top: var(--space-4);
 }
 
 .section-header {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
 }
 
 .section-title {
-    margin: 0;
-    font-size: 1.1rem;
+  margin: 0;
+  font-family: var(--font-sans); /* dense heading: keep sans */
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
 }
 
 .section-subtitle {
-    margin: 0;
-    font-size: 0.85rem;
-    color: #6b7280;
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.section-header.collapsible {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  gap: var(--space-3);
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.section-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+
+.collapse-button {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.collapse-button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .dashboard-message {
-    padding: 12px;
-    font-size: 0.9rem;
-    color: #4b5563;
+  padding: var(--space-6) var(--space-3);
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .dashboard-message.error {
-    color: #b91c1c;
+  color: var(--danger);
 }
+
+/* =============================================================================
+   Filter bar
+   ========================================================================== */
 
 .table-filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.table-filter-input,
-.table-filter-select {
-    min-height: 36px;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
-    padding: 6px 10px;
-    background: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: var(--space-4);
 }
 
 .table-filter-input {
-    flex: 1;
-    min-width: 260px;
+  flex: 1;
+  min-width: 260px;
 }
 
 .table-filter-clear {
-    min-height: 36px;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
-    background: #f8fafc;
-    padding: 6px 12px;
-    cursor: pointer;
+  min-height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  transition: background-color var(--transition);
 }
 
+.table-filter-clear:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.table-filter-clear:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   Deals table
+   ========================================================================== */
+
 .deals-table-wrapper {
-    overflow-x: hidden;
+  overflow-x: hidden;
 }
 
 .deals-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-    table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
+  table-layout: fixed;
 }
 
 .deals-table th,
 .deals-table td {
-    padding: 8px 10px;
-    border-bottom: 1px solid #e5e7eb;
-    text-align: left;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    vertical-align: middle;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .deals-table th {
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    color: #6b7280;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.deals-table td {
+  color: var(--text);
+}
+
+/* Right-align monetary columns (Advanced / Current Balance / Upsell) so
+   figures line up and scan cleanly. */
+.deals-table th:nth-child(4),
+.deals-table th:nth-child(5),
+.deals-table th:nth-child(6),
+.deals-table td:nth-child(4),
+.deals-table td:nth-child(5),
+.deals-table td:nth-child(6) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .deals-row {
-    cursor: pointer;
+  cursor: pointer;
+  transition: background-color var(--transition);
 }
 
-.deals-row:hover {
-    background: #eef2ff;
-}
-
-.deals-row:hover .actions-cell {
-    background: #eef2ff;
+.deals-row:hover,
+.deals-row:hover .actions-cell,
+.deals-row:hover .sticky-first-col {
+  background: var(--surface-hover);
 }
 
 .sticky-first-col {
-    position: sticky;
-    left: 0;
-    background: #ffffff;
-    z-index: 1;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 1;
 }
 
 .deals-table th.sticky-first-col {
-    z-index: 3;
+  z-index: 3;
 }
-
-.deals-row:hover .sticky-first-col,
-.deals-row:hover .actions-cell {
-    background: #eef2ff;
-}
-
 
 .actions-cell {
-    min-width: 150px;
-    width: 150px;
-    position: sticky;
-    right: 0;
-    background: #ffffff;
-    z-index: 1;
-    overflow: visible;
-    text-overflow: clip;
+  min-width: 150px;
+  width: 150px;
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  z-index: 1;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .actions-header {
-    position: sticky;
-    right: 0;
-    background: #ffffff;
-    z-index: 2;
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  z-index: 2;
 }
 
 .col-ref {
-    width: 14%;
-    white-space: nowrap;
+  width: 14%;
+  white-space: nowrap;
 }
 
 .col-description {
-    width: 22%;
+  width: 22%;
 }
 
-.deal-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-}
+/* =============================================================================
+   Deal actions (row controls)
+   ========================================================================== */
+
+/* NOTE: `.deal-actions` layout is owned by DealActionsModal.css (the button
+   cluster + notification bell). A duplicate rule here previously set
+   `flex-wrap: wrap`, and because this file loads after DealActionsModal.css it
+   won the cascade and wrapped the Actions/notification buttons onto separate
+   lines in narrow cells. Keep the cluster styling in one place. */
 
 .deal-action-button {
-    padding: 6px 10px;
-    border-radius: 6px;
-    border: 1px solid #d1d5db;
-    background: #f3f4f6;
-    cursor: pointer;
-    font-size: 0.8rem;
-    color: #111827;
-    transition: background 0.2s ease, border-color 0.2s ease;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.deal-action-button:hover:not(:disabled) {
+  background: var(--surface-hover);
 }
 
 .deal-action-button.secondary {
-    background: #1f2937;
-    color: #ffffff;
-    border-color: #1f2937;
+  background: var(--navy);
+  color: var(--text-on-navy);
+  border-color: var(--navy);
 }
 
 .deal-action-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .deal-action-message {
-    font-size: 0.78rem;
-    color: #065f46;
+  font-size: var(--text-sm);
+  color: var(--success);
 }
 
-/* Mobile */
-@media (max-width: 768px) {
-    .dashboard-container {
-        padding: 16px;
-    }
-
-    .dashboard-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .dashboard-stats {
-        grid-template-columns: 1fr;
-    }
-
-    .dashboard-table-section {
-        padding: 12px;
-    }
-
-    .deals-table-wrapper {
-        overflow-x: auto;
-    }
-
-    .deals-table {
-        min-width: 760px;
-    }
-
-    .col-priority-medium,
-    .col-priority-low {
-        display: none;
-    }
-
-    .col-ref {
-        width: auto;
-    }
+.deal-actions-menu-item {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text);
+  transition: background var(--transition);
 }
 
-@media (max-width: 1200px) {
-    .col-priority-low {
-        display: none;
-    }
+.deal-actions-menu-item:hover:not(:disabled) {
+  background: var(--surface-hover);
 }
 
-@media (max-width: 980px) {
-    .col-priority-medium {
-        display: none;
-    }
-
-}
-
-.dashboard-actions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.25rem;
-    margin: 1.5rem 0 2rem;
-}
-
-.dashboard-actions .action-card {
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 0.75rem;
-}
-
-
-.dashboard-actions .action-card h3 {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    color: #0f172a;
-}
-
-.dashboard-actions .action-card .button {
-    margin-top: 1rem;
-    align-self: flex-start;
-}
-
-.info-card {
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-}
-
-.deal-actions-menu-item:hover {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-.section-header.collapsible {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-    gap: 12px;
-}
-
-.section-title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.section-count-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    height: 22px;
-    padding: 0 8px;
-    border-radius: 999px;
-    font-size: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
-.collapse-button {
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    background: transparent;
-    padding: 6px 10px;
-    border-radius: 10px;
-    cursor: pointer;
-}
+/* =============================================================================
+   Detail modal
+   ========================================================================== */
 
 .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    z-index: 12000;
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 31, 62, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 12000;
 }
 
 .modal-card {
-    width: min(1100px, 96vw);
-    height: min(85vh, 900px);
-    background: #fff;
-    border-radius: 16px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+  width: min(1100px, 96vw);
+  height: min(85vh, 900px);
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
 }
 
 .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 14px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-title {
-    margin: 0;
-    font-size: 16px;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
 }
 
 .modal-close {
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    background: transparent;
-    border-radius: 10px;
-    padding: 6px 10px;
-    cursor: pointer;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.modal-close:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .modal-body {
-    flex: 1;
-    padding: 0;
-    overflow: hidden;
+  flex: 1;
+  padding: 0;
+  overflow: hidden;
 }
 
 .modal-iframe {
-    width: 100%;
-    height: 100%;
-    border: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .deal-detail-modal-content {
-    padding: 16px;
-    max-height: 75vh;
-    overflow-y: auto;
+  padding: var(--space-5);
+  max-height: 75vh;
+  overflow-y: auto;
 }
 
 .deal-detail-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
 }
 
 .deal-detail-item {
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  background: var(--surface-muted);
 }
 
 .deal-detail-label {
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    color: #6b7280;
-    margin-bottom: 4px;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+  font-weight: var(--weight-semibold);
 }
 
 .deal-detail-value {
-    font-size: 0.88rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-size: var(--text-base);
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deal-transactions-section h4 {
+  margin: 0 0 var(--space-3);
 }
 
 .transactions-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-base);
 }
 
 .transactions-table th,
 .transactions-table td {
-    border-bottom: 1px solid #e5e7eb;
-    padding: 8px;
-    text-align: left;
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
 }
 
+.transactions-table th {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+   Responsive
+   ========================================================================== */
+
 @media (max-width: 900px) {
-    .deal-detail-grid {
-        grid-template-columns: 1fr;
-    }
+  .deal-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .col-priority-low {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .col-priority-medium {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-user-pill {
+    align-items: flex-start;
+  }
+
+  .dashboard-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .deals-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .deals-table {
+    min-width: 760px;
+  }
+
+  .col-priority-medium,
+  .col-priority-low {
+    display: none;
+  }
+
+  .col-ref {
+    width: auto;
+  }
 }

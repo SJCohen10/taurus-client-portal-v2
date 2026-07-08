@@ -1,0 +1,333 @@
+/* =============================================================================
+   Taurus Client Portal — Design System
+   Single source of truth for brand tokens and shared component styles.
+
+   Palette (brand):
+     #141F3E deep navy   — primary / headers / text (dominant)
+     #FC6B36 orange      — primary call-to-action accent
+     #00DAC5 teal        — secondary accent (used sparingly)
+     #CED1D6 light gray  — borders / dividers / muted surfaces
+     #FFFFFF white       — surfaces / backgrounds
+
+   Accessibility: text/background pairings target WCAG AA (>=4.5:1).
+   Note: white-on-orange fails AA (~2.9:1), so orange buttons use navy text
+   (~5.6:1). Navy is the dominant button colour; teal is non-text only.
+   ========================================================================== */
+
+:root {
+  /* ---- Brand core ---- */
+  --navy: #141f3e;
+  --orange: #fc6b36;
+  --teal: #00dac5;
+  --gray: #ced1d6;
+  --white: #ffffff;
+
+  /* ---- Navy shades (surfaces, hovers, text tints) ---- */
+  --navy-hover: #1e2e58; /* button hover, lighter navy */
+  --navy-700: #2a3963;
+  --navy-line: rgba(255, 255, 255, 0.12); /* hairline on navy */
+
+  /* ---- Orange shades ---- */
+  --orange-hover: #ec5f2b; /* deeper orange for hover */
+  --orange-soft: rgba(252, 107, 54, 0.12); /* tinted background */
+  --orange-border: rgba(252, 107, 54, 0.35);
+
+  /* ---- Teal (accent only) ---- */
+  --teal-soft: rgba(0, 218, 197, 0.14);
+  --focus-ring: 0 0 0 3px rgba(0, 218, 197, 0.4);
+
+  /* ---- Neutrals (tints of the brand gray hue) ---- */
+  --bg-page: #eef0f3; /* app background */
+  --surface: #ffffff; /* cards / panels */
+  --surface-muted: #f5f6f8; /* subtle fills, table zebra, inputs disabled */
+  --surface-hover: #f0f2f5; /* row / item hover */
+  --border: #dcdfe4; /* hairline dividers */
+  --border-strong: #c3c7ce; /* input borders */
+
+  /* ---- Text ---- */
+  --text: #141f3e; /* primary (16:1 on white) */
+  --text-secondary: #4e5a78; /* secondary (7.5:1 on white) */
+  --text-muted: #6b7488; /* labels / meta (5.0:1 on white) */
+  --text-on-navy: #ffffff;
+  --text-on-navy-dim: rgba(255, 255, 255, 0.72);
+
+  /* ---- Status ---- */
+  --danger: #b3261e;
+  --danger-soft: #fbeae9;
+  --success: #0f6b52;
+
+  /* ---- Typography ---- */
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-base: 0.9375rem; /* 15 — UI base */
+  --text-md: 1rem; /* 16 */
+  --text-lg: 1.125rem; /* 18 */
+  --text-xl: 1.375rem; /* 22 */
+  --text-2xl: 1.75rem; /* 28 */
+  --text-3xl: 2.125rem; /* 34 */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ---- Spacing grid (4px base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---- Radii (precise, not pill-heavy) ---- */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* ---- Shadows (subtle, layered — not heavy) ---- */
+  --shadow-sm: 0 1px 2px rgba(20, 31, 62, 0.06);
+  --shadow: 0 1px 3px rgba(20, 31, 62, 0.08), 0 1px 2px rgba(20, 31, 62, 0.04);
+  --shadow-md: 0 4px 14px rgba(20, 31, 62, 0.1);
+  --shadow-lg: 0 16px 40px rgba(20, 31, 62, 0.2);
+
+  --transition: 140ms ease;
+
+  /* ---- Layout ---- */
+  --content-max: 1200px;
+}
+
+/* =============================================================================
+   Base / reset
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-page);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings: serif for page-level titles (h1/h2) = legal-letterhead gravitas;
+   sans elsewhere. Dense/section headings opt back into sans below. */
+h1,
+h2 {
+  font-family: var(--font-serif);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-3);
+}
+
+h3,
+h4,
+h5 {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+  line-height: var(--leading-snug);
+  margin: 0 0 var(--space-2);
+}
+
+h1 {
+  font-size: var(--text-3xl);
+}
+h2 {
+  font-size: var(--text-xl);
+}
+h3 {
+  font-size: var(--text-lg);
+}
+h4 {
+  font-size: var(--text-md);
+}
+
+p {
+  margin: 0 0 var(--space-3);
+  color: var(--text);
+}
+
+a {
+  color: var(--navy);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+code {
+  font-family: "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+}
+
+/* Visible, on-brand focus for keyboard users across all interactive elements */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* =============================================================================
+   Shared components
+   ========================================================================== */
+
+/* ---- Buttons ---------------------------------------------------------------
+   .button            navy primary (default, dominant brand)
+   .button.accent     orange CTA (navy text for AA contrast)
+   .button.secondary  quiet outline (cancel / low emphasis)
+   --------------------------------------------------------------------------- */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.6rem 1.15rem;
+  min-height: 40px;
+  border: 1px solid var(--navy);
+  border-radius: var(--radius);
+  background: var(--navy);
+  color: var(--text-on-navy);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--transition), border-color var(--transition),
+    color var(--transition);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--navy-hover);
+  border-color: var(--navy-hover);
+  text-decoration: none;
+  color: var(--text-on-navy);
+}
+
+.button.accent {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--navy);
+}
+
+.button.accent:hover:not(:disabled) {
+  background: var(--orange-hover);
+  border-color: var(--orange-hover);
+  color: var(--navy);
+}
+
+.button.secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.button.secondary:hover:not(:disabled) {
+  background: var(--surface-muted);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.button:disabled {
+  background: var(--surface-muted);
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* ---- Form controls ---- */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+  min-height: 40px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+textarea {
+  min-height: auto;
+  line-height: var(--leading-normal);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: var(--focus-ring);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* ---- Card ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+
+.card h2,
+.card h3 {
+  margin-top: 0;
+}
+
+.card p {
+  color: var(--text-secondary);
+}
+
+/* ---- Text helpers ---- */
+.subtle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+}

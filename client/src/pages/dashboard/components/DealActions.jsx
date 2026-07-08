@@ -409,6 +409,25 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             };
 
             const response = await uploadDealDocument(payload);
+
+            // Log a note on the deal so the internal team is alerted via the
+            // existing "note created by the portal API" workflow. The note is
+            // best-effort: a failure here must not make a successful upload
+            // look failed, so it is swallowed and only logged.
+            try {
+                const noteTarget = resolveNoteTarget();
+                if (noteTarget) {
+                    await createNote({
+                        email: portalEmail,
+                        recordType: noteTarget.recordType,
+                        recordId: noteTarget.recordId,
+                        content: `A document ("${file.name}") was uploaded via the Client Portal${propertyRefNumber ? ` for ${propertyRefNumber}` : ""}${portalEmail ? ` by ${portalEmail}` : ""}.`,
+                    });
+                }
+            } catch (noteErr) {
+                safeConsoleError("Upload note creation failed", noteErr);
+            }
+
             setMessage(
                 response?.message ||
                 "Document uploaded successfully."
@@ -416,7 +435,12 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             setOpen(false);
         } catch (err) {
             safeConsoleError("Document upload failed", err);
-            setMessage(err.message || "Unable to upload document right now.");
+            setMessage(
+                err.technicalMessage ||
+                err.details ||
+                err.message ||
+                "Unable to upload document right now."
+            );
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -727,7 +751,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 lodgementDate: selectedDate,
             });
             if (onDealUpdate) {
-                onDealUpdate({ ...deal, Lodged: "Yes", lodged: "Yes", Lodgment_Date: selectedDate, lodgment_date: selectedDate });
+                onDealUpdate({ ...deal, status: "Lodged", Status: "Lodged", Lodged: "Yes", lodged: "Yes", Lodgment_Date: selectedDate, lodgment_date: selectedDate });
             }
             setMatterLodgedOpen(false);
             setMessage("Matter marked as lodged.");
@@ -1233,7 +1257,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     </button>
                                     <button
                                         type="button"
-                                        className="button"
+                                        className="button secondary"
                                         onClick={() => setExpectedLodgementOpen(false)}
                                     >
                                         Cancel
@@ -1280,7 +1304,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     </button>
                                     <button
                                         type="button"
-                                        className="button"
+                                        className="button secondary"
                                         onClick={() => setMatterLodgedOpen(false)}
                                     >
                                         Cancel
@@ -1333,7 +1357,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     </button>
                                     <button
                                         type="button"
-                                        className="button"
+                                        className="button secondary"
                                         onClick={() => setNoteOpen(false)}
                                     >
                                         Cancel
@@ -1371,7 +1395,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 <div style={{ marginTop: 12 }}>
                                     <button
                                         type="button"
-                                        className="button"
+                                        className="button secondary"
                                         onClick={() => setStatementChooserOpen(false)}
                                         disabled={statementLoading}
                                     >
@@ -1609,7 +1633,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     >
                                         Generate Quote
                                     </button>
-                                    <button className="button readvance-modal-button" onClick={() => setSellerReadvanceOpen(false)}>
+                                    <button className="button secondary readvance-modal-button" onClick={() => setSellerReadvanceOpen(false)}>
                                         Cancel
                                     </button>
                                 </div>

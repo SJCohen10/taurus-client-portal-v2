@@ -40,50 +40,6 @@ function parseCanViewFirmDeals(value) {
   return value === true || value === "true" || value === "Yes";
 }
 
-function getTodayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function truncatePreview(value, maxLen = 140) {
-  const normalized = String(value || "").replace(/\s+/g, " ").trim();
-  if (!normalized) return "";
-  if (normalized.length <= maxLen) return normalized;
-  return `${normalized.slice(0, maxLen - 1)}…`;
-}
-
-function getRecordOwnerId(record) {
-  return String(record?.Owner?.id || "").trim();
-}
-
-async function notifyRecordOwnerPortalNote({ ownerId, recordType, recordId, actorEmail, noteContent, requestId }) {
-  if (!ownerId) return;
-
-  const subject = "Portal update: New note";
-  const notePreview = truncatePreview(noteContent);
-  const descriptionLines = [
-    "A new portal note was added.",
-    `Record: ${recordType} ${recordId}`,
-    `Added by: ${actorEmail || "portal user"}`,
-  ];
-  if (notePreview) descriptionLines.push(`Note preview: ${notePreview}`);
-
-  await crmRequest({
-    method: "POST",
-    path: "/Tasks",
-    body: {
-      data: [
-        {
-          Subject: subject,
-          Description: descriptionLines.join("\n"),
-          Owner: { id: ownerId },
-          Due_Date: getTodayIsoDate(),
-        },
-      ],
-    },
-    requestId,
-  });
-}
-
 async function resolveAuthorizationScope(email) {
   const search = await crmRequest({ method: "GET", path: "/Contacts/search", query: { email } });
   const contact = (search?.data || [])[0] || {};
@@ -122,13 +78,6 @@ module.exports = async (req, res) => {
     if (!canAccess) return sendJson(req, res, 403, responseEnvelope({ requestId, message: "Forbidden" }));
 
     const seModule = recordType === "Deal" ? "Deals" : "Assets";
-    const recordRead = await withTimeout(
-      () => crmRequest({ method: "GET", path: `/${seModule}/${recordId}`, query: { fields: "Owner" }, requestId }),
-      CRM_WRITE_TIMEOUT_MS,
-      "read CRM record"
-    );
-    const ownerId = getRecordOwnerId((recordRead?.data || [])[0] || {});
-
     const payload = { data: [{ Note_Title: `Portal note (${email})`, Note_Content: content }] };
     const parsed = await withTimeout(
       () => crmRequest({ method: "POST", path: `/${seModule}/${recordId}/Notes`, body: payload, requestId }),
@@ -138,22 +87,6 @@ module.exports = async (req, res) => {
     const item = parsed?.data?.[0] || {};
     if (String(item.status || "").toLowerCase() !== "success") {
       return sendJson(req, res, 502, responseEnvelope({ requestId, message: "CRM note creation failed" }));
-    }
-
-    try {
-      await withTimeout(
-        () => notifyRecordOwnerPortalNote({ ownerId, recordType, recordId, actorEmail: email, noteContent: content, requestId }),
-        CRM_WRITE_TIMEOUT_MS,
-        "notify CRM owner"
-      );
-    } catch (notifyError) {
-      console.error("createnote owner notify failed", {
-        requestId,
-        recordType,
-        recordId,
-        ownerId,
-        message: notifyError.message,
-      });
     }
 
     return sendJson(req, res, 200, responseEnvelope({ status: "success", requestId, message: "Note created", data: { success: true, noteId: item.details?.id || null } }));

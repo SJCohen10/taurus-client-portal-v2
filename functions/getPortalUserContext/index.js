@@ -123,6 +123,13 @@ async function getContactAndAccountByEmail(email, requestId) {
     directorName: accountRecord.Quick_Rates_Director_Name,
     directorEmail: accountRecord.Quick_Rates_Director_Email || "",
     quickBridgeLimit: accountRecord.Quick_Bridge_Limit || 120000,
+    // TODO(agent-advance): confirm the exact Zoho CRM API field names for the two
+    // account-level Agent Advance gating fields ("Conveyancing Firm Loan Enabled" /
+    // "Conveyancing Firm Loan Status"). Best-guess API names used below — replace
+    // with the real names once confirmed. These only gate the Agent Advance feature;
+    // they do not affect general portal access.
+    conveyancingFirmLoanEnabled: accountRecord.Conveyancing_Firm_Loan_Enabled || "",
+    conveyancingFirmLoanStatus: accountRecord.Conveyancing_Firm_Loan_Status || "",
     preferredQuickBridgeBank,
     bankDetails,
     defaultBankDetailId,

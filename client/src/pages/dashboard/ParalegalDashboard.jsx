@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { usePortalContext } from "../../PortalContext";
 import { fetchDealTransactions, fetchFirmDeals } from "../../services/portalApi";
 import DealActions from "./components/DealActions";
+import { isAgentAdvanceEnabled, isAgentDeal } from "../agent-advance/agentAdvanceHelpers";
 import "./ParalegalDashboard.css";
 
 
@@ -80,16 +81,24 @@ function getPortalUserDisplay(portalContext) {
 }
 
 
-function deriveAssetIds(deal) {
-    const raw = deal?.asset_ids || deal?.asset_id || "";
-    return Array.from(
-        new Set(
-            String(raw)
-                .split(",")
-                .map((id) => id.trim())
-                .filter((id) => /^\d+$/.test(id))
-        )
-    );
+// Pairs each asset id with its asset type by position ("Asset IDs" / "Asset Types"
+// are positionally aligned, comma-delimited). De-dupes by id, preserving order.
+// Drives the Seller | Estate Agent drill-in selector in the deal detail modal.
+function deriveAssets(deal) {
+    const ids = String(deal?.asset_ids || deal?.asset_id || "")
+        .split(",")
+        .map((id) => id.trim());
+    const types = String(deal?.asset_types || deal?.["Asset Types"] || "")
+        .split(",")
+        .map((type) => type.trim());
+    const seen = new Set();
+    const assets = [];
+    ids.forEach((assetId, index) => {
+        if (!/^\d+$/.test(assetId) || seen.has(assetId)) return;
+        seen.add(assetId);
+        assets.push({ assetId, type: types[index] || "" });
+    });
+    return assets;
 }
 
 function valueFor(deal, key) {
@@ -179,6 +188,7 @@ export default function ParalegalDashboard() {
     const accountId = portalContext?.context?.accountId || portalContext?.context?.account_id;
     const accountName = portalContext?.context?.accountName || "";
     const canViewFirmDeals = Boolean(portalContext?.context?.canViewFirmDeals);
+    const agentAdvanceEnabled = isAgentAdvanceEnabled(portalContext?.context);
     const { name: displayName, email: displayEmail } = getPortalUserDisplay(portalContext);
 
     const [view, setView] = useState("my");
@@ -195,6 +205,8 @@ export default function ParalegalDashboard() {
     const [transactions, setTransactions] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [showAgentOnly, setShowAgentOnly] = useState(false);
+    const [selectedAssetId, setSelectedAssetId] = useState("");
 
 
 
@@ -294,6 +306,10 @@ export default function ParalegalDashboard() {
                 return false;
             }
 
+            if (showAgentOnly && !isAgentDeal(deal)) {
+                return false;
+            }
+
             if (!query) return true;
 
             const searchCandidates = [
@@ -309,7 +325,9 @@ export default function ParalegalDashboard() {
 
             return searchCandidates.some((value) => String(value || "").toLowerCase().includes(query));
         });
-    }, [searchQuery, statusFilter, visibleDeals]);
+    }, [searchQuery, statusFilter, showAgentOnly, visibleDeals]);
+
+    const selectedDealAssets = useMemo(() => deriveAssets(selectedDeal), [selectedDeal]);
 
     const dealBuckets = useMemo(() => {
 
@@ -350,6 +368,7 @@ export default function ParalegalDashboard() {
     function clearFilters() {
         setSearchQuery("");
         setStatusFilter("all");
+        setShowAgentOnly(false);
     }
 
     function handleDealUpdate(updatedDeal) {
@@ -371,15 +390,16 @@ export default function ParalegalDashboard() {
     }
 
 
-    async function openDealDetails(deal) {
-        setSelectedDeal(deal);
+    // Loads transactions for a single asset. Deals carry 1-2 assets (Seller and/or
+    // Estate Agent); the drill-in selector switches which asset's transactions show.
+    // Single-asset deals behave exactly as before (that one asset is loaded).
+    async function loadTransactionsForAsset(deal, assetId) {
         setTransactions([]);
         setTransactionsError("");
 
-        const assetIds = deriveAssetIds(deal);
         // Pending (not-yet-synced) deals aren't authorized for transaction lookups
         // and may not have transactions yet; show the deal fields without them.
-        if (deal?.source === "crm_pending" || !assetIds.length || !displayEmail) {
+        if (deal?.source === "crm_pending" || !assetId || !displayEmail) {
             setTransactions([]);
             return;
         }
@@ -387,7 +407,7 @@ export default function ParalegalDashboard() {
         try {
             setTransactionsLoading(true);
             const response = await fetchDealTransactions({
-                assetIds: assetIds.join(","),
+                assetIds: String(assetId),
                 email: displayEmail,
             });
             setTransactions(response.transactions || []);
@@ -396,6 +416,14 @@ export default function ParalegalDashboard() {
         } finally {
             setTransactionsLoading(false);
         }
+    }
+
+    async function openDealDetails(deal) {
+        setSelectedDeal(deal);
+        const assets = deriveAssets(deal);
+        const firstAssetId = assets[0]?.assetId || "";
+        setSelectedAssetId(firstAssetId);
+        await loadTransactionsForAsset(deal, firstAssetId);
     }
 
     function DealsTable({ sectionKey, title, sectionDeals, defaultOpen = true }) {
@@ -553,6 +581,16 @@ export default function ParalegalDashboard() {
                             <option key={status} value={status.toLowerCase()}>{status}</option>
                         ))}
                     </select>
+                    {agentAdvanceEnabled && (
+                        <label className="table-filter-agent-toggle">
+                            <input
+                                type="checkbox"
+                                checked={showAgentOnly}
+                                onChange={(event) => setShowAgentOnly(event.target.checked)}
+                            />
+                            Agent deals only
+                        </label>
+                    )}
                     <button type="button" className="table-filter-clear" onClick={clearFilters}>Clear filters</button>
                     <button type="button" className="table-filter-clear" onClick={() => loadDeals({ background: true })} disabled={refreshing}>
                         {refreshing ? "Refreshing…" : "Refresh"}
@@ -591,6 +629,26 @@ export default function ParalegalDashboard() {
             >
                 {selectedDeal && (
                     <div className="deal-detail-modal-content">
+                        {selectedDealAssets.length > 1 && (
+                            <div className="dashboard-toggle deal-detail-asset-toggle">
+                                {selectedDealAssets.map((asset, index) => (
+                                    <button
+                                        key={asset.assetId}
+                                        type="button"
+                                        className={`toggle-button ${selectedAssetId === asset.assetId ? "active" : ""}`}
+                                        onClick={() => {
+                                            setSelectedAssetId(asset.assetId);
+                                            loadTransactionsForAsset(selectedDeal, asset.assetId);
+                                        }}
+                                    >
+                                        {asset.type || `Asset ${index + 1}`}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        {/* TODO(agent-advance): once placeholder #6 is confirmed, filter the
+                            detail fields per selected asset. Deal-level fields below are shared
+                            across a deal's assets; the Transactions table is already per-asset. */}
                         <div className="deal-detail-grid">
                             {DEAL_DETAIL_FIELDS.map(([label, key]) => (
                                 <div key={key} className="deal-detail-item">
@@ -602,7 +660,13 @@ export default function ParalegalDashboard() {
 
 
                         <div className="deal-transactions-section">
-                            <h4>Transactions ({transactions.length})</h4>
+                            <h4>
+                                Transactions
+                                {selectedDealAssets.length > 1
+                                    ? ` — ${selectedDealAssets.find((asset) => asset.assetId === selectedAssetId)?.type || "Selected asset"}`
+                                    : ""}{" "}
+                                ({transactions.length})
+                            </h4>
                             {transactionsLoading && <p>Loading transactions…</p>}
                             {transactionsError && !transactionsLoading && <p className="error">{transactionsError}</p>}
                             {!transactionsLoading && !transactionsError && transactions.length === 0 && <p>No transactions found</p>}

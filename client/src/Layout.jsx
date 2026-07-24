@@ -1,6 +1,7 @@
 import React from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { usePortalContext } from "./PortalContext";
+import { isAgentAdvanceEnabled } from "./pages/agent-advance/agentAdvanceHelpers";
 
 export default function Layout() {
   const portal = usePortalContext();
@@ -86,6 +87,15 @@ export default function Layout() {
           >
             Seller Application
           </Link>
+          {isAgentAdvanceEnabled(context) && (
+            <Link
+              to="/agent-advance"
+              className={`app-nav-link ${location.pathname.startsWith("/agent-advance") ? "active" : ""
+                }`}
+            >
+              Agent Advance
+            </Link>
+          )}
           <Link
             to="/faq"
             className={`app-nav-link ${location.pathname.startsWith("/faq") ? "active" : ""

@@ -15,6 +15,13 @@ import {
 import "./DealActionsModal.css";
 
 import { usePortalContext } from "../../../PortalContext";
+import {
+    isAgentAdvanceEnabled,
+    isAgentDeal,
+    buildAgentBaselinePayload,
+    buildAgentReadvancePayload,
+    openAgentAdvanceForm,
+} from "../../agent-advance/agentAdvanceHelpers";
 
 const SELLER_READVANCE_FORM_URL =
     "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/ClientPortalSellerBridgingApplication/formperma/wBiblctfbTBce_jInGEmX_JbaXdWWg5es95hjlEKdx4";
@@ -137,6 +144,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
     const portal = usePortalContext();
     const crm = portal?.context || null;
+    const agentAdvanceEnabled = isAgentAdvanceEnabled(crm);
 
     // Firm bank defaults (same logic as SellerProceedsAdvance)
     const firmBankOptions = crm?.bankDetails || [];
@@ -1141,6 +1149,37 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 }}
                             >
                                 Readvance
+                            </button>
+                        )}
+
+                        {agentAdvanceEnabled && !isClosedDeal && (
+                            <button
+                                type="button"
+                                className="deal-actions-menu-item"
+                                role="menuitem"
+                                onClick={() => {
+                                    setOpen(false);
+                                    const payload = isAgentDeal(deal)
+                                        ? buildAgentReadvancePayload(deal, crm)
+                                        : buildAgentBaselinePayload(crm);
+                                    const result = openAgentAdvanceForm(payload);
+                                    if (!result.opened) {
+                                        setMessage("Popup was blocked. Please allow popups and try again.");
+                                    } else if (result.usedFallback) {
+                                        setMessage("The Agent Advance form was opened in a new tab.");
+                                    }
+                                }}
+                                style={{
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "10px 10px",
+                                    borderRadius: 10,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                {isAgentDeal(deal) ? "Agent Readvance" : "Add Agent Transaction"}
                             </button>
                         )}
                     </div>,

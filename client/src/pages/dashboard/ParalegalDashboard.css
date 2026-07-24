@@ -302,6 +302,23 @@
   cursor: not-allowed;
 }
 
+.table-filter-agent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.deal-detail-asset-toggle {
+  margin-bottom: var(--space-4);
+}
+
 /* =============================================================================
    Deals table
    ========================================================================== */

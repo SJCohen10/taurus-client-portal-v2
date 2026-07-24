@@ -123,6 +123,10 @@ async function getContactAndAccountByEmail(email, requestId) {
     directorName: accountRecord.Quick_Rates_Director_Name,
     directorEmail: accountRecord.Quick_Rates_Director_Email || "",
     quickBridgeLimit: accountRecord.Quick_Bridge_Limit || 120000,
+    // Account-level Agent Advance gating flags. These only gate the Agent Advance
+    // feature; they do not affect general portal access.
+    conveyancingFirmLoanEnabled: accountRecord.Conveyancing_Firm_Loan_Enabled || "",
+    conveyancingFirmLoanStatus: accountRecord.Conveyancing_Firm_Loan_Status || "",
     preferredQuickBridgeBank,
     bankDetails,
     defaultBankDetailId,

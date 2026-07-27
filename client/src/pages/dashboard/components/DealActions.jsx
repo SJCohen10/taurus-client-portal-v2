@@ -18,9 +18,7 @@ import { usePortalContext } from "../../../PortalContext";
 import {
     isAgentAdvanceEnabled,
     isAgentDeal,
-    buildAgentBaselinePayload,
-    buildAgentReadvancePayload,
-    openAgentAdvanceForm,
+    AGENT_FURTHER_ADVANCE_VALUE,
 } from "../../agent-advance/agentAdvanceHelpers";
 
 const SELLER_READVANCE_FORM_URL =
@@ -1159,15 +1157,14 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 role="menuitem"
                                 onClick={() => {
                                     setOpen(false);
-                                    const payload = isAgentDeal(deal)
-                                        ? buildAgentReadvancePayload(deal, crm)
-                                        : buildAgentBaselinePayload(crm);
-                                    const result = openAgentAdvanceForm(payload);
-                                    if (!result.opened) {
-                                        setMessage("Popup was blocked. Please allow popups and try again.");
-                                    } else if (result.usedFallback) {
-                                        setMessage("The Agent Advance form was opened in a new tab.");
-                                    }
+                                    // First drawdown opens the Conveyancing Firm Agent Facility
+                                    // form at the start (full field set, built on the page from
+                                    // context). Readvance opens the same form skipped to its last
+                                    // page via Initial_Advance_Further_Advance, passing no info.
+                                    const target = isAgentDeal(deal)
+                                        ? `/agent-advance?Initial_Advance_Further_Advance=${encodeURIComponent(AGENT_FURTHER_ADVANCE_VALUE)}`
+                                        : "/agent-advance?start=1";
+                                    navigate(target);
                                 }}
                                 style={{
                                     width: "100%",
@@ -1179,7 +1176,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                     cursor: "pointer",
                                 }}
                             >
-                                {isAgentDeal(deal) ? "Agent Readvance" : "Add Agent Transaction"}
+                                {isAgentDeal(deal) ? "Agent Facility Readvance" : "Add Agent Facility Drawdown"}
                             </button>
                         )}
                     </div>,

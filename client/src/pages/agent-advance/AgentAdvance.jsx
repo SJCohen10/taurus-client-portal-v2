@@ -2,12 +2,15 @@ import React from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { usePortalContext } from "../../PortalContext";
 import QRFormEmbed from "../../components/QRFormEmbed";
+import { fetchMyDeals } from "../../services/portalApi";
 import {
   AGENT_ADVANCE_FORM_URL,
   AGENT_FURTHER_ADVANCE_VALUE,
   isAgentAdvanceEnabled,
-  buildAgentBaselinePayload,
+  buildAgentDrawdownPayload,
   buildAgentReadvancePayload,
+  findAgentDealById,
+  resolveAgentDefaultBankDetailId,
 } from "./agentAdvanceHelpers";
 
 const PAGE_TITLE = "Conveyancing Firm Agent Facility";
@@ -26,7 +29,85 @@ export default function AgentAdvance() {
       .toLowerCase() === AGENT_FURTHER_ADVANCE_VALUE.toLowerCase();
   const autoStart = searchParams.get("start") === "1";
 
+  // Only ever an opaque deal id. The deal's reference number and transfer
+  // conditions are resolved from the caller's own deals list below — never taken
+  // from the URL — so a tampered id simply resolves to nothing.
+  const dealId = isReadvance ? "" : String(searchParams.get("dealId") || "").trim();
+
   const [showForm, setShowForm] = React.useState(isReadvance || autoStart);
+
+  const bankOptions = React.useMemo(
+    () => (Array.isArray(context?.bankDetails) ? context.bankDetails : []),
+    [context?.bankDetails]
+  );
+  const defaultBankDetailId = resolveAgentDefaultBankDetailId(context);
+  const [selectedBankDetailId, setSelectedBankDetailId] = React.useState(defaultBankDetailId);
+
+  // Apply the default once context arrives, without overwriting a user selection.
+  React.useEffect(() => {
+    setSelectedBankDetailId((prev) => (prev ? prev : defaultBankDetailId));
+  }, [defaultBankDetailId]);
+
+  const selectedBank = React.useMemo(
+    () => bankOptions.find((bank) => bank.id === selectedBankDetailId) || null,
+    [bankOptions, selectedBankDetailId]
+  );
+
+  const [deal, setDeal] = React.useState(null);
+  const [dealLoading, setDealLoading] = React.useState(Boolean(dealId));
+  const [dealError, setDealError] = React.useState("");
+  const portalEmail = portal?.email || "";
+
+  React.useEffect(() => {
+    if (!dealId) {
+      setDeal(null);
+      setDealLoading(false);
+      setDealError("");
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDealLoading(true);
+    setDealError("");
+
+    (async () => {
+      try {
+        const payload = await fetchMyDeals(portalEmail);
+        if (cancelled) return;
+        const match = findAgentDealById(payload?.deals, dealId);
+        setDeal(match);
+        setDealError(
+          match
+            ? ""
+            : "We could not load the deal this drawdown was started from. Please complete the deal details in the form below."
+        );
+      } catch (err) {
+        if (cancelled) return;
+        setDeal(null);
+        setDealError(
+          "We could not load the deal this drawdown was started from. Please complete the deal details in the form below."
+        );
+      } finally {
+        if (!cancelled) setDealLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dealId, portalEmail]);
+
+  const prefill = React.useMemo(
+    () =>
+      isReadvance
+        ? buildAgentReadvancePayload()
+        : buildAgentDrawdownPayload({
+            context,
+            bankDetailId: selectedBankDetailId,
+            deal,
+          }),
+    [isReadvance, context, selectedBankDetailId, deal]
+  );
 
   // Hard route gate: block deep-linking for ineligible accounts. Unauthenticated
   // users never reach here — ProtectedAppShell enforces auth before this renders,
@@ -36,9 +117,10 @@ export default function AgentAdvance() {
     return <Navigate to="/" replace />;
   }
 
-  const prefill = isReadvance
-    ? buildAgentReadvancePayload()
-    : buildAgentBaselinePayload(context);
+  const propertyRefNumber = prefill.property_ref_number || "";
+  // Don't mount the iframe until the prefill is settled — Zoho only reads the
+  // query params at load, so a later change would remount and discard input.
+  const prefillPending = !isReadvance && (Boolean(portal?.loading) || dealLoading);
 
   return (
     <div>
@@ -96,14 +178,83 @@ export default function AgentAdvance() {
               : "Complete the application below. Your firm and user details are pre-populated where possible."}
           </p>
 
-          {/* Embedded exactly like the Quick Bridge form (QRFormEmbed). key forces
-              an iframe refresh so Zoho prefill updates when the mode changes. */}
-          <QRFormEmbed
-            baseUrl={AGENT_ADVANCE_FORM_URL}
-            prefill={prefill}
-            title={PAGE_TITLE}
-            key={isReadvance ? "readvance" : "start"}
-          />
+          {!isReadvance && (
+            <>
+              <div className="card" style={{ marginBottom: "1.25rem" }}>
+                <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+                  Desired Firm Bank Account
+                </h3>
+
+                {bankOptions.length ? (
+                  <>
+                    <select
+                      value={selectedBankDetailId}
+                      onChange={(e) => setSelectedBankDetailId(e.target.value)}
+                      style={{ width: "100%", padding: "0.6rem" }}
+                    >
+                      {bankOptions.map((bank) => (
+                        <option key={bank.id} value={bank.id}>
+                          {bank.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <div style={{ marginBottom: "0.4rem" }}>
+                        <strong>Bank:</strong> {selectedBank?.bank || "—"}
+                      </div>
+                      <div style={{ marginBottom: "0.4rem" }}>
+                        <strong>Account name:</strong> {selectedBank?.name || "—"}
+                      </div>
+                      <div style={{ marginBottom: "0.4rem" }}>
+                        <strong>Account number:</strong>{" "}
+                        {selectedBank?.accountNumber
+                          ? `****${String(selectedBank.accountNumber).slice(-4)}`
+                          : "—"}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="error" style={{ margin: 0 }}>
+                    No AVS-verified bank accounts are configured for your firm yet.
+                  </p>
+                )}
+              </div>
+
+              {propertyRefNumber && (
+                <p className="subtle" style={{ marginBottom: "1rem" }}>
+                  This drawdown will be recorded against deal{" "}
+                  <strong>{propertyRefNumber}</strong>
+                  {deal?.property_description ? ` — ${deal.property_description}` : ""}.
+                </p>
+              )}
+
+              {dealError && (
+                <p className="error" style={{ marginBottom: "1rem" }}>
+                  {dealError}
+                </p>
+              )}
+            </>
+          )}
+
+          {prefillPending ? (
+            <p className="subtle" style={{ marginTop: 0 }}>
+              Loading your firm and deal details…
+            </p>
+          ) : (
+            /* Embedded like the Quick Bridge form (QRFormEmbed). key forces an
+               iframe refresh so Zoho prefill updates when the selection changes. */
+            <QRFormEmbed
+              baseUrl={AGENT_ADVANCE_FORM_URL}
+              prefill={prefill}
+              title={PAGE_TITLE}
+              key={[
+                isReadvance ? "readvance" : "start",
+                selectedBankDetailId || "no-bank",
+                dealId || "no-deal",
+              ].join("|")}
+            />
+          )}
         </>
       )}
     </div>

@@ -44,7 +44,7 @@ export default function AgentAdvance() {
     <div>
       <h2>{PAGE_TITLE}</h2>
       <p className="subtle" style={{ marginBottom: "1rem" }}>
-        Need funding on a new client file? Apply for a drawdown against your
+        Do your Estate Agents need funding on a client file? Apply for a drawdown against your
         approved Conveyancing Firm Agent Facility.
       </p>
 
@@ -56,15 +56,14 @@ export default function AgentAdvance() {
             </h3>
             <p className="subtle" style={{ marginTop: 0 }}>
               Draw down against your firm&rsquo;s approved Conveyancing Firm Agent
-              Facility to fund a new client file. It works just like a seller
-              advance &mdash; it is simply recorded against the deal as an{" "}
-              <strong>Estate Agent</strong> asset.
+              Facility to settle your agents. It works just like a Quick-Bridge
+              advance but is simply recorded against the deal as an{" "}
+              <strong>Estate Agent</strong> transaction.
             </p>
             <ul className="subtle" style={{ marginBottom: 0 }}>
-              <li>Apply once per file to add the first agent drawdown.</li>
+              <li>Apply here to add a Agent Facility draw down against a property transfer.</li>
               <li>
-                Draw down again later against an existing agent asset without
-                re-entering the file details.
+                Receive the Schedule for signature in your inbox
               </li>
               <li>
                 Once processed, the agent asset appears on your dashboard
@@ -76,10 +75,8 @@ export default function AgentAdvance() {
           <div className="notice-card" style={{ marginBottom: "1.25rem" }}>
             <strong>What happens after you apply?</strong>
             <p className="subtle" style={{ marginBottom: 0 }}>
-              Your firm and user details are pre-populated into the secure Taurus
-              form. Once submitted, our team prepares the agreement and the agent
-              transaction is created for you &mdash; there is nothing further to
-              capture in the portal.
+              Once submitted, you will receive the Schedule agreement in your inbox for signature by an authorized signatory of the firm. An agent
+              transaction is created for you and can be viewed on your dashboard once the Schedule is signed and processed.
             </p>
           </div>
 

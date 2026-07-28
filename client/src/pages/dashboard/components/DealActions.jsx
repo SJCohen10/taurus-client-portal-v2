@@ -1158,17 +1158,20 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                 onClick={() => {
                                     setOpen(false);
                                     // First drawdown opens the Conveyancing Firm Agent Facility
-                                    // form at the start. Only the opaque deal id is passed — the
-                                    // page resolves the ref number and transfer conditions from
-                                    // the caller's own deals list. Readvance opens the same form
-                                    // skipped to its last page via Initial_Advance_Further_Advance,
-                                    // passing no info.
+                                    // form at the start; readvance opens the same form skipped to
+                                    // its last page via Initial_Advance_Further_Advance. Both pass
+                                    // only the opaque deal id — the page resolves the ref number
+                                    // (and, for a first drawdown, the transfer conditions) from the
+                                    // caller's own deals list.
                                     const resolvedDealId = String(
                                         deal?.deal_id || deal?.dealId || deal?.["Deal_Id"] || ""
                                     ).trim();
+                                    const dealIdParam = resolvedDealId
+                                        ? `&dealId=${encodeURIComponent(resolvedDealId)}`
+                                        : "";
                                     const target = isAgentDeal(deal)
-                                        ? `/agent-advance?Initial_Advance_Further_Advance=${encodeURIComponent(AGENT_FURTHER_ADVANCE_VALUE)}`
-                                        : `/agent-advance?start=1${resolvedDealId ? `&dealId=${encodeURIComponent(resolvedDealId)}` : ""}`;
+                                        ? `/agent-advance?Initial_Advance_Further_Advance=${encodeURIComponent(AGENT_FURTHER_ADVANCE_VALUE)}${dealIdParam}`
+                                        : `/agent-advance?start=1${dealIdParam}`;
                                     navigate(target);
                                 }}
                                 style={{

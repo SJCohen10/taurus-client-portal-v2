@@ -10,7 +10,8 @@
 // coupled. First drawdown ("Add Agent Facility Drawdown" / the page's apply
 // button) opens the form at the start. Readvance ("Agent Facility Readvance")
 // opens the SAME form skipped to its last page via the
-// Initial_Advance_Further_Advance dropdown, passing no extra info.
+// Initial_Advance_Further_Advance dropdown, carrying only the deal reference
+// number so the drawdown lands on the right deal.
 //
 // Two aliases are deliberately never prefilled: shortfall_transfer (no portal
 // source) and aware_any_issues_may_delay_transfer (a point-in-time declaration
@@ -140,34 +141,36 @@ export function findAgentDealById(deals, dealId) {
   );
 }
 
-// Payload for a first drawdown ("Add Agent Facility Drawdown" / the page's apply
-// button). Identity fields come from the portal context, which getportalusercontext
-// resolves from the AUTHENTICATED session's CRM Contact — never from the URL.
-// `deal` is optional: supplied only when the drawdown is launched against an
-// existing deal, in which case its ref number and transfer conditions prefill too.
-export function buildAgentDrawdownPayload({ context, bankDetailId, deal } = {}) {
+// The fields the form expects on EVERY submission, first drawdown or readvance.
+// Identity comes from the portal context, which getportalusercontext resolves from
+// the AUTHENTICATED session's CRM Contact — never from the URL.
+function buildAgentIdentityFields({ context, bankDetailId }) {
   const crm = context || {};
 
-  const contactId =
-    crm.contactId || crm.contact_id || crm.Contact_ID || crm.contact?.id || "";
-
-  const payload = {
+  return {
     // hidden fields
-    contact_id: contactId,
+    contact_id: crm.contactId || crm.contact_id || crm.Contact_ID || crm.contact?.id || "",
     contact_email: crm.contactEmail || "",
 
     // CRM Bank Details record id — the picker only offers this account's
     // AVS-verified accounts, as surfaced by getportalusercontext.
     Firm_Bank_Details_id: bankDetailId || "",
+  };
+}
 
+// Payload for a first drawdown ("Add Agent Facility Drawdown" / the page's apply
+// button). `deal` is optional: supplied only when the drawdown is launched against
+// an existing deal, in which case its ref number and transfer conditions prefill
+// too.
+export function buildAgentDrawdownPayload({ context, bankDetailId, deal } = {}) {
+  const payload = {
+    ...buildAgentIdentityFields({ context, bankDetailId }),
     Initial_Advance_Further_Advance: AGENT_INITIAL_ADVANCE_VALUE,
   };
 
   if (!deal) return payload;
 
-  const propertyRefNumber = String(
-    deal.property_ref_number ?? deal.propertyRefNumber ?? deal["Property Ref Number"] ?? ""
-  ).trim();
+  const propertyRefNumber = resolveDealPropertyRefNumber(deal);
   if (propertyRefNumber) payload.property_ref_number = propertyRefNumber;
 
   AGENT_DEAL_CONDITION_ALIASES.forEach(({ alias, dealKeys }) => {
@@ -181,10 +184,27 @@ export function buildAgentDrawdownPayload({ context, bankDetailId, deal } = {}) 
   return payload;
 }
 
+export function resolveDealPropertyRefNumber(deal) {
+  return String(
+    deal?.property_ref_number ?? deal?.propertyRefNumber ?? deal?.["Property Ref Number"] ?? ""
+  ).trim();
+}
+
 // Payload for a subsequent draw-down ("Agent Facility Readvance"). Opens the SAME
 // form skipped to its last page via the Initial_Advance_Further_Advance dropdown,
-// passing NO extra deal or firm information — the client only completes the final
-// page.
-export function buildAgentReadvancePayload() {
-  return { Initial_Advance_Further_Advance: AGENT_FURTHER_ADVANCE_VALUE };
+// carrying the fields the form expects on every submission plus the reference
+// number identifying which deal the readvance is against. No transfer conditions —
+// the client completes the final page. `deal` is absent when a readvance is started
+// from the page rather than a deal's Actions button, in which case the client types
+// the reference number in the form.
+export function buildAgentReadvancePayload({ context, bankDetailId, deal } = {}) {
+  const payload = {
+    ...buildAgentIdentityFields({ context, bankDetailId }),
+    Initial_Advance_Further_Advance: AGENT_FURTHER_ADVANCE_VALUE,
+  };
+
+  const propertyRefNumber = resolveDealPropertyRefNumber(deal);
+  if (propertyRefNumber) payload.property_ref_number = propertyRefNumber;
+
+  return payload;
 }

@@ -29,10 +29,10 @@ export default function AgentAdvance() {
       .toLowerCase() === AGENT_FURTHER_ADVANCE_VALUE.toLowerCase();
   const autoStart = searchParams.get("start") === "1";
 
-  // Only ever an opaque deal id. The deal's reference number and transfer
-  // conditions are resolved from the caller's own deals list below — never taken
-  // from the URL — so a tampered id simply resolves to nothing.
-  const dealId = isReadvance ? "" : String(searchParams.get("dealId") || "").trim();
+  // Only ever an opaque deal id, in both modes. The deal's reference number and
+  // transfer conditions are resolved from the caller's own deals list below —
+  // never taken from the URL — so a tampered id simply resolves to nothing.
+  const dealId = String(searchParams.get("dealId") || "").trim();
 
   const [showForm, setShowForm] = React.useState(isReadvance || autoStart);
 
@@ -67,6 +67,10 @@ export default function AgentAdvance() {
     }
 
     let cancelled = false;
+    const lookupFailedMessage = isReadvance
+      ? "We could not load the deal this readvance was started from. Please enter the deal reference number in the form below."
+      : "We could not load the deal this drawdown was started from. Please complete the deal details in the form below.";
+
     setDealLoading(true);
     setDealError("");
 
@@ -76,17 +80,11 @@ export default function AgentAdvance() {
         if (cancelled) return;
         const match = findAgentDealById(payload?.deals, dealId);
         setDeal(match);
-        setDealError(
-          match
-            ? ""
-            : "We could not load the deal this drawdown was started from. Please complete the deal details in the form below."
-        );
+        setDealError(match ? "" : lookupFailedMessage);
       } catch (err) {
         if (cancelled) return;
         setDeal(null);
-        setDealError(
-          "We could not load the deal this drawdown was started from. Please complete the deal details in the form below."
-        );
+        setDealError(lookupFailedMessage);
       } finally {
         if (!cancelled) setDealLoading(false);
       }
@@ -95,12 +93,16 @@ export default function AgentAdvance() {
     return () => {
       cancelled = true;
     };
-  }, [dealId, portalEmail]);
+  }, [dealId, portalEmail, isReadvance]);
 
   const prefill = React.useMemo(
     () =>
       isReadvance
-        ? buildAgentReadvancePayload()
+        ? buildAgentReadvancePayload({
+            context,
+            bankDetailId: selectedBankDetailId,
+            deal,
+          })
         : buildAgentDrawdownPayload({
             context,
             bankDetailId: selectedBankDetailId,
@@ -119,8 +121,10 @@ export default function AgentAdvance() {
 
   const propertyRefNumber = prefill.property_ref_number || "";
   // Don't mount the iframe until the prefill is settled — Zoho only reads the
-  // query params at load, so a later change would remount and discard input.
-  const prefillPending = !isReadvance && (Boolean(portal?.loading) || dealLoading);
+  // query params at load, so a later change would remount and discard input. Both
+  // modes need the context (contact + bank) and, when launched from a deal, the
+  // deal lookup.
+  const prefillPending = Boolean(portal?.loading) || dealLoading;
 
   return (
     <div>
@@ -178,68 +182,67 @@ export default function AgentAdvance() {
               : "Complete the application below. Your firm and user details are pre-populated where possible."}
           </p>
 
-          {!isReadvance && (
-            <>
-              <div className="card" style={{ marginBottom: "1.25rem" }}>
-                <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-                  Desired Firm Bank Account
-                </h3>
+          {/* Shown in both modes: the form expects Firm_Bank_Details_id on every
+              submission, so the firm should see (and be able to change) which of
+              its AVS-verified accounts the drawdown will be paid into. */}
+          <div className="card" style={{ marginBottom: "1.25rem" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+              Desired Firm Bank Account
+            </h3>
 
-                {bankOptions.length ? (
-                  <>
-                    <select
-                      value={selectedBankDetailId}
-                      onChange={(e) => setSelectedBankDetailId(e.target.value)}
-                      style={{ width: "100%", padding: "0.6rem" }}
-                    >
-                      {bankOptions.map((bank) => (
-                        <option key={bank.id} value={bank.id}>
-                          {bank.label}
-                        </option>
-                      ))}
-                    </select>
+            {bankOptions.length ? (
+              <>
+                <select
+                  value={selectedBankDetailId}
+                  onChange={(e) => setSelectedBankDetailId(e.target.value)}
+                  style={{ width: "100%", padding: "0.6rem" }}
+                >
+                  {bankOptions.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.label}
+                    </option>
+                  ))}
+                </select>
 
-                    <div style={{ marginTop: "0.75rem" }}>
-                      <div style={{ marginBottom: "0.4rem" }}>
-                        <strong>Bank:</strong> {selectedBank?.bank || "—"}
-                      </div>
-                      <div style={{ marginBottom: "0.4rem" }}>
-                        <strong>Account name:</strong> {selectedBank?.name || "—"}
-                      </div>
-                      <div style={{ marginBottom: "0.4rem" }}>
-                        <strong>Account number:</strong>{" "}
-                        {selectedBank?.accountNumber
-                          ? `****${String(selectedBank.accountNumber).slice(-4)}`
-                          : "—"}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <p className="error" style={{ margin: 0 }}>
-                    No AVS-verified bank accounts are configured for your firm yet.
-                  </p>
-                )}
-              </div>
+                <div style={{ marginTop: "0.75rem" }}>
+                  <div style={{ marginBottom: "0.4rem" }}>
+                    <strong>Bank:</strong> {selectedBank?.bank || "—"}
+                  </div>
+                  <div style={{ marginBottom: "0.4rem" }}>
+                    <strong>Account name:</strong> {selectedBank?.name || "—"}
+                  </div>
+                  <div style={{ marginBottom: "0.4rem" }}>
+                    <strong>Account number:</strong>{" "}
+                    {selectedBank?.accountNumber
+                      ? `****${String(selectedBank.accountNumber).slice(-4)}`
+                      : "—"}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="error" style={{ margin: 0 }}>
+                No AVS-verified bank accounts are configured for your firm yet.
+              </p>
+            )}
+          </div>
 
-              {propertyRefNumber && (
-                <p className="subtle" style={{ marginBottom: "1rem" }}>
-                  This drawdown will be recorded against deal{" "}
-                  <strong>{propertyRefNumber}</strong>
-                  {deal?.property_description ? ` — ${deal.property_description}` : ""}.
-                </p>
-              )}
+          {propertyRefNumber && (
+            <p className="subtle" style={{ marginBottom: "1rem" }}>
+              This drawdown will be recorded against deal{" "}
+              <strong>{propertyRefNumber}</strong>
+              {deal?.property_description ? ` — ${deal.property_description}` : ""}.
+            </p>
+          )}
 
-              {dealError && (
-                <p className="error" style={{ marginBottom: "1rem" }}>
-                  {dealError}
-                </p>
-              )}
-            </>
+          {dealError && (
+            <p className="error" style={{ marginBottom: "1rem" }}>
+              {dealError}
+            </p>
           )}
 
           {prefillPending ? (
             <p className="subtle" style={{ marginTop: 0 }}>
-              Loading your firm and deal details…
+              {isReadvance ? "Loading your deal details…" : "Loading your firm and deal details…"}
             </p>
           ) : (
             /* Embedded like the Quick Bridge form (QRFormEmbed). key forces an

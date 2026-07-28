@@ -4,16 +4,21 @@
 // dashboard filter/drill-in, and the per-deal actions button, so the gate +
 // form wiring stay consistent.
 //
-// The form is surfaced exactly like the existing "Quick Bridge" Zoho Form: an
-// embedded iframe (client/src/components/QRFormEmbed.jsx) prefilled with query
-// params. First drawdown ("Add Agent Facility Drawdown" / the page's apply
-// button) opens the form at the start with the full Quick Bridge field set.
-// Readvance ("Agent Facility Readvance") opens the SAME form skipped to its last
-// page via the Initial_Advance_Further_Advance dropdown, passing no extra info.
+// The form is surfaced like the existing "Quick Bridge" Zoho Form — an embedded
+// iframe (client/src/components/QRFormEmbed.jsx) prefilled with query params —
+// but it is a SEPARATE integration with its own field aliases; the two are not
+// coupled. First drawdown ("Add Agent Facility Drawdown" / the page's apply
+// button) opens the form at the start. Readvance ("Agent Facility Readvance")
+// opens the SAME form skipped to its last page via the
+// Initial_Advance_Further_Advance dropdown, passing no extra info.
+//
+// Two aliases are deliberately never prefilled: shortfall_transfer (no portal
+// source) and aware_any_issues_may_delay_transfer (a point-in-time declaration
+// by the applicant). Both are answered in the form.
 
 // Conveyancing Firm Agent Facility Zoho Form (New Conveyancer/Agent Application).
-// Full formperma URL so field prefill works. Prefill still depends on the form
-// field aliases (payload KEYS) confirmed in the build*Payload functions below.
+// Full formperma URL so field prefill works. Prefill depends on the form field
+// aliases (payload KEYS) used in the build*Payload functions below.
 export const AGENT_ADVANCE_FORM_URL =
   "https://forms.zohopublic.com/tauruscapitalfinancegroup/form/NewConveyancerAgentApplication/formperma/ILW6tjeJvPBKoN7mw9xSWnC2jQe600R6YDg6BmqKbGw";
 
@@ -22,8 +27,8 @@ export const AGENT_ADVANCE_FORM_URL =
 // value the Quick Bridge / Seller readvance flows already use.
 export const AGENT_FURTHER_ADVANCE_VALUE = "Further Advance";
 
-// TODO(agent-facility): confirm the exact product_type value this form expects.
-const AGENT_PRODUCT_TYPE = "Conveyancing Firm Agent Facility";
+// Value of the same dropdown for a first drawdown (form opens at the start).
+export const AGENT_INITIAL_ADVANCE_VALUE = "Initial Advance";
 
 const AGENT_ASSET_TYPE = "estate agent";
 
@@ -50,69 +55,130 @@ export function isAgentAdvanceEnabled(context) {
   return enabled === "yes" && status === "active";
 }
 
-// Baseline payload for a first drawdown ("Add Agent Facility Drawdown") and the
-// standalone page's apply button. Replicates the FULL Quick Bridge field set
-// (same keys/values as pages/forms/property/QuickRatesAdvance.jsx › prefill),
-// resolving the firm's default/preferred bank the same way Quick Bridge does.
+// Transfer-condition aliases on the Agent Facility form, mapped to the deal keys
+// getportaldeals surfaces. Only prefilled when a first drawdown is launched from
+// the Actions button on an existing deal — a drawdown started from the page is a
+// NEW deal with no ref number, so the client answers these in the form.
+// Values are normalised to Yes/No; anything blank/unrecognised is omitted so the
+// form field stays empty rather than being pre-answered wrongly.
 //
-// TODO(agent-facility): the KEYS below mirror the Quick Bridge form aliases as a
-// working assumption. Confirm this form's real field aliases and adjust here only.
-export function buildAgentBaselinePayload(context) {
+// The `deal_`-prefixed keys are the columns added to the deals feed for this form
+// (functions/getportaldeals/lib/portalDeals.js). The prefix is deliberate — it
+// keeps the Seller Bridging readvance flow's payload unchanged; see the note in
+// that file before renaming either side.
+const AGENT_DEAL_CONDITION_ALIASES = [
+  { alias: "attachment_on_property", dealKeys: ["deal_attachment_on_property"] },
+  {
+    alias: "Do_the_Bond_attorneys_have_Proceed_to_Lodge",
+    dealKeys: ["deal_bond_attorneys_proceed_to_lodge"],
+  },
+  {
+    alias: "seller_has_signed_transfer_documents",
+    dealKeys: ["seller_has_signed_transfer_documents"],
+  },
+  {
+    alias: "buyer_has_signed_transfer_documents",
+    dealKeys: ["buyer_has_signed_transfer_documents"],
+  },
+  { alias: "guarantees_issued", dealKeys: ["guarantees_issued"] },
+  {
+    alias: "rates_clearance_certificate_obtained",
+    dealKeys: ["rates_clearance_certificate_obtained"],
+  },
+  { alias: "transfer_duty_receipt_obtained", dealKeys: ["transfer_duty_receipt_obtained"] },
+  { alias: "transfer_costs_paid", dealKeys: ["deal_transfer_costs_paid"] },
+  {
+    alias: "bond_cancellation_figures_obtained",
+    dealKeys: ["bond_cancellation_figures_obtained"],
+  },
+  { alias: "attorneys_have_original_deed", dealKeys: ["attorneys_have_original_deed"] },
+  { alias: "on_sell_transaction", dealKeys: ["deal_on_sell"] },
+  { alias: "cash_in_trust", dealKeys: ["cash_in_trust"] },
+  { alias: "estate_late_transaction", dealKeys: ["deal_estate_late"] },
+  { alias: "related_parties", dealKeys: ["deal_related_parties"] },
+  { alias: "sheriff_transfer", dealKeys: ["deal_sheriff_transfer"] },
+];
+
+const YES_VALUES = new Set(["yes", "y", "true", "1"]);
+const NO_VALUES = new Set(["no", "n", "false", "0"]);
+
+// Analytics exports CRM booleans as true/false and picklists as Yes/No. The form
+// expects Yes/No, so normalise both; return "" for blanks and anything else (free
+// text answers are never guessed at).
+export function normalizeYesNo(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (YES_VALUES.has(normalized)) return "Yes";
+  if (NO_VALUES.has(normalized)) return "No";
+  return "";
+}
+
+// The firm bank account the picker starts on — same precedence Quick Bridge uses
+// (preferred Quick Rates bank → account default → first AVS-verified account).
+export function resolveAgentDefaultBankDetailId(context) {
+  const crm = context || {};
+  const bankOptions = Array.isArray(crm.bankDetails) ? crm.bankDetails : [];
+  return (
+    crm.preferredQuickBridgeBank?.id || crm.defaultBankDetailId || bankOptions[0]?.id || ""
+  );
+}
+
+// Locate a deal in the caller's own deals list (getportaldeals only ever returns
+// deals this session is authorised to see, so a tampered dealId simply finds
+// nothing and no deal values are prefilled).
+export function findAgentDealById(deals, dealId) {
+  const wanted = String(dealId || "").trim();
+  if (!wanted) return null;
+  const list = Array.isArray(deals) ? deals : [];
+  return (
+    list.find((deal) => {
+      const id = deal?.deal_id ?? deal?.dealId ?? deal?.["Deal_Id"] ?? deal?.["Deal Id"];
+      return String(id || "").trim() === wanted;
+    }) || null
+  );
+}
+
+// Payload for a first drawdown ("Add Agent Facility Drawdown" / the page's apply
+// button). Identity fields come from the portal context, which getportalusercontext
+// resolves from the AUTHENTICATED session's CRM Contact — never from the URL.
+// `deal` is optional: supplied only when the drawdown is launched against an
+// existing deal, in which case its ref number and transfer conditions prefill too.
+export function buildAgentDrawdownPayload({ context, bankDetailId, deal } = {}) {
   const crm = context || {};
 
   const contactId =
     crm.contactId || crm.contact_id || crm.Contact_ID || crm.contact?.id || "";
 
-  // Resolve the firm's default/preferred bank exactly as Quick Bridge does, so the
-  // baseline payload carries the same bank fields Quick Bridge sends.
-  const bankOptions = Array.isArray(crm.bankDetails) ? crm.bankDetails : [];
-  const preferredBank = crm.preferredQuickBridgeBank || null;
-  const selectedBankId =
-    preferredBank?.id || crm.defaultBankDetailId || bankOptions[0]?.id || "";
-  const selectedBank = bankOptions.find((b) => b.id === selectedBankId) || null;
-
-  const ls = typeof window !== "undefined" ? window.localStorage : null;
-
-  return {
-    user_email: crm.contactEmail || "",
-    product_type: AGENT_PRODUCT_TYPE,
-    gclid: ls?.getItem("gclid") || "",
-    utm_source: ls?.getItem("utm_source") || "",
-    utm_medium: ls?.getItem("utm_medium") || "",
-    utm_campaign: ls?.getItem("utm_campaign") || "",
-
+  const payload = {
     // hidden fields
     contact_id: contactId,
     contact_email: crm.contactEmail || "",
 
-    // CRM Bank Details record id (Quick Bridge alias)
-    Firm_Bank_Details_id: selectedBankId,
+    // CRM Bank Details record id — the picker only offers this account's
+    // AVS-verified accounts, as surfaced by getportalusercontext.
+    Firm_Bank_Details_id: bankDetailId || "",
 
-    contact_name: crm.contactName || "",
-    contact_first_name: crm.contactFirstName || "",
-    contact_last_name: crm.contactLastName || "",
-    contact_mobile: crm.contactMobile || "",
-    portal_role: crm.portalRole || "",
-
-    firm_name: crm.accountName || "",
-    firm_reg_number: crm.firmRegNumber || "",
-    firm_street_address: crm.firmStreetAddress || "",
-    firm_city: crm.firmCity || "",
-    firm_province: crm.firmProvince || "",
-    firm_zip_code: crm.firmZipCode || "",
-
-    account_email: crm.accountEmail || crm.contactEmail || "",
-    account_mobile: crm.accountMobile || crm.contactMobile || "",
-
-    director_first_name: crm.directorName || "",
-    director_email: crm.directorEmail || "",
-    quick_rates_limit: crm.quickRatesLimit ?? crm.quickBridgeLimit ?? "",
-
-    Attorney_Firm_Bank: selectedBank?.bank || preferredBank?.bank || "",
-    Attorney_Firm_Account_Name: selectedBank?.name || preferredBank?.name || "",
-    Attorney_Firm_Account_Number:
-      selectedBank?.accountNumber || preferredBank?.accountNumber || "",
+    Initial_Advance_Further_Advance: AGENT_INITIAL_ADVANCE_VALUE,
   };
+
+  if (!deal) return payload;
+
+  const propertyRefNumber = String(
+    deal.property_ref_number ?? deal.propertyRefNumber ?? deal["Property Ref Number"] ?? ""
+  ).trim();
+  if (propertyRefNumber) payload.property_ref_number = propertyRefNumber;
+
+  AGENT_DEAL_CONDITION_ALIASES.forEach(({ alias, dealKeys }) => {
+    const raw = dealKeys
+      .map((key) => deal[key])
+      .find((candidate) => candidate !== undefined && candidate !== null && String(candidate).trim() !== "");
+    const normalized = normalizeYesNo(raw);
+    if (normalized) payload[alias] = normalized;
+  });
+
+  return payload;
 }
 
 // Payload for a subsequent draw-down ("Agent Facility Readvance"). Opens the SAME

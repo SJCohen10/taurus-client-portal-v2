@@ -118,6 +118,28 @@ function mapPortalDealRow(row) {
     buyer_has_signed_transfer_documents: row["Buyer has signed transfer documents"] || null,
     attorneys_have_original_deed: row["Attorneys are in possession of the original Deed"] || null,
     cash_in_trust: row["Cash in Trust"] || null,
+    // Additional transfer-condition columns from Portal_Deals_View, added for the
+    // Conveyancing Firm Agent Facility form. Header variants are listed
+    // defensively (the view carries some CRM misspellings — "Sherriff",
+    // "attatchment") so a corrected header keeps working.
+    //
+    // NB the deliberate `deal_` prefix: the Seller Bridging readvance flow
+    // (client/src/pages/dashboard/components/DealActions.jsx › READVANCE_ONLY_
+    // PREFILL_PARAM_MAP) probes the UNPREFIXED names. Those lookups have always
+    // resolved to undefined, and the prefix keeps it that way so that flow's
+    // payload is unchanged by this addition. Don't "tidy" the prefix away.
+    deal_bond_attorneys_proceed_to_lodge:
+      row["Do the Bond attorneys have Proceed to Lodge"] || null,
+    deal_on_sell: row["On-Sell"] || row["On Sell"] || null,
+    deal_transfer_costs_paid:
+      row["Buyers have Paid Costs"] || row["Buyers have paid costs"] || null,
+    deal_estate_late: row["Estate Late"] || null,
+    deal_related_parties: row["Related Parties"] || null,
+    deal_sheriff_transfer: row["Sherriff Transfer"] || row["Sheriff Transfer"] || null,
+    deal_attachment_on_property:
+      row["Is there an attatchment on the property"] ||
+      row["Is there an attachment on the property"] ||
+      null,
     property_description: row["Property Description"] || null,
     created_time: row["Created time"] || null,
     contact_email: row["Contact_Email"] || null,

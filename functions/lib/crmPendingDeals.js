@@ -10,8 +10,9 @@
 //   Deal  <- Asset.Claim       (Asset links to Deal)
 //   Asset <- Transaction.Asset (Transaction links to Asset)
 //
-// A paralegal is linked to a deal via Attorney or Attorney_Conveyancer; the firm
-// (account) via Attorney_Firm. Rows are merged Analytics-first and deduped by
+// A paralegal is linked to a deal via Attorney, Attorney_Conveyancer or
+// Paralegal; the firm (account) via Attorney_Firm. Rows are merged
+// Analytics-first and deduped by
 // deal_id, so once Analytics catches up the richer row replaces this one.
 //
 // NB: COQL here cannot SELECT lookup fields (Attorney/...) or the Single Line
@@ -89,6 +90,25 @@ async function fetchPendingDealsFromCrm({ email, requestId }) {
       requestId
     );
     for (const row of myRows) addDealRow(row, true);
+
+    // Paralegal is scoped in its own query, not OR'd into the one above: if the
+    // field's API name is wrong the query errors, and isolating it means that
+    // failure costs only the paralegal-owned pending rows instead of every
+    // pending row. Matches the Paralegal column now honoured in portalDeals.js.
+    try {
+      const paralegalRows = await coqlRows(
+        `select id, Property_Description, Created_Time from Deals ` +
+          `where Paralegal.id = '${contactId}' order by Created_Time desc limit 200`,
+        requestId
+      );
+      for (const row of paralegalRows) addDealRow(row, true);
+    } catch (err) {
+      console.warn("getportaldeals pending Paralegal scope skipped", {
+        requestId,
+        message: err?.message || String(err),
+        statusCode: err?.statusCode,
+      });
+    }
   }
   if (canViewFirmDeals && accountId) {
     const firmRows = await coqlRows(
@@ -158,8 +178,9 @@ async function fetchPendingDealsFromCrm({ email, requestId }) {
       current_balance: null,
       upsell_available: null,
       created_time: deal.created_time,
-      // Drives the dashboard My/Firm filter.
-      contact_email: deal.isOwn ? safeEmail : "",
+      // Drives the dashboard My/Firm filter, same flag the Analytics rows carry.
+      is_my_deal: deal.isOwn,
+      contact_email: deal.isOwn ? safeEmail : null,
       account_id: accountId || null,
       asset_id: deal.asset_ids[0] || null,
       asset_ids: deal.asset_ids.join(","),

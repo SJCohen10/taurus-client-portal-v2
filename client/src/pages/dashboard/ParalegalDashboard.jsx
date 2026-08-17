@@ -40,6 +40,21 @@ function normalizeStatus(value) {
     return String(value || "").trim().toLowerCase();
 }
 
+// Ownership is decided server-side (`is_my_deal` from getportaldeals), which
+// matches the logged-in email against Contact_Email / Paralegal /
+// Attorney_Conveyancer on Portal_Deals_View. The email fallback below keeps My
+// Deals correct if the client ships ahead of the functions deploy — drop it
+// once every environment returns the flag.
+const MY_DEAL_EMAIL_FIELDS = ["contact_email", "paralegal", "attorney_conveyancer"];
+
+function isMyDeal(deal, portalEmailLower) {
+    if (typeof deal?.is_my_deal === "boolean") return deal.is_my_deal;
+    if (!portalEmailLower) return false;
+    return MY_DEAL_EMAIL_FIELDS.some(
+        (field) => String(deal?.[field] || "").trim().toLowerCase() === portalEmailLower
+    );
+}
+
 function parseNumber(value) {
     if (value === undefined || value === null || value === "") return null;
     const numeric = Number(String(value).replace(/[^0-9.-]/g, ""));
@@ -272,7 +287,7 @@ export default function ParalegalDashboard() {
     }, [displayEmail, portalContext?.loading, portalContext?.error, loadDeals]);
 
     const visibleDeals = useMemo(() => {
-        const portalEmailLower = String(displayEmail || "").toLowerCase();
+        const portalEmailLower = String(displayEmail || "").trim().toLowerCase();
         const accountIdSafe = String(accountId || "");
 
         if (view === "firm") {
@@ -281,9 +296,7 @@ export default function ParalegalDashboard() {
 
 
 
-        return deals.filter(
-            (deal) => String(deal.contact_email || "").toLowerCase() === portalEmailLower
-        );
+        return deals.filter((deal) => isMyDeal(deal, portalEmailLower));
 
     }, [accountId, deals, displayEmail, view]);
 

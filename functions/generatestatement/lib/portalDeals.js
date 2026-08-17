@@ -4,6 +4,21 @@ const { URL } = require("url");
 const fetch = global.fetch || require("node-fetch");
 const { resolvePortalUserContextByEmail } = require("./portalUserContext");
 
+// A deal belongs to the logged-in portal user when their email matches ANY of
+// these Portal_Deals_View columns: the instructing attorney (Contact_Email),
+// the Paralegal, or the Attorney Conveyancer. All three carry email addresses.
+// These are the exact Analytics headers used in ZOHO_CRITERIA — a typo or a
+// renamed column fails the whole export, so they are not guessed defensively.
+//
+// mapPortalDealRow here is a slim authz/statement projection, so unlike the
+// getportaldeals copy it does not carry the owner emails onto the mapped row.
+const OWNER_EMAIL_COLUMNS = ["Contact_Email", "Paralegal", "Attorney_Conveyancer"];
+
+function buildOwnerEmailCriteria(email) {
+  const escaped = String(email).replace(/'/g, "\\'");
+  return OWNER_EMAIL_COLUMNS.map((column) => `"${column}"='${escaped}'`).join(" or ");
+}
+
 const EARLY_REFRESH_MS = 60 * 1000;
 const BACKOFF_MS = [500, 1000, 2000, 4000];
 
@@ -273,11 +288,10 @@ async function getDealsForPortal({ email, requestId }) {
 
   const accessToken = await getAnalyticsAccessToken();
 
-  const escapedEmail = safeEmail.replace(/'/g, "\\'");
   const myRows = safeEmail
     ? await fetchPortalDealsByCriteria({
       accessToken,
-      criteria: `"Contact_Email"='${escapedEmail}'`,
+      criteria: buildOwnerEmailCriteria(safeEmail),
     })
     : [];
 

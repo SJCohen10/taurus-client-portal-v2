@@ -392,9 +392,17 @@
   z-index: 3;
 }
 
+/* Width must hold the whole button cluster: the notification bell (46px min,
+   ~55px once a "(n)" count shows) + an 8px gap + the "Actions ▾" button
+   (~86px) ≈ 150px, plus the 12px side padding from the shared th/td rule.
+   `table-layout: fixed` makes this width authoritative — anything wider than
+   the content box spills past the sticky right edge and is clipped by
+   .deals-table-wrapper's `overflow-x: hidden`, which is what previously cut
+   the Actions button off. Adjust --actions-content-width, not the total. */
 .actions-cell {
-  min-width: 150px;
-  width: 150px;
+  --actions-content-width: 160px;
+  min-width: calc(var(--actions-content-width) + var(--space-3) * 2);
+  width: calc(var(--actions-content-width) + var(--space-3) * 2);
   position: sticky;
   right: 0;
   background: var(--surface);

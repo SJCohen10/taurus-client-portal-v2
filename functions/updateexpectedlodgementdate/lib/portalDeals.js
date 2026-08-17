@@ -200,6 +200,17 @@ function parseCsv(text) {
   });
 }
 
+// A deal belongs to the logged-in portal user when their email matches ANY of
+// these Portal_Deals_View columns: the instructing attorney (Contact_Email),
+// the Paralegal, or the Attorney Conveyancer. All three carry email addresses.
+// These are the exact Analytics headers used in ZOHO_CRITERIA — a typo or a
+// renamed column fails the whole export, so they are not guessed defensively.
+//
+// Keep this list in step with the getportaldeals copy: this result is the
+// allow-list the action functions check, so a deal visible on the dashboard
+// but missing here means every button on it returns 403.
+const OWNER_EMAIL_COLUMNS = ["Contact_Email", "Paralegal", "Attorney_Conveyancer"];
+
 async function getDealsForPortal({ email, accountId }) {
   const accessToken = await getAnalyticsAccessToken();
   const base = process.env.ZOHO_ANALYTICS_BASE || "https://analyticsapi.zoho.com/api";
@@ -209,8 +220,14 @@ async function getDealsForPortal({ email, accountId }) {
 
   if (!owner || !db) throw new Error("Missing Analytics owner/db env vars");
 
+  // All parts are OR'd, so the owner-email columns go in flat.
   const criteriaParts = [];
-  if (email) criteriaParts.push(`"Contact_Email"='${String(email).replace(/'/g, "\\'")}'`);
+  if (email) {
+    const escapedEmail = String(email).replace(/'/g, "\\'");
+    for (const column of OWNER_EMAIL_COLUMNS) {
+      criteriaParts.push(`"${column}"='${escapedEmail}'`);
+    }
+  }
   if (accountId) criteriaParts.push(`"Account_Id"='${String(accountId).replace(/'/g, "\\'")}'`);
   const criteria = criteriaParts.length ? criteriaParts.join(" OR ") : "1=0";
 

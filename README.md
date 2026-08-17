@@ -80,7 +80,10 @@ Also present but not part of main dashboard flow:
 
 `getportaldeals` calls Zoho Analytics Export API (CSV) with criteria:
 
-- `Contact_Email = email` and/or `Account_Id = accountId` (joined with `OR`).
+- Owner match: `Contact_Email = email` **or** `Paralegal = email` **or** `Attorney_Conveyancer = email` — all three columns hold email addresses, and matching any one of them makes the deal the user's own ("My Deals").
+- Firm match: `Account_Id = accountId`, only when the contact has `Can_View_Firm_Deals`.
+
+The same owner-match list gates authorization in every action function (`updatematterlodged`, `uploaddealdocument`, `createnote`, …), which check the deal appears in `getDealsForPortal` before writing to CRM. Keep the `OWNER_EMAIL_COLUMNS` constant in step across the `lib/portalDeals.js` copies — a deal visible on the dashboard but absent from an action function's list returns 403.
 
 Analytics table/view used:
 
@@ -92,6 +95,9 @@ Mapped frontend deal fields returned by function:
 - `property_description` ← `Property Description`
 - `created_time` ← `Created time`
 - `contact_email` ← `Contact_Email`
+- `paralegal` ← `Paralegal`
+- `attorney_conveyancer` ← `Attorney_Conveyancer`
+- `is_my_deal` ← computed server-side: true when the logged-in email matches any owner column above
 - `status` ← `Status`
 - `amount` ← `Amount` (parsed number)
 - `current_balance` ← `Current Balance` (parsed number)

@@ -5,6 +5,34 @@ const fetch = global.fetch || require("node-fetch");
 const analyticsTokenManager = require("./analyticsTokenManager");
 const { resolvePortalUserContextByEmail } = require("./portalUserContext");
 
+// A deal belongs to the logged-in portal user when their email matches ANY of
+// these Portal_Deals_View columns: the instructing attorney (Contact_Email),
+// the Paralegal, or the Attorney Conveyancer. All three carry email addresses.
+//
+// `column` is the exact Analytics header used in ZOHO_CRITERIA — a typo or a
+// renamed column fails the whole export, so it is not guessed defensively here.
+// `field` is the key mapPortalDealRow writes that column to.
+const OWNER_EMAIL_COLUMNS = [
+  { column: "Contact_Email", field: "contact_email" },
+  { column: "Paralegal", field: "paralegal" },
+  { column: "Attorney_Conveyancer", field: "attorney_conveyancer" },
+];
+
+function buildOwnerEmailCriteria(email) {
+  const escaped = String(email).replace(/'/g, "\\'");
+  return OWNER_EMAIL_COLUMNS.map(({ column }) => `"${column}"='${escaped}'`).join(" or ");
+}
+
+// Ownership is decided here, server-side, so the dashboard's My/Firm split and
+// every function's authorization check share one definition.
+function isDealOwnedByEmail(deal, email) {
+  const target = String(email || "").trim().toLowerCase();
+  if (!target) return false;
+  return OWNER_EMAIL_COLUMNS.some(
+    ({ field }) => String(deal?.[field] || "").trim().toLowerCase() === target
+  );
+}
+
 function parseCsv(text) {
   const rows = [];
   let current = "";
@@ -106,6 +134,10 @@ function mapPortalDealRow(row) {
     property_description: row["Property Description"] || null,
     created_time: row["Created time"] || null,
     contact_email: row["Contact_Email"] || null,
+    // Owner emails alongside Contact_Email, so a deal can be "mine" via the
+    // paralegal or the conveyancer too. See OWNER_EMAIL_COLUMNS.
+    paralegal: row["Paralegal"] || null,
+    attorney_conveyancer: row["Attorney_Conveyancer"] || row["Attorney Conveyancer"] || null,
     status: row["Status"] || null,
     amount: parseNumber(row["Amount"]),
     current_balance: currentBalance,
@@ -193,11 +225,10 @@ async function getDealsForPortal({ email, requestId }) {
 
   const accessToken = await analyticsTokenManager.getAccessToken({ requestId });
 
-  const escapedEmail = safeEmail.replace(/'/g, "\\'");
   const myRows = safeEmail
     ? await fetchPortalDealsByCriteria({
       accessToken,
-      criteria: `"Contact_Email"='${escapedEmail}'`,
+      criteria: buildOwnerEmailCriteria(safeEmail),
     })
     : [];
 
@@ -212,7 +243,11 @@ async function getDealsForPortal({ email, requestId }) {
 
   const normalizedMyDeals = myRows.map(mapPortalDealRow);
   const normalizedFirmDeals = firmRows.map(mapPortalDealRow);
-  const dedupedDeals = dedupeDealsById([...normalizedMyDeals, ...normalizedFirmDeals]);
+  // Flag every row (firm rows included — a firm-scoped row can still be mine)
+  // so the client filters on this instead of re-deriving ownership itself.
+  const dedupedDeals = dedupeDealsById([...normalizedMyDeals, ...normalizedFirmDeals]).map(
+    (deal) => ({ ...deal, is_my_deal: isDealOwnedByEmail(deal, safeEmail) })
+  );
 
   console.log("[portalDeals] visibility resolved", {
     requestId,
@@ -222,6 +257,7 @@ async function getDealsForPortal({ email, requestId }) {
     myDealsCount: normalizedMyDeals.length,
     firmDealsCount: normalizedFirmDeals.length,
     dedupedCount: dedupedDeals.length,
+    ownedCount: dedupedDeals.filter((deal) => deal.is_my_deal).length,
     first10DealIds: dedupedDeals.slice(0, 10).map((deal) => String(deal?.deal_id || "").trim()),
   });
 

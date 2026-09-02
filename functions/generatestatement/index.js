@@ -337,7 +337,7 @@ module.exports = async (req, res) => {
     const callerEmail = getCallerEmail(req);
     const requestedEmail = bodyEmail || callerEmail;
 
-    const email = enforceUserContext(req, requestedEmail);
+    const email = await enforceUserContext(req, requestedEmail, requestId, "generatestatement");
 
     console.info("[generatestatement] resolved user context", {
       requestId,

@@ -3,6 +3,7 @@
 const { URL } = require("url");
 const { getDealsForPortal } = require("./lib/portalDeals");
 const { fetchPendingDealsFromCrm } = require("./lib/crmPendingDeals");
+const { resolveCatalystUserEmail, logIdentitySource } = require("./lib/catalystIdentity");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -44,24 +45,39 @@ function getCallerEmail(req) {
     return String(direct || "").trim().toLowerCase();
 }
 
-function resolveEmailForRequest(req, requestedEmail) {
-    const callerEmail = getCallerEmail(req);
+// Resolution order: direct request identity -> Catalyst SDK -> client-supplied
+// email. The SDK step is the one that actually works in this environment; the
+// client-supplied email stays last for now and is removed once the logs confirm
+// the SDK is resolving identity.
+async function resolveEmailForRequest(req, requestedEmail, requestId) {
     const requested = String(requestedEmail || "").trim().toLowerCase();
+    const callerEmail = getCallerEmail(req);
+    let resolved = callerEmail ? { email: callerEmail, source: "request" } : null;
 
-    if (callerEmail && requested && callerEmail !== requested) {
+    if (!resolved) {
+        const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "getportaldeals");
+        if (viaCatalyst) resolved = viaCatalyst;
+    }
+
+    if (resolved && requested && resolved.email !== requested) {
         const err = new Error("Requested email does not match authenticated user");
         err.statusCode = 403;
         throw err;
     }
 
-    if (callerEmail) return callerEmail;
+    if (resolved) {
+        logIdentitySource("getportaldeals", requestId, resolved.source, req);
+        return resolved.email;
+    }
 
     if (process.env.NODE_ENV === "production") {
+        logIdentitySource("getportaldeals", requestId, "none", req);
         const err = new Error("Missing authenticated user context");
         err.statusCode = 401;
         throw err;
     }
 
+    logIdentitySource("getportaldeals", requestId, requested ? "client.requestedEmail" : "none", req);
     return requested;
 }
 
@@ -84,7 +100,7 @@ module.exports = async (req, res) => {
 
         const parsedUrl = new URL(req.url, "http://dummy-host");
         const requestedEmail = (parsedUrl.searchParams.get("email") || "").trim().toLowerCase();
-        const email = resolveEmailForRequest(req, requestedEmail);
+        const email = await resolveEmailForRequest(req, requestedEmail, requestId);
         if (!email) {
             return sendJson(res, 400, {
                 error: "Missing 'email' query parameter.",

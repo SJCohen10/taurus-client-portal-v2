@@ -2,6 +2,7 @@
 
 const portalDeals = require("./lib/portalDeals");
 const { resolvePortalUserContextByEmail } = require("./lib/portalUserContext");
+const { resolveCatalystUserEmail, logIdentitySource } = require("./lib/catalystIdentity");
 
 const NOTIFICATION_QUERY_TIMEOUT_MS = Number(process.env.PORTAL_LIST_NOTIFICATIONS_QUERY_TIMEOUT_MS || 7000);
 const AUTH_TIMEOUT_MS = Number(process.env.PORTAL_LIST_NOTIFICATIONS_AUTH_TIMEOUT_MS || 4500);
@@ -114,7 +115,24 @@ module.exports = async (req, res) => {
       .trim()
       .toLowerCase();
 
-    const callerEmail = portalDeals.getCallerEmail(req);
+    // Resolution order: direct request identity -> Catalyst SDK -> client-supplied
+    // email. The SDK step is the one that actually works in this environment; the
+    // client-supplied email stays last for now and is removed once the logs confirm
+    // the SDK is resolving identity.
+    const directEmail = portalDeals.getCallerEmail(req);
+    let resolvedIdentity = directEmail ? { email: directEmail, source: "request" } : null;
+    if (!resolvedIdentity) {
+      const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "listnotifications");
+      if (viaCatalyst) resolvedIdentity = viaCatalyst;
+    }
+    const callerEmail = resolvedIdentity?.email || "";
+    logIdentitySource(
+      "listnotifications",
+      requestId,
+      resolvedIdentity?.source || (requestedEmail ? "client.requestedEmail" : "none"),
+      req
+    );
+
     if (callerEmail && requestedEmail && callerEmail !== requestedEmail) {
       return sendJson(
         res,

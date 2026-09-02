@@ -60,7 +60,7 @@ module.exports = async (req, res) => {
     if (req.method !== "GET") return sendJson(req, res, 405, responseEnvelope({ requestId, message: "Method not allowed. Use GET." }));
 
     const query = parseQuery(req);
-    const email = enforceUserContext(req, query.get("email"));
+    const email = await enforceUserContext(req, query.get("email"), requestId, "getdealtransactions");
     enforceRateLimit({ key: `getdealtransactions:${email}`, limit: 30, windowMs: 60000 });
 
     const assetIds = parseAssetIds(query.get("assetIds") || "");

@@ -60,7 +60,7 @@ module.exports = async (req, res) => {
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "recordType", "recordId", "content"]);
 
-    const email = enforceUserContext(req, body.email);
+    const email = await enforceUserContext(req, body.email, requestId, "createnote");
     enforceRateLimit({ key: `createnote:${email}`, limit: 20, windowMs: 60000 });
 
     if (!EMAIL_REGEX.test(email)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "Invalid user context" }));

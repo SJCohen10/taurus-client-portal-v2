@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "dealId", "expectedLodgementDate"]);
 
-    const email = enforceUserContext(req, body.email);
+    const email = await enforceUserContext(req, body.email, requestId, "updateexpectedlodgementdate");
     enforceRateLimit({ key: `updateexpectedlodgementdate:${email}`, limit: 15, windowMs: 60000 });
 
     const dealId = String(body.dealId || "").trim();

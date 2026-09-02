@@ -1,6 +1,11 @@
 "use strict";
 
 const portalDeals = require("./lib/portalDeals");
+const { resolveCatalystUserEmail, logIdentitySource } = require("./lib/catalystIdentity");
+
+function createRequestId() {
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function sendJson(res, statusCode, payload) {
     res.statusCode = statusCode;
@@ -53,6 +58,8 @@ async function parseBody(req) {
 
 
 module.exports = async (req, res) => {
+    const requestId = createRequestId();
+
     try {
         if (req.method !== "POST") {
             return sendJson(res, 405, { error: "Method not allowed. Use POST." });
@@ -63,7 +70,24 @@ module.exports = async (req, res) => {
         const body = await parseBody(req);
         const id = String(body.id || "").trim();
         const requestedEmail = String(body.email || "").trim().toLowerCase();
-        const callerEmail = portalDeals.getCallerEmail(req);
+
+        // Resolution order: direct request identity -> Catalyst SDK -> client-supplied
+        // email. The SDK step is the one that actually works in this environment; the
+        // client-supplied email stays last for now and is removed once the logs confirm
+        // the SDK is resolving identity.
+        const directEmail = portalDeals.getCallerEmail(req);
+        let resolvedIdentity = directEmail ? { email: directEmail, source: "request" } : null;
+        if (!resolvedIdentity) {
+            const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "marknotificationread");
+            if (viaCatalyst) resolvedIdentity = viaCatalyst;
+        }
+        const callerEmail = resolvedIdentity?.email || "";
+        logIdentitySource(
+            "marknotificationread",
+            requestId,
+            resolvedIdentity?.source || (requestedEmail ? "client.requestedEmail" : "none"),
+            req
+        );
 
         if (callerEmail && requestedEmail && callerEmail !== requestedEmail) {
             return sendJson(res, 403, { error: "Requested email does not match authenticated user." });

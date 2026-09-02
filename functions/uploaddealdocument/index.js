@@ -363,7 +363,7 @@ module.exports = async (req, res) => {
             candidateEmail: body?.email || body?.contactEmail || "",
         });
 
-        const email = enforceUserContext(req, body.email || body.contactEmail);
+        const email = await enforceUserContext(req, body.email || body.contactEmail, requestId, "uploaddealdocument");
 
         console.log("[uploaddealdocument] after enforceUserContext", {
             requestId,

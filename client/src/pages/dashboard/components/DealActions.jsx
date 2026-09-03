@@ -56,6 +56,55 @@ const READVANCE_ONLY_PREFILL_PARAM_MAP = [
     { urlKey: "Readvance_Seller_Bank_Details_id", dealKeys: ["seller_bank_detail_id", "Seller_Bank_Detail_Id"] },
 ];
 
+// The statement tab has to be opened synchronously inside the click handler or
+// the popup blocker kills it, but the Creator URL is only known after the
+// generatestatement round trip. That gap used to show an empty about:blank tab
+// for several seconds, which reads as broken. about:blank inherits the opener's
+// origin, so we can write a holding page into it and replace it when the URL
+// arrives (or when it fails).
+function renderStatementHoldingPage(tab, { state, message }) {
+    if (!tab || tab.closed) return;
+
+    const isError = state === "error";
+    const accent = isError ? "#b3261e" : "#fc6b36";
+    const doc = [
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width,initial-scale=1">',
+        "<title>" + (isError ? "Statement unavailable" : "Preparing your statement…") + "</title>",
+        "<style>",
+        "*{box-sizing:border-box}",
+        "body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;",
+        "background:#eef0f3;color:#141f3e;",
+        'font-family:"Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}',
+        ".card{background:#fff;border-radius:12px;padding:40px 44px;max-width:420px;text-align:center;",
+        "box-shadow:0 6px 24px rgba(20,31,62,.12)}",
+        ".logo{height:34px;margin-bottom:24px}",
+        "h1{font-size:17px;font-weight:600;margin:0 0 8px}",
+        "p{font-size:14px;line-height:1.5;color:#4e5a78;margin:0}",
+        ".spinner{width:26px;height:26px;margin:0 auto 22px;border-radius:50%;",
+        "border:3px solid #dcdfe4;border-top-color:" + accent + ";animation:spin .8s linear infinite}",
+        "@keyframes spin{to{transform:rotate(360deg)}}",
+        "@media (prefers-reduced-motion:reduce){.spinner{animation:none}}",
+        ".bar{height:3px;width:56px;margin:0 auto 22px;border-radius:2px;background:" + accent + "}",
+        "</style></head><body>",
+        '<div class="card" role="status" aria-live="polite">',
+        '<img class="logo" src="' + window.location.origin + '/taurus-capital-logo.png" alt="Taurus Capital">',
+        isError ? '<div class="bar"></div>' : '<div class="spinner"></div>',
+        "<h1>" + (isError ? "We couldn&rsquo;t open your statement" : "Preparing your statement&hellip;") + "</h1>",
+        "<p>" + message + "</p>",
+        "</div></body></html>",
+    ].join("");
+
+    try {
+        tab.document.open();
+        tab.document.write(doc);
+        tab.document.close();
+    } catch {
+        // Cross-origin or the tab went away mid-write. The tab is cosmetic, so
+        // there is nothing to recover and nothing worth failing the download for.
+    }
+}
+
 function normalizeDateValue(value) {
     if (!value) return "";
     const raw = String(value).trim();
@@ -487,8 +536,13 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             newTab = window.open("about:blank", "_blank");
 
             if (!newTab) {
-                throw new Error("Your browser blocked the statement download window. Please allow popups for the Taurus Client Portal and try again.");
+                throw new Error("Your browser blocked the statement download window. Please allow pop-ups for the Taurus Client Portal and try again.");
             }
+
+            renderStatementHoldingPage(newTab, {
+                state: "loading",
+                message: "This usually takes a few seconds. Please keep this tab open.",
+            });
 
             const response = await generateStatement({
                 assetId,
@@ -496,7 +550,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 statementType,
             });
             if (!response?.statementUrl) {
-                throw new Error("We could not prepare the statement download. Please try again.");
+                throw new Error("We couldn't prepare that statement. Please contact your Taurus Account Manager.");
             }
 
             // Navigate the already-open tab to the final Creator URL
@@ -508,6 +562,12 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             safeConsoleError("Generate statement failed", err, {
                 newTabExists: !!newTab,
                 newTabClosed: newTab ? newTab.closed : null,
+            });
+            // Leaving the holding page spinning forever is worse than the blank
+            // tab was, so the tab has to be told the attempt failed too.
+            renderStatementHoldingPage(newTab, {
+                state: "error",
+                message: "You can close this tab and try again from your deal. If this continues, contact your Taurus Account Manager.",
             });
             showActionMessage(err.message || "We couldn't prepare that statement. Please contact your Taurus Account Manager.", "error");
         } finally {

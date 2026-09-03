@@ -61,9 +61,6 @@ function getCallerEmail(req) {
     req?.user?.email ||
     headers["x-zc-user-email"] ||
     headers["x-zc-useremail"] ||
-    headers["x-catalyst-user-email"] ||
-    headers["x-user-email"] ||
-    headers["x-forwarded-user-email"] ||
     "";
   return String(direct || "").trim().toLowerCase();
 }

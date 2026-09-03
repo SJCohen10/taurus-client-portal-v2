@@ -2,16 +2,15 @@
 
 // Ported from getPortalUserContext/lib/security.js.
 //
-// The x-zc-* email headers do not resolve in this environment, which is why
-// setting NODE_ENV=production on the guarded endpoints returned 401 for every
-// caller. getPortalUserContext was unaffected because it asks the Catalyst SDK
-// for the current user instead of trusting a header. This module is that path,
-// so the other endpoints can resolve identity the same way.
+// The x-zc-* email headers do not resolve in this environment, so the Catalyst
+// SDK is the path that actually returns an email for an authenticated portal
+// user. Logs from the commit that introduced this confirmed the SDK is the
+// resolving tier on every guarded endpoint.
 //
-// Unlike the getPortalUserContext original, resolveCatalystUserEmail here never
-// throws: it returns null when it cannot resolve. This step is purely additive
-// for now, so a failure must fall through to the existing resolution order
-// rather than turn into a 401.
+// resolveCatalystUserEmail throws 401 when a Catalyst identity marker is present
+// but no email can be read from it. A marker means the caller is authenticated,
+// so failing to read their email is an error, not a reason to fall back to
+// anything the client supplied.
 
 const catalyst = require("zcatalyst-sdk-node");
 
@@ -57,7 +56,10 @@ function getCatalystIdentityMeta(req) {
   };
 }
 
-// Returns { email, source } or null. Never throws.
+// Returns { email, source } when the SDK resolves an email.
+// Returns null when there is no Catalyst identity marker at all, leaving the
+// caller to reject the request.
+// Throws 401 when a marker is present but no email could be read from it.
 async function resolveCatalystUserEmail(req, requestId, fnName) {
   const headers = req?.headers || {};
   const userId = String(headers["x-zc-user-id"] || "").trim();
@@ -65,64 +67,63 @@ async function resolveCatalystUserEmail(req, requestId, fnName) {
   if (!meta.hasZcUserId && !meta.hasZcUserCredToken) return null;
 
   const attempts = [];
-  let userManagement;
+  let userManagement = null;
 
   try {
     const app = catalyst.initialize(req, { type: "advancedio" });
     userManagement = app.userManagement();
   } catch (err) {
+    attempts.push("initialize_failed");
     console.warn(`${fnName} Catalyst SDK initialize failed`, {
       requestId,
       hasZcUserId: meta.hasZcUserId,
       userType: meta.userType,
       message: err.message,
     });
-    return null;
   }
 
-  try {
-    const currentUser = await userManagement.getCurrentUser();
-    attempts.push("current_user");
-    const resolved = getFirstEmailCandidate(getEmailCandidateFields("catalyst.currentUser", currentUser || {}));
-    if (resolved) return resolved;
-  } catch (err) {
-    attempts.push("current_user_failed");
-    console.warn(`${fnName} Catalyst current user lookup failed`, {
-      requestId,
-      hasZcUserId: meta.hasZcUserId,
-      userType: meta.userType,
-      message: err.message,
-    });
-  }
-
-  if (userId) {
+  if (userManagement) {
     try {
-      const userById = await userManagement.getUserDetails(userId);
-      attempts.push("user_details");
-      const resolved = getFirstEmailCandidate(getEmailCandidateFields("catalyst.userDetails", userById || {}));
+      const currentUser = await userManagement.getCurrentUser();
+      attempts.push("current_user");
+      const resolved = getFirstEmailCandidate(getEmailCandidateFields("catalyst.currentUser", currentUser || {}));
       if (resolved) return resolved;
     } catch (err) {
-      attempts.push("user_details_failed");
-      console.warn(`${fnName} Catalyst user id lookup failed`, {
+      attempts.push("current_user_failed");
+      console.warn(`${fnName} Catalyst current user lookup failed`, {
         requestId,
         hasZcUserId: meta.hasZcUserId,
         userType: meta.userType,
         message: err.message,
       });
     }
+
+    if (userId) {
+      try {
+        const userById = await userManagement.getUserDetails(userId);
+        attempts.push("user_details");
+        const resolved = getFirstEmailCandidate(getEmailCandidateFields("catalyst.userDetails", userById || {}));
+        if (resolved) return resolved;
+      } catch (err) {
+        attempts.push("user_details_failed");
+        console.warn(`${fnName} Catalyst user id lookup failed`, {
+          requestId,
+          hasZcUserId: meta.hasZcUserId,
+          userType: meta.userType,
+          message: err.message,
+        });
+      }
+    }
   }
 
-  console.warn(`${fnName} Catalyst identity present but no email resolved`, {
-    requestId,
-    hasZcUserId: meta.hasZcUserId,
-    userType: meta.userType,
-    attempts,
-  });
-  return null;
+  const err = new Error("Authenticated Catalyst user did not include an email context");
+  err.statusCode = 401;
+  err.details = { catalystIdentityPresent: true, hasZcUserId: meta.hasZcUserId, userType: meta.userType, attempts };
+  throw err;
 }
 
-// One line per request so the Catalyst logs show which tier actually resolved
-// the identity, before anything is removed from the resolution order.
+// One line per request so the Catalyst logs show which tier resolved the
+// identity. Kept in place deliberately while the guards are being tightened.
 function logIdentitySource(fnName, requestId, source, req) {
   const meta = getCatalystIdentityMeta(req);
   console.info(`${fnName} identity resolved`, {

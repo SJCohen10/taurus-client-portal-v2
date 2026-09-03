@@ -52,7 +52,7 @@ function LoginRedirect() {
     redirectToLogin(getSafeServiceUrl(), "route-login");
   }, []);
 
-  return <p className="subtle">Redirecting to Catalyst login…</p>;
+  return <p className="subtle">Redirecting to sign in…</p>;
 }
 
 function AccessErrorScreen() {

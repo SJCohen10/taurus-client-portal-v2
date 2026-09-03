@@ -93,7 +93,7 @@ module.exports = async (req, res) => {
     const requestId = createRequestId();
     try {
         if (req.method !== "GET") {
-            return sendJson(res, 405, { error: "Method not allowed. Use GET.", requestId });
+            return sendJson(res, 405, { error: "That request couldn't be completed.", requestId });
         }
 
         const parsedUrl = new URL(req.url, "http://dummy-host");
@@ -101,14 +101,14 @@ module.exports = async (req, res) => {
         const email = await resolveEmailForRequest(req, requestedEmail, requestId);
         if (!email) {
             return sendJson(res, 400, {
-                error: "Missing 'email' query parameter.",
+                error: "We couldn't verify your account. Please sign in again.",
                 requestId,
             });
         }
 
         if (email && !EMAIL_REGEX.test(email)) {
             return sendJson(res, 400, {
-                error: "Invalid email query parameter.",
+                error: "We couldn't verify your account. Please sign in again.",
                 requestId,
             });
         }
@@ -141,7 +141,7 @@ module.exports = async (req, res) => {
             return sendJson(res, err.statusCode, { error: err.message, requestId });
         }
         return sendJson(res, 500, {
-            error: "Internal server error in getportaldeals.",
+            error: "We couldn't load your deals. Please refresh the page. If this continues, contact your Taurus Account Manager.",
             requestId,
 
         });

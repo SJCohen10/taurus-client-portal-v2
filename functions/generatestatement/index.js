@@ -6,7 +6,6 @@ const { getOAuthAccessToken } = require("./lib/crm");
 const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("./lib/security");
 const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
 
-const DEFAULT_SIGNING_SECRET = "change-me";
 const WORKDRIVE_BASE = process.env.ZOHO_WORKDRIVE_BASE || "https://www.zohoapis.com/workdrive/api/v1";
 const STATEMENTS_FOLDER_NAME = process.env.PORTAL_STATEMENTS_FOLDER_NAME || "Statements";
 
@@ -67,6 +66,7 @@ function resolveStatementUrl(assetId, statementType) {
   if (!normalizedType) {
     const err = new Error("Missing statement type");
     err.statusCode = 400;
+    err.clientMessage = "Please choose a statement type.";
     throw err;
   }
   const map = getStatementUrlMap();
@@ -75,6 +75,7 @@ function resolveStatementUrl(assetId, statementType) {
   if (!base) {
     const err = new Error(`No statement is available for "${statementType}" yet`);
     err.statusCode = 400;
+    err.clientMessage = "No statement is available for this deal yet.";
     throw err;
   }
   const url = new URL(base);
@@ -82,15 +83,23 @@ function resolveStatementUrl(assetId, statementType) {
   return url.toString();
 }
 
+// Throws on first use when the secret is unset. There is no fallback in any
+// environment: a signing key that ships in the repo is a published key, so
+// failing closed is the only safe behaviour.
+function clientMessageForStatus(statusCode) {
+  if (statusCode === 401) return "We couldn't verify your account. Please sign in again.";
+  if (statusCode === 403) return "You don't have access to this statement. Please contact your Taurus Account Manager.";
+  if (statusCode === 413) return "That request was too large.";
+  if (statusCode === 429) return "Too many requests. Please wait a moment and then try again.";
+  return "We couldn't prepare that statement. Please contact your Taurus Account Manager.";
+}
+
 function getSigningSecret() {
   const secret = String(process.env.STATEMENT_SIGNING_SECRET || "").trim();
   if (secret) return secret;
-  if (process.env.NODE_ENV === "production") {
-    const err = new Error("Missing STATEMENT_SIGNING_SECRET");
-    err.statusCode = 500;
-    throw err;
-  }
-  return DEFAULT_SIGNING_SECRET;
+  const err = new Error("Missing STATEMENT_SIGNING_SECRET");
+  err.statusCode = 500;
+  throw err;
 }
 
 function verifyToken(token) {
@@ -324,12 +333,12 @@ module.exports = async (req, res) => {
     if (req.method === "GET") {
       const token = parseQuery(req).get("token");
       const parsed = verifyToken(token);
-      if (!parsed) return sendJson(req, res, 401, { error: "Invalid token", requestId });
+      if (!parsed) return sendJson(req, res, 401, { error: "That link is no longer valid. Please open the statement again from your deal.", requestId });
       res.writeHead(302, { Location: parsed.url, "Cache-Control": "no-store" });
       return res.end();
     }
 
-    if (req.method !== "POST") return sendJson(req, res, 405, { error: "Method not allowed", requestId });
+    if (req.method !== "POST") return sendJson(req, res, 405, { error: "That request couldn't be completed.", requestId });
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "assetId", "accountId", "statementType"]);
 
@@ -347,13 +356,13 @@ module.exports = async (req, res) => {
     });
 
     if (!email) {
-      return sendJson(req, res, 401, { error: "Unable to resolve portal user email", requestId });
+      return sendJson(req, res, 401, { error: "We couldn't verify your account. Please sign in again.", requestId });
     }
 
     enforceRateLimit({ key: `generatestatement:${email}`, limit: 10, windowMs: 60000 });
 
     const assetId = String(body.assetId || "").trim();
-    if (!/^\d+$/.test(assetId)) return sendJson(req, res, 400, { error: "Invalid assetId", requestId });
+    if (!/^\d+$/.test(assetId)) return sendJson(req, res, 400, { error: "We couldn't identify this transaction. Please refresh the page. If this continues, contact your Taurus Account Manager.", requestId });
 
     console.info("[generatestatement] fetching allowed deals", { requestId, email });
     const allowed = await getDealsForPortal({ email, requestId });
@@ -376,7 +385,7 @@ module.exports = async (req, res) => {
         allowedCount: allowed.length,
       });
 
-      return sendJson(req, res, 403, { error: "Forbidden", requestId });
+      return sendJson(req, res, 403, { error: "You don't have access to this statement. Please contact your Taurus Account Manager.", requestId });
     }
 
     const statementUrl = resolveStatementUrl(assetId, body.statementType);
@@ -401,8 +410,11 @@ module.exports = async (req, res) => {
       details: err.details || null,
       stack: err.stack || null,
     });
-    return sendJson(req, res, err.statusCode || 500, {
-      error: err.statusCode ? err.message : "Internal server error",
+    // err.message is for the log above only. Errors that have something safe
+    // and useful to say to a client set clientMessage explicitly.
+    const statusCode = err.statusCode || 500;
+    return sendJson(req, res, statusCode, {
+      error: err.clientMessage || clientMessageForStatus(statusCode),
       requestId,
     });
   }

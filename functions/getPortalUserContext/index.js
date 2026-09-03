@@ -160,7 +160,7 @@ module.exports = async (req, res) => {
   }
   try {
     if (handleOptions(req, res)) return;
-    if (req.method !== "GET") return sendJson(req, res, 405, { error: "Method not allowed. Use GET.", requestId });
+    if (req.method !== "GET") return sendJson(req, res, 405, { error: "That request couldn't be completed.", requestId });
 
     assertRequiredOAuthEnv(requestId);
 
@@ -188,7 +188,7 @@ module.exports = async (req, res) => {
     const email = resolvedUser.email;
     if (!EMAIL_REGEX.test(email)) {
       console.warn("getPortalUserContext invalid resolved email", { requestId, source: resolvedUser.source });
-      return sendJson(req, res, 400, { error: "Invalid email context", requestId });
+      return sendJson(req, res, 400, { error: "We couldn't verify your account. Please sign in again.", requestId });
     }
     portalContextDebugLog("getPortalUserContext resolved identity", { requestId, source: resolvedUser.source, emailDomain: email.split("@")[1] || "" });
     enforceRateLimit({ key: `getportalusercontext:${email}`, limit: 30, windowMs: 60000 });

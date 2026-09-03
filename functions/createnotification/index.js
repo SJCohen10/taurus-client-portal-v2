@@ -40,7 +40,7 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method !== "POST") {
-      return sendJson(res, 405, { error: "Method not allowed. Use POST." });
+      return sendJson(res, 405, { error: "That request couldn't be completed." });
     }
     const catalyst = require("zcatalyst-sdk-node");
     const app = catalyst.initialize(req);
@@ -63,24 +63,24 @@ module.exports = async (req, res) => {
         if (viaCatalyst) resolvedIdentity = viaCatalyst;
       } catch (err) {
         logIdentitySource("createnotification", requestId, "none", req);
-        return sendJson(res, 401, { error: "Missing authenticated user email context." });
+        return sendJson(res, 401, { error: "We couldn't verify your account. Please sign in again." });
       }
     }
     logIdentitySource("createnotification", requestId, resolvedIdentity?.source || "none", req);
 
     if (!resolvedIdentity) {
-      return sendJson(res, 401, { error: "Missing authenticated user email context." });
+      return sendJson(res, 401, { error: "We couldn't verify your account. Please sign in again." });
     }
 
     const email = resolvedIdentity.email;
 
     if (requestedEmail && email !== requestedEmail) {
-      return sendJson(res, 403, { error: "Requested email does not match authenticated user." });
+      return sendJson(res, 403, { error: "We couldn't verify your account. Please sign in again." });
     }
 
-    if (!dealId) return sendJson(res, 400, { error: "Missing dealId" });
-    if (!/^[0-9]{6,30}$/.test(dealId)) return sendJson(res, 400, { error: "Invalid dealId" });
-    if (!message) return sendJson(res, 400, { error: "Missing message" });
+    if (!dealId) return sendJson(res, 400, { error: "We couldn't identify this deal. Please refresh the page. If this continues, contact your Taurus Account Manager." });
+    if (!/^[0-9]{6,30}$/.test(dealId)) return sendJson(res, 400, { error: "We couldn't identify this deal. Please refresh the page. If this continues, contact your Taurus Account Manager." });
+    if (!message) return sendJson(res, 400, { error: "Please enter a message." });
 
     const visibleDeals = await getDealsForPortal({ email });
     const visibleDealIds = new Set((visibleDeals || []).map((d) => String(d.deal_id || "").trim()).filter(Boolean));
@@ -96,7 +96,7 @@ module.exports = async (req, res) => {
       isAuthorized,
     });
 
-    if (!isAuthorized) return sendJson(res, 403, { error: "Deal is not authorized for this user." });
+    if (!isAuthorized) return sendJson(res, 403, { error: "You don't have access to this deal. Please contact your Taurus Account Manager." });
 
     const table = app.datastore().table("portal_notifications");
 
@@ -116,6 +116,6 @@ module.exports = async (req, res) => {
     return sendJson(res, 200, { notification: inserted });
   } catch (err) {
     console.error("createnotification error", err);
-    return sendJson(res, 500, { error: "Internal error", details: err.message });
+    return sendJson(res, 500, { error: "We couldn't save that notification. Please contact your Taurus Account Manager.", requestId });
   }
 };

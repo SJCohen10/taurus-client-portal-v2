@@ -150,7 +150,27 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         crm?.defaultBankDetailId || (firmBankOptions[0]?.id || "");
 
     const [open, setOpen] = useState(false);
-    const [message, setMessage] = useState("");
+    // Action feedback renders in a fixed-position popup, not inside the row.
+    // The actions cell is a fixed 160px sticky column under table-layout: fixed
+    // with white-space: nowrap, inside a wrapper that hides horizontal overflow,
+    // so anything rendered there is clipped to a few words.
+    const [actionMessage, setActionMessage] = useState(null);
+
+    function dismissActionMessage() {
+        setActionMessage(null);
+    }
+
+    // tone "error" keeps a long message on screen long enough to read; anything
+    // else is a short confirmation. One message at a time - a new one replaces
+    // whatever is showing.
+    function showActionMessage(text, tone) {
+        const body = String(text || "").trim();
+        if (!body) {
+            setActionMessage(null);
+            return;
+        }
+        setActionMessage({ text: body, tone: tone === "error" ? "error" : "success" });
+    }
     const [uploading, setUploading] = useState(false);
     const [statementLoading, setStatementLoading] = useState(false);
     const [statementChooserOpen, setStatementChooserOpen] = useState(false);
@@ -398,7 +418,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
         try {
             setUploading(true);
-            setMessage("");
+            dismissActionMessage();
 
             const base64Data = await readFileAsBase64(file);
 
@@ -434,18 +454,21 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 safeConsoleError("Upload note creation failed", noteErr);
             }
 
-            setMessage(
+            showActionMessage(
                 response?.message ||
-                "Document uploaded successfully."
+                "Document uploaded successfully.",
+                "success"
             );
             setOpen(false);
         } catch (err) {
             safeConsoleError("Document upload failed", err);
-            setMessage(
-                err.technicalMessage ||
-                err.details ||
+            // err.message already carries the safe server message plus the
+            // request id; technicalMessage is the same text without the reference.
+            showActionMessage(
                 err.message ||
-                "Unable to upload document right now."
+                err.technicalMessage ||
+                "Unable to upload document right now.",
+                "error"
             );
         } finally {
             setUploading(false);
@@ -458,7 +481,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
         try {
             setStatementLoading(true);
-            setMessage("");
+            dismissActionMessage();
 
             // Open the tab immediately while still inside the user click
             newTab = window.open("about:blank", "_blank");
@@ -478,7 +501,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
 
             // Navigate the already-open tab to the final Creator URL
             newTab.location.href = response.statementUrl;
-            setMessage("Statement download started.");
+            showActionMessage("Statement download started.", "success");
             setOpen(false);
             setStatementChooserOpen(false);
         } catch (err) {
@@ -486,7 +509,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 newTabExists: !!newTab,
                 newTabClosed: newTab ? newTab.closed : null,
             });
-            setMessage(err.message || "Unable to generate a statement right now.");
+            showActionMessage(err.message || "Unable to generate a statement right now.", "error");
         } finally {
             setStatementLoading(false);
         }
@@ -496,15 +519,16 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         event.stopPropagation();
 
         if (!portalEmail) {
-            setMessage("We could not verify your profile. Please sign in again.");
+            showActionMessage("We could not verify your profile. Please sign in again.", "error");
             return;
         }
 
         if (!statementOptions.length) {
-            setMessage(
+            showActionMessage(
                 assetIds.length
                     ? "No statement is available for this deal yet."
-                    : "No Assets are linked to this deal yet."
+                    : "No Assets are linked to this deal yet.",
+                "error"
             );
             return;
         }
@@ -514,6 +538,15 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
         setStatementChooserOpen(true);
         setOpen(false);
     }
+
+    useEffect(() => {
+        if (!actionMessage) return undefined;
+        const readingTime = actionMessage.tone === "error"
+            ? Math.min(20000, Math.max(8000, actionMessage.text.length * 60))
+            : 4000;
+        const timer = setTimeout(() => setActionMessage(null), readingTime);
+        return () => clearTimeout(timer);
+    }, [actionMessage]);
 
     async function loadSellerBanks() {
         setSellerBankLoading(true);
@@ -712,18 +745,47 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 dealId: String(dealId),
                 expectedLodgementDate: selectedDate,
             });
-            await createNote({
-                email: portalEmail,
-                recordType: target.recordType,
-                recordId: target.recordId,
-                content: `Expected Lodgement Date updated to ${selectedDate}. Reason for Update: ${trimmedReason}`,
-            });
+            // The CRM date is committed at this point. The note is best-effort,
+            // matching the upload path: a failure here must not make a successful
+            // date update look failed, so it is swallowed and only logged.
+            let noteSaved = true;
+            try {
+                await createNote({
+                    email: portalEmail,
+                    recordType: target.recordType,
+                    recordId: target.recordId,
+                    content: `Expected Lodgement Date updated to ${selectedDate}. Reason for Update: ${trimmedReason}`,
+                });
+            } catch (noteErr) {
+                noteSaved = false;
+                safeConsoleError("Expected lodgement note creation failed", noteErr);
+            }
             if (onDealUpdate) {
                 onDealUpdate({ ...deal, expectedLodgementDate: selectedDate });
             }
+
+            // The badge merges computed reminders with persisted rows. The computed
+            // half recomputes from the deal we just pushed up; the persisted half
+            // only changes when we re-read it, so refetch rather than leave a stale
+            // row lighting the badge.
+            await fetchPersistedNotifications({ suppressError: true });
+
             setExpectedLodgementOpen(false);
             setExpectedLodgementReason("");
-            setMessage("Expected Lodgement Date updated and note added.");
+
+            // A date that is itself in the past keeps the overdue reminder up. That
+            // is correct, but it looks identical to the badge failing to clear, so
+            // say which one the user is looking at.
+            const stillOverdue = hasExpectedLodgementAttention({ ...deal, expectedLodgementDate: selectedDate });
+            const savedPart = noteSaved
+                ? `Expected Lodgement Date updated to ${selectedDate} and note added.`
+                : `Expected Lodgement Date updated to ${selectedDate}. The date is saved, but the note could not be added.`;
+            showActionMessage(
+                stillOverdue
+                    ? `${savedPart} That date has already passed, so the overdue reminder stays until you set a future date.`
+                    : savedPart,
+                "success"
+            );
         } catch (error) {
             setExpectedLodgementError(error.message || "We could not update the expected lodgement date right now.");
         } finally {
@@ -760,7 +822,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 onDealUpdate({ ...deal, status: "Lodged", Status: "Lodged", Lodged: "Yes", lodged: "Yes", Lodgment_Date: selectedDate, lodgment_date: selectedDate });
             }
             setMatterLodgedOpen(false);
-            setMessage("Matter marked as lodged.");
+            showActionMessage("Matter marked as lodged.", "success");
         } catch (error) {
             setMatterLodgedError(error.message || "We could not update the matter lodged status right now.");
         } finally {
@@ -888,7 +950,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 recordId: target.recordId,
                 content: trimmed,
             });
-            setMessage("Note added successfully.");
+            showActionMessage("Note added successfully.", "success");
             setNoteOpen(false);
             setNoteContent("");
             setOpen(false);
@@ -1452,10 +1514,23 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                     document.body
                 )}
 
-            {message && (
-                <div className="deal-action-message" style={{ marginTop: 6 }}>
-                    {message}
-                </div>
+            {actionMessage && ReactDOM.createPortal(
+                <div
+                    className={`deal-action-toast deal-action-toast-${actionMessage.tone}`}
+                    role={actionMessage.tone === "error" ? "alert" : "status"}
+                    aria-live={actionMessage.tone === "error" ? "assertive" : "polite"}
+                >
+                    <span className="deal-action-toast-text">{actionMessage.text}</span>
+                    <button
+                        type="button"
+                        className="deal-action-toast-close"
+                        aria-label="Dismiss message"
+                        onClick={dismissActionMessage}
+                    >
+                        &times;
+                    </button>
+                </div>,
+                document.body
             )}
 
             {/* Readvance chooser */}
@@ -1669,7 +1744,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                             }
 
                                             if (popupResult.usedFallback) {
-                                                setMessage("Popup was blocked, so the quote form was opened in a new tab.");
+                                                showActionMessage("Popup was blocked, so the quote form was opened in a new tab.", "error");
                                             }
 
                                             setSellerReadvanceOpen(false);

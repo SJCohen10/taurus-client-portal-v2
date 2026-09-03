@@ -154,12 +154,6 @@ export default function QuickRatesAdvance({
       quick_rates_limit: quickRatesLimit,
       Initial_Advance_Further_Advance: initialOrFurtherAdvance,
       ...(isReadvance ? readvanceOnlyPrefill : {}),
-
-      // optional: prefill these display fields too (selected overrides preferred)
-      Attorney_Firm_Bank: selectedBank?.bank || preferredBank?.bank || "",
-      Attorney_Firm_Account_Name: selectedBank?.name || preferredBank?.name || "",
-      Attorney_Firm_Account_Number:
-        selectedBank?.accountNumber || preferredBank?.accountNumber || "",
     }),
     [
       email,
@@ -186,14 +180,13 @@ export default function QuickRatesAdvance({
       isReadvance,
       readvanceOnlyPrefill,
       selectedBankDetailId,
-      selectedBank?.bank,
-      selectedBank?.name,
-      selectedBank?.accountNumber,
-      preferredBank?.bank,
-      preferredBank?.name,
-      preferredBank?.accountNumber,
     ]
   );
+
+  // Don't mount the iframe until the prefill is settled - Zoho only reads the
+  // query params at load, so a later change would remount and discard input.
+  // Same guard as AgentAdvance.
+  const prefillPending = Boolean(portal?.loading);
 
   return (
     <div>
@@ -264,13 +257,24 @@ export default function QuickRatesAdvance({
         )}
       </div>
 
-      {/* key forces iframe refresh so Zoho prefill updates */}
-      <QRFormEmbed
-        baseUrl={baseUrl}
-        prefill={prefill}
-        title={title}
-        key={selectedBankDetailId || "no-bank"}
-      />
+      {/* Zoho only reads the query params at load, so the iframe must not mount
+          until the portal context has resolved - otherwise the initial URL carries
+          no values and nothing re-reads them. The key was selectedBankDetailId
+          alone, which is "no-bank" both before and after context arrives for a firm
+          with no AVS bank details, so that firm never got a remount and never
+          prefilled. Keying on the context as well fixes that case. */}
+      {prefillPending ? (
+        <p className="subtle" style={{ marginTop: 0 }}>
+          Loading your firm details…
+        </p>
+      ) : (
+        <QRFormEmbed
+          baseUrl={baseUrl}
+          prefill={prefill}
+          title={title}
+          key={[selectedBankDetailId || "no-bank", contactId || "no-contact"].join("|")}
+        />
+      )}
     </div>
   );
 }

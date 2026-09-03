@@ -465,9 +465,56 @@
   cursor: not-allowed;
 }
 
-.deal-action-message {
+/* Action feedback is deliberately NOT rendered inside .actions-cell. That cell
+   is a fixed 160px sticky column under table-layout: fixed, inherits
+   white-space: nowrap, and sits inside .deals-table-wrapper's
+   overflow-x: hidden - so a message rendered there is clipped after a few
+   words. This is portalled to document.body and positioned against the
+   viewport instead, which is why it can wrap and show a full error. */
+.deal-action-toast {
+  position: fixed;
+  right: var(--space-4, 16px);
+  bottom: var(--space-4, 16px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3, 12px);
+  max-width: min(420px, calc(100vw - 32px));
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border-radius: var(--radius, 6px);
+  border-left: 4px solid var(--success);
+  background: var(--surface);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
-  color: var(--success);
+  color: var(--text);
+  /* the row sets nowrap; a full error needs to wrap */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.deal-action-toast-error {
+  border-left-color: var(--danger, #b3261e);
+}
+
+.deal-action-toast-text {
+  flex: 1 1 auto;
+  line-height: 1.4;
+}
+
+.deal-action-toast-close {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-muted, inherit);
+}
+
+.deal-action-toast-close:hover {
+  color: var(--text);
 }
 
 .deal-actions-menu-item {

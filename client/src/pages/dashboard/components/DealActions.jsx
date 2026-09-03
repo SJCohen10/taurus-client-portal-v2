@@ -467,7 +467,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             showActionMessage(
                 err.message ||
                 err.technicalMessage ||
-                "Unable to upload document right now.",
+                "We couldn't upload that document. Please contact your Taurus Account Manager.",
                 "error"
             );
         } finally {
@@ -509,7 +509,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 newTabExists: !!newTab,
                 newTabClosed: newTab ? newTab.closed : null,
             });
-            showActionMessage(err.message || "Unable to generate a statement right now.", "error");
+            showActionMessage(err.message || "We couldn't prepare that statement. Please contact your Taurus Account Manager.", "error");
         } finally {
             setStatementLoading(false);
         }
@@ -527,7 +527,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             showActionMessage(
                 assetIds.length
                     ? "No statement is available for this deal yet."
-                    : "No Assets are linked to this deal yet.",
+                    : "No transactions are linked to this deal yet.",
                 "error"
             );
             return;
@@ -1744,7 +1744,7 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                                             }
 
                                             if (popupResult.usedFallback) {
-                                                showActionMessage("Popup was blocked, so the quote form was opened in a new tab.", "error");
+                                                showActionMessage("Your browser blocked the pop-up, so the form opened in a new tab instead.", "error");
                                             }
 
                                             setSellerReadvanceOpen(false);

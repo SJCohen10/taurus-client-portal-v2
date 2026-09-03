@@ -85,10 +85,6 @@ function setCachedAuthScope(cacheKey, value) {
   authCache.set(cacheKey, { value, expiresAt: nowMs() + AUTH_CACHE_TTL_MS });
 }
 
-function isProductionRuntime() {
-  return process.env.NODE_ENV === "production";
-}
-
 module.exports = async (req, res) => {
   const requestId = createRequestId();
   const endpoint = "/server/listnotifications";
@@ -115,34 +111,28 @@ module.exports = async (req, res) => {
       .trim()
       .toLowerCase();
 
-    // Resolution order: direct request identity -> Catalyst SDK -> client-supplied
-    // email. The SDK step is the one that actually works in this environment; the
-    // client-supplied email stays last for now and is removed once the logs confirm
-    // the SDK is resolving identity.
+    // Identity comes from the platform only: req.user, the x-zc-* namespace, or
+    // the Catalyst SDK. A client-supplied email is never an identity source, in
+    // any environment. It is still read off the query string and compared against
+    // the resolved identity, so requesting someone else's address is a 403.
     const directEmail = portalDeals.getCallerEmail(req);
     let resolvedIdentity = directEmail ? { email: directEmail, source: "request" } : null;
     if (!resolvedIdentity) {
-      const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "listnotifications");
-      if (viaCatalyst) resolvedIdentity = viaCatalyst;
+      try {
+        const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "listnotifications");
+        if (viaCatalyst) resolvedIdentity = viaCatalyst;
+      } catch (err) {
+        logIdentitySource("listnotifications", requestId, "none", req);
+        return sendJson(
+          res,
+          401,
+          responseEnvelope({ status: "error", requestId, message: "Missing authenticated user email context.", details: "missing authenticated context" })
+        );
+      }
     }
-    const callerEmail = resolvedIdentity?.email || "";
-    logIdentitySource(
-      "listnotifications",
-      requestId,
-      resolvedIdentity?.source || (requestedEmail ? "client.requestedEmail" : "none"),
-      req
-    );
+    logIdentitySource("listnotifications", requestId, resolvedIdentity?.source || "none", req);
 
-    if (callerEmail && requestedEmail && callerEmail !== requestedEmail) {
-      return sendJson(
-        res,
-        403,
-        responseEnvelope({ status: "error", requestId, message: "Requested email does not match authenticated user.", details: "user mismatch" })
-      );
-    }
-    const email = (callerEmail || requestedEmail || "").trim().toLowerCase();
-
-    if (!callerEmail && isProductionRuntime()) {
+    if (!resolvedIdentity) {
       return sendJson(
         res,
         401,
@@ -150,11 +140,13 @@ module.exports = async (req, res) => {
       );
     }
 
-    if (!email) {
+    const email = resolvedIdentity.email;
+
+    if (requestedEmail && email !== requestedEmail) {
       return sendJson(
         res,
-        401,
-        responseEnvelope({ status: "error", requestId, message: "Missing authenticated user email context.", details: "missing email" })
+        403,
+        responseEnvelope({ status: "error", requestId, message: "Requested email does not match authenticated user.", details: "user mismatch" })
       );
     }
 

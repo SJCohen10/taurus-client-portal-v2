@@ -54,9 +54,6 @@ function getIdentityCandidates(req) {
     ...getEmailCandidateFields("header.userdetails", headerUserDetails || {}),
     { source: "header.x-zc-user-email", value: headers["x-zc-user-email"] },
     { source: "header.x-zc-useremail", value: headers["x-zc-useremail"] },
-    { source: "header.x-catalyst-user-email", value: headers["x-catalyst-user-email"] },
-    { source: "header.x-user-email", value: headers["x-user-email"] },
-    { source: "header.x-forwarded-user-email", value: headers["x-forwarded-user-email"] },
   ];
 }
 function getRefererOrigin(referer) {

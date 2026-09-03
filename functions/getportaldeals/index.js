@@ -38,47 +38,45 @@ function getCallerEmail(req) {
         req?.user?.email ||
         headers["x-zc-user-email"] ||
         headers["x-zc-useremail"] ||
-        headers["x-catalyst-user-email"] ||
-        headers["x-user-email"] ||
-        headers["x-forwarded-user-email"] ||
         "";
     return String(direct || "").trim().toLowerCase();
 }
 
-// Resolution order: direct request identity -> Catalyst SDK -> client-supplied
-// email. The SDK step is the one that actually works in this environment; the
-// client-supplied email stays last for now and is removed once the logs confirm
-// the SDK is resolving identity.
+// Identity comes from the platform only: req.user, the x-zc-* namespace, or the
+// Catalyst SDK. A client-supplied email is never an identity source, in any
+// environment. It is still read off the query string and compared against the
+// resolved identity, so requesting someone else's address is a 403.
 async function resolveEmailForRequest(req, requestedEmail, requestId) {
     const requested = String(requestedEmail || "").trim().toLowerCase();
     const callerEmail = getCallerEmail(req);
     let resolved = callerEmail ? { email: callerEmail, source: "request" } : null;
 
     if (!resolved) {
-        const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "getportaldeals");
-        if (viaCatalyst) resolved = viaCatalyst;
+        try {
+            const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "getportaldeals");
+            if (viaCatalyst) resolved = viaCatalyst;
+        } catch (err) {
+            logIdentitySource("getportaldeals", requestId, "none", req);
+            throw err;
+        }
     }
 
-    if (resolved && requested && resolved.email !== requested) {
-        const err = new Error("Requested email does not match authenticated user");
-        err.statusCode = 403;
-        throw err;
-    }
-
-    if (resolved) {
-        logIdentitySource("getportaldeals", requestId, resolved.source, req);
-        return resolved.email;
-    }
-
-    if (process.env.NODE_ENV === "production") {
+    if (!resolved) {
         logIdentitySource("getportaldeals", requestId, "none", req);
         const err = new Error("Missing authenticated user context");
         err.statusCode = 401;
         throw err;
     }
 
-    logIdentitySource("getportaldeals", requestId, requested ? "client.requestedEmail" : "none", req);
-    return requested;
+    logIdentitySource("getportaldeals", requestId, resolved.source, req);
+
+    if (requested && resolved.email !== requested) {
+        const err = new Error("Requested email does not match authenticated user");
+        err.statusCode = 403;
+        throw err;
+    }
+
+    return resolved.email;
 }
 
 // Helper to send JSON responses

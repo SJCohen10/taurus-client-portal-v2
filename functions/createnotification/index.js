@@ -1,6 +1,11 @@
 "use strict";
 
 const { getDealsForPortal } = require("./lib/portalDeals");
+const { resolveCatalystUserEmail, logIdentitySource } = require("./lib/catalystIdentity");
+
+function createRequestId() {
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -14,9 +19,6 @@ function getCallerEmail(req) {
     req?.user?.email ||
     headers["x-zc-user-email"] ||
     headers["x-zc-useremail"] ||
-    headers["x-catalyst-user-email"] ||
-    headers["x-user-email"] ||
-    headers["x-forwarded-user-email"] ||
     "";
   return String(direct || "").trim().toLowerCase();
 }
@@ -34,6 +36,8 @@ function parseBody(req) {
 }
 
 module.exports = async (req, res) => {
+  const requestId = createRequestId();
+
   try {
     if (req.method !== "POST") {
       return sendJson(res, 405, { error: "Method not allowed. Use POST." });
@@ -46,10 +50,33 @@ module.exports = async (req, res) => {
     const dealId = String(body.dealId || "").trim();
     const message = String(body.message || "").trim();
     const requestedEmail = String(body.email || body.audienceEmail || "").trim().toLowerCase();
-    const callerEmail = getCallerEmail(req);
-    const email = callerEmail || requestedEmail;
 
-    if (!email) return sendJson(res, 401, { error: "Missing authenticated user email context." });
+    // Identity comes from the platform only: req.user, the x-zc-* namespace, or
+    // the Catalyst SDK. A client-supplied email is never an identity source, in
+    // any environment. It is still read off the body and compared against the
+    // resolved identity, so sending someone else's address is a 403.
+    const directEmail = getCallerEmail(req);
+    let resolvedIdentity = directEmail ? { email: directEmail, source: "request" } : null;
+    if (!resolvedIdentity) {
+      try {
+        const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "createnotification");
+        if (viaCatalyst) resolvedIdentity = viaCatalyst;
+      } catch (err) {
+        logIdentitySource("createnotification", requestId, "none", req);
+        return sendJson(res, 401, { error: "Missing authenticated user email context." });
+      }
+    }
+    logIdentitySource("createnotification", requestId, resolvedIdentity?.source || "none", req);
+
+    if (!resolvedIdentity) {
+      return sendJson(res, 401, { error: "Missing authenticated user email context." });
+    }
+
+    const email = resolvedIdentity.email;
+
+    if (requestedEmail && email !== requestedEmail) {
+      return sendJson(res, 403, { error: "Requested email does not match authenticated user." });
+    }
 
     if (!dealId) return sendJson(res, 400, { error: "Missing dealId" });
     if (!/^[0-9]{6,30}$/.test(dealId)) return sendJson(res, 400, { error: "Invalid dealId" });

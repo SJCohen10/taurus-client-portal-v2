@@ -462,10 +462,11 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             setOpen(false);
         } catch (err) {
             safeConsoleError("Document upload failed", err);
+            // err.message already carries the safe server message plus the
+            // request id; technicalMessage is the same text without the reference.
             showActionMessage(
-                err.technicalMessage ||
-                err.details ||
                 err.message ||
+                err.technicalMessage ||
                 "Unable to upload document right now.",
                 "error"
             );
@@ -744,12 +745,21 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
                 dealId: String(dealId),
                 expectedLodgementDate: selectedDate,
             });
-            await createNote({
-                email: portalEmail,
-                recordType: target.recordType,
-                recordId: target.recordId,
-                content: `Expected Lodgement Date updated to ${selectedDate}. Reason for Update: ${trimmedReason}`,
-            });
+            // The CRM date is committed at this point. The note is best-effort,
+            // matching the upload path: a failure here must not make a successful
+            // date update look failed, so it is swallowed and only logged.
+            let noteSaved = true;
+            try {
+                await createNote({
+                    email: portalEmail,
+                    recordType: target.recordType,
+                    recordId: target.recordId,
+                    content: `Expected Lodgement Date updated to ${selectedDate}. Reason for Update: ${trimmedReason}`,
+                });
+            } catch (noteErr) {
+                noteSaved = false;
+                safeConsoleError("Expected lodgement note creation failed", noteErr);
+            }
             if (onDealUpdate) {
                 onDealUpdate({ ...deal, expectedLodgementDate: selectedDate });
             }
@@ -767,10 +777,13 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             // is correct, but it looks identical to the badge failing to clear, so
             // say which one the user is looking at.
             const stillOverdue = hasExpectedLodgementAttention({ ...deal, expectedLodgementDate: selectedDate });
+            const savedPart = noteSaved
+                ? `Expected Lodgement Date updated to ${selectedDate} and note added.`
+                : `Expected Lodgement Date updated to ${selectedDate}. The date is saved, but the note could not be added.`;
             showActionMessage(
                 stillOverdue
-                    ? `Expected Lodgement Date updated to ${selectedDate} and note added. That date has already passed, so the overdue reminder stays until you set a future date.`
-                    : "Expected Lodgement Date updated and note added.",
+                    ? `${savedPart} That date has already passed, so the overdue reminder stays until you set a future date.`
+                    : savedPart,
                 "success"
             );
         } catch (error) {

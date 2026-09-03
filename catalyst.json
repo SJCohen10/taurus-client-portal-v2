@@ -7,7 +7,6 @@
       "getportaldeals",
       "uploaddealdocument",
       "generatestatement",
-      "getbankdetailsforaccount",
       "getdealtransactions",
       "createnote",
       "updateexpectedlodgementdate",

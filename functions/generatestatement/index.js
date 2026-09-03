@@ -324,12 +324,12 @@ module.exports = async (req, res) => {
     if (req.method === "GET") {
       const token = parseQuery(req).get("token");
       const parsed = verifyToken(token);
-      if (!parsed) return sendJson(req, res, 401, { error: "Invalid token", requestId });
+      if (!parsed) return sendJson(req, res, 401, { error: "That link is no longer valid. Please open the statement again from your deal.", requestId });
       res.writeHead(302, { Location: parsed.url, "Cache-Control": "no-store" });
       return res.end();
     }
 
-    if (req.method !== "POST") return sendJson(req, res, 405, { error: "Method not allowed", requestId });
+    if (req.method !== "POST") return sendJson(req, res, 405, { error: "That request couldn't be completed.", requestId });
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "assetId", "accountId", "statementType"]);
 
@@ -347,13 +347,13 @@ module.exports = async (req, res) => {
     });
 
     if (!email) {
-      return sendJson(req, res, 401, { error: "Unable to resolve portal user email", requestId });
+      return sendJson(req, res, 401, { error: "We couldn't verify your account. Please sign in again.", requestId });
     }
 
     enforceRateLimit({ key: `generatestatement:${email}`, limit: 10, windowMs: 60000 });
 
     const assetId = String(body.assetId || "").trim();
-    if (!/^\d+$/.test(assetId)) return sendJson(req, res, 400, { error: "Invalid assetId", requestId });
+    if (!/^\d+$/.test(assetId)) return sendJson(req, res, 400, { error: "We couldn't identify this transaction. Please refresh the page. If this continues, contact your Taurus Account Manager.", requestId });
 
     console.info("[generatestatement] fetching allowed deals", { requestId, email });
     const allowed = await getDealsForPortal({ email, requestId });
@@ -376,7 +376,7 @@ module.exports = async (req, res) => {
         allowedCount: allowed.length,
       });
 
-      return sendJson(req, res, 403, { error: "Forbidden", requestId });
+      return sendJson(req, res, 403, { error: "You don't have access to this statement. Please contact your Taurus Account Manager.", requestId });
     }
 
     const statementUrl = resolveStatementUrl(assetId, body.statementType);

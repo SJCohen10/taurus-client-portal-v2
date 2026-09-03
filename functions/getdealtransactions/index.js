@@ -57,14 +57,14 @@ module.exports = async (req, res) => {
 
   try {
     if (handleOptions(req, res)) return;
-    if (req.method !== "GET") return sendJson(req, res, 405, responseEnvelope({ requestId, message: "Method not allowed. Use GET." }));
+    if (req.method !== "GET") return sendJson(req, res, 405, responseEnvelope({ requestId, message: "That request couldn't be completed." }));
 
     const query = parseQuery(req);
     const email = await enforceUserContext(req, query.get("email"), requestId, "getdealtransactions");
     enforceRateLimit({ key: `getdealtransactions:${email}`, limit: 30, windowMs: 60000 });
 
     const assetIds = parseAssetIds(query.get("assetIds") || "");
-    if (!assetIds.length) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "Missing assetIds" }));
+    if (!assetIds.length) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "We couldn't identify this transaction. Please refresh the page. If this continues, contact your Taurus Account Manager." }));
 
     const scope = await withTimeout(() => resolveAuthorizationScope(email), AUTHZ_TIMEOUT_MS, "resolveAuthorizationScope");
     const visibleDeals = await withTimeout(
@@ -84,7 +84,7 @@ module.exports = async (req, res) => {
 
     const unauthorized = assetIds.filter((id) => !allowedAssetIds.has(id));
     if (unauthorized.length) {
-      return sendJson(req, res, 403, responseEnvelope({ requestId, message: "One or more assetIds are not authorized for this user." }));
+      return sendJson(req, res, 403, responseEnvelope({ requestId, message: "You don't have access to one or more of these transactions. Please contact your Taurus Account Manager." }));
     }
 
     const inList = assetIds.map((id) => `'${id}'`).join(",");
@@ -117,7 +117,7 @@ module.exports = async (req, res) => {
       req,
       res,
       status,
-      responseEnvelope({ requestId, message: status === 504 ? "Get deal transactions timed out" : "Internal server error", details: err.statusCode ? err.message : undefined })
+      responseEnvelope({ requestId, message: status === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't load transactions. Please contact your Taurus Account Manager." })
     );
   }
 };

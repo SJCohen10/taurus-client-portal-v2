@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
 
   try {
     if (handleOptions(req, res)) return;
-    if (req.method !== "POST") return sendJson(req, res, 405, responseEnvelope({ requestId, message: "Method not allowed" }));
+    if (req.method !== "POST") return sendJson(req, res, 405, responseEnvelope({ requestId, message: "That request couldn't be completed." }));
 
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "recordType", "recordId", "content"]);
@@ -63,19 +63,19 @@ module.exports = async (req, res) => {
     const email = await enforceUserContext(req, body.email, requestId, "createnote");
     enforceRateLimit({ key: `createnote:${email}`, limit: 20, windowMs: 60000 });
 
-    if (!EMAIL_REGEX.test(email)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "Invalid user context" }));
+    if (!EMAIL_REGEX.test(email)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "We couldn't verify your account. Please sign in again." }));
 
     const recordType = String(body.recordType || "").trim();
     const recordId = String(body.recordId || "").trim();
     const content = sanitizeContent(body.content);
-    if (!["Deal", "Asset"].includes(recordType)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "recordType must be Deal or Asset" }));
-    if (!/^\d+$/.test(recordId)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "recordId must be numeric" }));
-    if (!content || content.length > 2000) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "content must be 1-2000 chars" }));
+    if (!["Deal", "Asset"].includes(recordType)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "We couldn't save your note against this deal. Please contact your Taurus Account Manager." }));
+    if (!/^\d+$/.test(recordId)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "We couldn't save your note against this deal. Please contact your Taurus Account Manager." }));
+    if (!content || content.length > 2000) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "A note must be between 1 and 2000 characters." }));
 
     const scope = await withTimeout(() => resolveAuthorizationScope(email), AUTHZ_TIMEOUT_MS, "resolveAuthorizationScope");
     const allowed = await withTimeout(() => getDealsForPortal({ email, accountId: scope.accountId }), AUTHZ_TIMEOUT_MS, "getDealsForPortal");
     const canAccess = allowed.some((d) => String(recordType === "Deal" ? d.deal_id : d.asset_id) === recordId);
-    if (!canAccess) return sendJson(req, res, 403, responseEnvelope({ requestId, message: "Forbidden" }));
+    if (!canAccess) return sendJson(req, res, 403, responseEnvelope({ requestId, message: "You don't have access to this deal. Please contact your Taurus Account Manager." }));
 
     const seModule = recordType === "Deal" ? "Deals" : "Assets";
     const payload = { data: [{ Note_Title: `Portal note (${email})`, Note_Content: content }] };
@@ -86,13 +86,13 @@ module.exports = async (req, res) => {
     );
     const item = parsed?.data?.[0] || {};
     if (String(item.status || "").toLowerCase() !== "success") {
-      return sendJson(req, res, 502, responseEnvelope({ requestId, message: "CRM note creation failed" }));
+      return sendJson(req, res, 502, responseEnvelope({ requestId, message: "We couldn't save your note. Please contact your Taurus Account Manager." }));
     }
 
     return sendJson(req, res, 200, responseEnvelope({ status: "success", requestId, message: "Note created", data: { success: true, noteId: item.details?.id || null } }));
   } catch (error) {
     console.error("createnote failed", { requestId, message: error.message });
     const status = error.statusCode || 500;
-    return sendJson(req, res, status, responseEnvelope({ requestId, message: status === 504 ? "Create note timed out" : "Internal server error", details: error.statusCode ? error.message : undefined }));
+    return sendJson(req, res, status, responseEnvelope({ requestId, message: status === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't save your note. Please contact your Taurus Account Manager." }));
   }
 };

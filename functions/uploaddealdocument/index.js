@@ -329,7 +329,7 @@ module.exports = async (req, res) => {
     try {
         if (handleOptions(req, res)) return;
         if (req.method !== "POST") {
-            return sendJson(req, res, 405, { error: "Method not allowed. Use POST.", requestId, endpoint, details: "invalid method" });
+            return sendJson(req, res, 405, { error: "That request couldn't be completed.", requestId });
         }
 
         const body = await readJsonBody(req, MAX_BODY_BYTES);
@@ -411,10 +411,8 @@ module.exports = async (req, res) => {
 
             if (!isAllowed) {
                 return sendJson(req, res, 403, {
-                    error: "Forbidden",
+                    error: "You don't have access to this deal. Please contact your Taurus Account Manager.",
                     requestId,
-                    endpoint,
-                    details: "deal authorization failed",
                 });
             }
         }
@@ -422,19 +420,15 @@ module.exports = async (req, res) => {
 
         if (!fileName || !fileBase64) {
             return sendJson(req, res, 400, {
-                error: "Missing fileName or fileBase64 in request body.",
+                error: "Please choose a file to upload.",
                 requestId,
-                endpoint,
-                details: "missing file payload",
             });
         }
 
         if (typeof mimeType !== "string" || !ALLOWED_MIME_TYPES.has(mimeType)) {
             return sendJson(req, res, 400, {
-                error: "Unsupported mimeType. Allowed: application/pdf, image/jpeg, image/png, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, text/plain.",
+                error: "That file type isn't supported. Please upload a PDF, Word document, image (JPG or PNG), or plain text file.",
                 requestId,
-                endpoint,
-                details: "invalid mimeType",
             });
         }
 
@@ -444,20 +438,16 @@ module.exports = async (req, res) => {
 
         if (!/^[A-Za-z0-9+/=\s]+$/.test(base64Payload)) {
             return sendJson(req, res, 400, {
-                error: "Invalid fileBase64 payload.",
+                error: "That file couldn't be read. Please contact your Taurus Account Manager.",
                 requestId,
-                endpoint,
-                details: "invalid base64",
             });
         }
 
         const uploadBytes = Buffer.byteLength(base64Payload.replace(/\s/g, ""), "base64");
         if (!Number.isFinite(uploadBytes) || uploadBytes <= 0 || uploadBytes > MAX_UPLOAD_BYTES) {
             return sendJson(req, res, 400, {
-                error: `File exceeds max allowed size of ${MAX_UPLOAD_BYTES} bytes.`,
+                error: `That file is too large. The maximum size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`,
                 requestId,
-                endpoint,
-                details: "file too large",
             });
         }
 
@@ -501,21 +491,12 @@ module.exports = async (req, res) => {
                     finalFolderId: portalFolderId,
                 });
 
+                // Only the message and the reference leave the server. The folder
+                // ids, the storage provider's own upload response and the deal
+                // identifiers are internal and the portal does not read them.
                 return sendJson(req, res, 200, {
-                    message: "Document uploaded to WorkDrive",
-                    folderId: portalFolderId,
-                    resolvedPropertyFolderId: baseFolderId,
-                    file: uploadResult,
-                    context: {
-                        propertyRefNumber: propertyRefNumber || dealReferenceNumber,
-                        propertyDescription,
-                        accountId,
-                        contactEmail,
-                        assetId,
-                        propertyFolderId: baseFolderId,
-                        portalFolderName: DEFAULT_PORTAL_UPLOAD_FOLDER_NAME,
-                        dealId,
-                    },
+                    message: "Document uploaded successfully.",
+                    requestId,
                 });
             } catch (err) {
                 if (!looksLikeInvalidFolderError(err)) {
@@ -527,11 +508,8 @@ module.exports = async (req, res) => {
 
         if (!rootFolderId) {
             return sendJson(req, res, 400, {
-                error: "Invalid propertyFolderId",
+                error: "We couldn't file that document against this deal. Please contact your Taurus Account Manager.",
                 requestId,
-                endpoint,
-                details: "missing root folder id fallback",
-                hint: "Missing/invalid per-deal WorkDrive folder id. Provide Analytics Property Folder Id or enable folder creation under root.",
             });
         }
 
@@ -545,11 +523,8 @@ module.exports = async (req, res) => {
 
         if (!resolved.folderId) {
             return sendJson(req, res, 400, {
-                error: "Invalid propertyFolderId",
+                error: "We couldn't file that document against this deal. Please contact your Taurus Account Manager.",
                 requestId,
-                endpoint,
-                details: "unable to resolve deal folder",
-                hint: "Missing/invalid per-deal WorkDrive folder id. Provide Analytics Property Folder Id or enable folder creation under root.",
             });
         }
 
@@ -570,23 +545,11 @@ module.exports = async (req, res) => {
             finalFolderId: portalFolderId,
         });
 
+        // The resolved folder id and the fallback route are operationally useful,
+        // so they stay in the log line above rather than in the client response.
         return sendJson(req, res, 200, {
-            message: "Document uploaded to WorkDrive",
-            folderId: portalFolderId,
-            resolvedPropertyFolderId: baseFolderId,
-            folderResolution: fallbackUsed || !providedFolderId ? fallbackSource : "provided",
-            hint: (fallbackUsed || !providedFolderId) ? "Persist resolvedPropertyFolderId to Analytics Property Folder Id for faster future uploads." : undefined,
-            file: uploadResult,
-            context: {
-                propertyRefNumber,
-                propertyDescription,
-                accountId,
-                contactEmail,
-                assetId,
-                propertyFolderId: baseFolderId,
-                portalFolderName: DEFAULT_PORTAL_UPLOAD_FOLDER_NAME,
-                dealId,
-            },
+            message: "Document uploaded successfully.",
+            requestId,
         });
     } catch (err) {
         console.error("[uploaddealdocument] error", {
@@ -594,11 +557,11 @@ module.exports = async (req, res) => {
             endpoint,
             message: err?.message || String(err),
         });
+        // err.message can carry the storage provider's own failure text, so it is
+        // logged above and never returned. The requestId ties the two together.
         return sendJson(req, res, 500, {
-            error: "Internal server error in uploaddealdocument.",
+            error: "We couldn't upload that document. Please contact your Taurus Account Manager.",
             requestId,
-            endpoint,
-            details: shortError(err?.message),
         });
     }
 };

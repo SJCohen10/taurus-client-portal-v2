@@ -96,7 +96,7 @@ module.exports = async (req, res) => {
       return sendJson(
         res,
         405,
-        responseEnvelope({ status: "error", requestId, message: "Method not allowed. Use GET.", details: "invalid method" })
+        responseEnvelope({ status: "error", requestId, message: "That request couldn't be completed." })
       );
     }
 
@@ -126,7 +126,7 @@ module.exports = async (req, res) => {
         return sendJson(
           res,
           401,
-          responseEnvelope({ status: "error", requestId, message: "Missing authenticated user email context.", details: "missing authenticated context" })
+          responseEnvelope({ status: "error", requestId, message: "We couldn't verify your account. Please sign in again." })
         );
       }
     }
@@ -136,7 +136,7 @@ module.exports = async (req, res) => {
       return sendJson(
         res,
         401,
-        responseEnvelope({ status: "error", requestId, message: "Missing authenticated user email context.", details: "missing authenticated context" })
+        responseEnvelope({ status: "error", requestId, message: "We couldn't verify your account. Please sign in again." })
       );
     }
 
@@ -146,7 +146,7 @@ module.exports = async (req, res) => {
       return sendJson(
         res,
         403,
-        responseEnvelope({ status: "error", requestId, message: "Requested email does not match authenticated user.", details: "user mismatch" })
+        responseEnvelope({ status: "error", requestId, message: "We couldn't verify your account. Please sign in again." })
       );
     }
 
@@ -154,15 +154,15 @@ module.exports = async (req, res) => {
       String(req.query?.includeRead || req.params?.includeRead || parsedUrl.searchParams.get("includeRead") || "false") === "true";
 
     if (!dealId) {
-      return sendJson(res, 400, responseEnvelope({ status: "error", requestId, message: "Missing dealId", details: "missing dealId" }));
+      return sendJson(res, 400, responseEnvelope({ status: "error", requestId, message: "We couldn't identify this deal. Please refresh the page. If this continues, contact your Taurus Account Manager." }));
     }
 
     if (!/^[0-9]{6,30}$/.test(dealId)) {
-      return sendJson(res, 400, responseEnvelope({ status: "error", requestId, message: "Invalid dealId", details: "invalid dealId" }));
+      return sendJson(res, 400, responseEnvelope({ status: "error", requestId, message: "We couldn't identify this deal. Please refresh the page. If this continues, contact your Taurus Account Manager." }));
     }
 
     if (nowMs() - startedAt > FUNCTION_BUDGET_MS) {
-      return sendJson(res, 504, responseEnvelope({ status: "error", requestId, message: "Request budget exceeded", details: "pre-auth budget exceeded" }));
+      return sendJson(res, 504, responseEnvelope({ status: "error", requestId, message: "That took too long. Please contact your Taurus Account Manager." }));
     }
 
     let analyticsAuthorized = false;
@@ -204,7 +204,7 @@ module.exports = async (req, res) => {
             return sendJson(
               res,
               403,
-              responseEnvelope({ status: "error", requestId, message: "Deal is not authorized for this user.", details: "deal authorization failed" })
+              responseEnvelope({ status: "error", requestId, message: "You don't have access to this deal. Please contact your Taurus Account Manager." })
             );
           }
 
@@ -239,7 +239,7 @@ module.exports = async (req, res) => {
     const COL_SEVERITY = process.env.PORTAL_NOTIF_COL_SEVERITY || "";
 
     if (!/^[A-Za-z0-9_]+$/.test(notificationsTable)) {
-      return sendJson(res, 500, responseEnvelope({ status: "error", requestId, message: "Internal error", details: "invalid table name" }));
+      return sendJson(res, 500, responseEnvelope({ status: "error", requestId, message: "We couldn't load notifications. Please contact your Taurus Account Manager." }));
     }
 
     const selectFields = [COL_ID, COL_DEAL_ID, COL_AUDIENCE_EMAIL, COL_MESSAGE, COL_CREATED_AT, COL_IS_READ];
@@ -332,8 +332,7 @@ module.exports = async (req, res) => {
       responseEnvelope({
         status: "error",
         requestId,
-        message: statusCode === 504 ? "Notification request timed out" : "Internal error",
-        details: shortError(err?.message || err),
+        message: statusCode === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't load notifications. Please contact your Taurus Account Manager.",
       })
     );
   }

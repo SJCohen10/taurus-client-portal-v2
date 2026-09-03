@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
 
     try {
         if (req.method !== "POST") {
-            return sendJson(res, 405, { error: "Method not allowed. Use POST." });
+            return sendJson(res, 405, { error: "That request couldn't be completed." });
         }
         const catalyst = require("zcatalyst-sdk-node");
         const app = catalyst.initialize(req);
@@ -83,34 +83,34 @@ module.exports = async (req, res) => {
                 if (viaCatalyst) resolvedIdentity = viaCatalyst;
             } catch (err) {
                 logIdentitySource("marknotificationread", requestId, "none", req);
-                return sendJson(res, 401, { error: "Missing authenticated user email context." });
+                return sendJson(res, 401, { error: "We couldn't verify your account. Please sign in again." });
             }
         }
         logIdentitySource("marknotificationread", requestId, resolvedIdentity?.source || "none", req);
 
         if (!resolvedIdentity) {
-            return sendJson(res, 401, { error: "Missing authenticated user email context." });
+            return sendJson(res, 401, { error: "We couldn't verify your account. Please sign in again." });
         }
 
         const email = resolvedIdentity.email;
 
         if (requestedEmail && email !== requestedEmail) {
-            return sendJson(res, 403, { error: "Requested email does not match authenticated user." });
+            return sendJson(res, 403, { error: "We couldn't verify your account. Please sign in again." });
         }
 
-        if (!id) return sendJson(res, 400, { error: "Missing id" });
-        if (!/^[0-9]{1,30}$/.test(id)) return sendJson(res, 400, { error: "Invalid id" });
+        if (!id) return sendJson(res, 400, { error: "We couldn't identify that notification. Please refresh the page. If this continues, contact your Taurus Account Manager." });
+        if (!/^[0-9]{1,30}$/.test(id)) return sendJson(res, 400, { error: "We couldn't identify that notification. Please refresh the page. If this continues, contact your Taurus Account Manager." });
 
 
         const zcql = app.zcql();
         const esc = (v) => String(v).replace(/'/g, "''");
         const rows = await zcql.executeZCQLQuery(`SELECT * FROM portal_notifications WHERE ROWID='${esc(id)}' LIMIT 1`);
         const existing = (rows && rows[0] && (rows[0].portal_notifications || rows[0])) || null;
-        if (!existing) return sendJson(res, 404, { error: "Notification not found" });
+        if (!existing) return sendJson(res, 404, { error: "We couldn't find that notification. Please refresh the page. If this continues, contact your Taurus Account Manager." });
 
         const audienceEmail = String(existing.audience_email || "").trim().toLowerCase();
         if (audienceEmail && audienceEmail !== email) {
-            return sendJson(res, 403, { error: "Notification is not authorized for this user." });
+            return sendJson(res, 403, { error: "You don't have access to that notification. Please contact your Taurus Account Manager." });
         }
 
 
@@ -123,6 +123,6 @@ module.exports = async (req, res) => {
         return sendJson(res, 200, { notification: updated });
     } catch (err) {
         console.error("marknotificationread error", err);
-        return sendJson(res, 500, { error: "Internal error", details: err.message });
+        return sendJson(res, 500, { error: "We couldn't update that notification. Please contact your Taurus Account Manager.", requestId });
     }
 };

@@ -57,7 +57,7 @@ module.exports = async (req, res) => {
 
   try {
     if (handleOptions(req, res)) return;
-    if (req.method !== "POST") return sendJson(req, res, 405, responseEnvelope({ requestId, message: "Method not allowed" }));
+    if (req.method !== "POST") return sendJson(req, res, 405, responseEnvelope({ requestId, message: "That request couldn't be completed." }));
 
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "dealId", "expectedLodgementDate"]);
@@ -68,12 +68,12 @@ module.exports = async (req, res) => {
     const dealId = String(body.dealId || "").trim();
     const expectedLodgementDate = String(body.expectedLodgementDate || "").trim();
 
-    if (!/^\d+$/.test(dealId)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "dealId must be numeric" }));
-    if (!isValidDate(expectedLodgementDate)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "expectedLodgementDate must be YYYY-MM-DD" }));
+    if (!/^\d+$/.test(dealId)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "We couldn't identify this deal. Please refresh the page. If this continues, contact your Taurus Account Manager." }));
+    if (!isValidDate(expectedLodgementDate)) return sendJson(req, res, 400, responseEnvelope({ requestId, message: "Please enter a valid date." }));
 
     const scope = await withTimeout(() => resolveAuthorizationScope(email), AUTHZ_TIMEOUT_MS, "resolveAuthorizationScope");
     const allowed = await withTimeout(() => getDealsForPortal({ email, accountId: scope.accountId }), AUTHZ_TIMEOUT_MS, "getDealsForPortal");
-    if (!allowed.some((d) => String(d.deal_id) === dealId)) return sendJson(req, res, 403, responseEnvelope({ requestId, message: "Forbidden" }));
+    if (!allowed.some((d) => String(d.deal_id) === dealId)) return sendJson(req, res, 403, responseEnvelope({ requestId, message: "You don't have access to this deal. Please contact your Taurus Account Manager." }));
 
     const payload = {
       data: [
@@ -90,12 +90,12 @@ module.exports = async (req, res) => {
       "update CRM deal"
     );
     const item = parsed?.data?.[0] || {};
-    if (String(item.status || "").toLowerCase() !== "success") return sendJson(req, res, 502, responseEnvelope({ requestId, message: "CRM deal update failed" }));
+    if (String(item.status || "").toLowerCase() !== "success") return sendJson(req, res, 502, responseEnvelope({ requestId, message: "We couldn't update the expected lodgement date. Please contact your Taurus Account Manager." }));
 
     return sendJson(req, res, 200, responseEnvelope({ status: "success", requestId, message: "Expected lodgement date updated", data: { success: true } }));
   } catch (error) {
     console.error("updateexpectedlodgementdate failed", { requestId, message: error.message });
     const status = error.statusCode || 500;
-    return sendJson(req, res, status, responseEnvelope({ requestId, message: status === 504 ? "Update expected lodgement date timed out" : "Internal server error", details: error.statusCode ? error.message : undefined }));
+    return sendJson(req, res, status, responseEnvelope({ requestId, message: status === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't update the expected lodgement date. Please contact your Taurus Account Manager." }));
   }
 };

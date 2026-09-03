@@ -384,21 +384,36 @@ export default function ParalegalDashboard() {
         setShowAgentOnly(false);
     }
 
+    // Deal rows do not agree on which field carries the id. DealActions resolves
+    // it across all six spellings before it will write, so a row identified by
+    // Deal_Id / "Deal Id" / id / Id saves happily - but this handler only looked
+    // at deal_id and dealId, bailed on those rows, and left the dashboard holding
+    // the pre-write deal. Anything derived from the deal then went stale, which is
+    // why a notification badge computed off expectedLodgementDate stayed lit after
+    // the date had been updated. Resolve the id the same way DealActions does.
+    function resolveDealId(deal) {
+        return String(
+            deal?.dealId ||
+            deal?.deal_id ||
+            deal?.["Deal_Id"] ||
+            deal?.["Deal Id"] ||
+            deal?.id ||
+            deal?.["Id"] ||
+            ""
+        ).trim();
+    }
+
     function handleDealUpdate(updatedDeal) {
-        const existingDealId = String(updatedDeal?.deal_id || updatedDeal?.dealId || "");
+        const existingDealId = resolveDealId(updatedDeal);
         if (!existingDealId) return;
 
         setDeals((prev) =>
-            prev.map((deal) => {
-                const currentDealId = String(deal?.deal_id || deal?.dealId || "");
-                return currentDealId === existingDealId ? { ...deal, ...updatedDeal } : deal;
-            })
+            prev.map((deal) => (resolveDealId(deal) === existingDealId ? { ...deal, ...updatedDeal } : deal))
         );
 
         setSelectedDeal((prev) => {
             if (!prev) return prev;
-            const selectedDealId = String(prev?.deal_id || prev?.dealId || "");
-            return selectedDealId === existingDealId ? { ...prev, ...updatedDeal } : prev;
+            return resolveDealId(prev) === existingDealId ? { ...prev, ...updatedDeal } : prev;
         });
     }
 

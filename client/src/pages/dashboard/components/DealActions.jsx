@@ -753,9 +753,26 @@ export default function DealActions({ deal, portalEmail, accountId, onDealUpdate
             if (onDealUpdate) {
                 onDealUpdate({ ...deal, expectedLodgementDate: selectedDate });
             }
+
+            // The badge merges computed reminders with persisted rows. The computed
+            // half recomputes from the deal we just pushed up; the persisted half
+            // only changes when we re-read it, so refetch rather than leave a stale
+            // row lighting the badge.
+            await fetchPersistedNotifications({ suppressError: true });
+
             setExpectedLodgementOpen(false);
             setExpectedLodgementReason("");
-            showActionMessage("Expected Lodgement Date updated and note added.", "success");
+
+            // A date that is itself in the past keeps the overdue reminder up. That
+            // is correct, but it looks identical to the badge failing to clear, so
+            // say which one the user is looking at.
+            const stillOverdue = hasExpectedLodgementAttention({ ...deal, expectedLodgementDate: selectedDate });
+            showActionMessage(
+                stillOverdue
+                    ? `Expected Lodgement Date updated to ${selectedDate} and note added. That date has already passed, so the overdue reminder stays until you set a future date.`
+                    : "Expected Lodgement Date updated and note added.",
+                "success"
+            );
         } catch (error) {
             setExpectedLodgementError(error.message || "We could not update the expected lodgement date right now.");
         } finally {

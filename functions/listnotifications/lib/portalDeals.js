@@ -41,14 +41,10 @@ function isNonRetryableOAuthError({ error }) {
   return err.includes("invalid_client") || err.includes("invalid_code") || err.includes("invalid_grant");
 }
 
+// req.user is populated by the platform. Request headers are client-controllable
+// and carry no provenance, so none of them is an identity source (finding 4).
 function getCallerEmail(req) {
-  const headers = req?.headers || {};
-  const direct =
-    req?.user?.email ||
-    headers["x-zc-user-email"] ||
-    headers["x-zc-useremail"] ||
-    "";
-  return String(direct || "").trim().toLowerCase();
+  return String(req?.user?.email || "").trim().toLowerCase();
 }
 
 async function refreshAnalyticsAccessToken() {

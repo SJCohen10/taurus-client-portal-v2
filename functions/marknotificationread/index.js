@@ -71,16 +71,19 @@ module.exports = async (req, res) => {
         const id = String(body.id || "").trim();
         const requestedEmail = String(body.email || "").trim().toLowerCase();
 
-        // Identity comes from the platform only: req.user, the x-zc-* namespace, or
-        // the Catalyst SDK. A client-supplied email is never an identity source, in
-        // any environment. It is still read off the body and compared against the
-        // resolved identity, so sending someone else's address is a 403.
+        // Identity comes from platform-attested sources only: req.user, then the
+        // Catalyst SDK reading the caller's own session. No request header is an
+        // identity source, in any environment - not the x-zc-* namespace either.
+        // The client-supplied email is still read off the body and compared
+        // against the resolved identity, so sending someone else's address is a 403.
         const directEmail = portalDeals.getCallerEmail(req);
-        let resolvedIdentity = directEmail ? { email: directEmail, source: "request" } : null;
+        let resolvedIdentity = directEmail ? { email: directEmail, source: "req.user" } : null;
         if (!resolvedIdentity) {
             try {
                 const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "marknotificationread");
-                if (viaCatalyst) resolvedIdentity = viaCatalyst;
+                // The SDK's detailed source stays in the TEMP-FINDING4-DIAG line;
+                // identitySource records the tier.
+                if (viaCatalyst?.email) resolvedIdentity = { email: viaCatalyst.email, source: "sdk" };
             } catch (err) {
                 logIdentitySource("marknotificationread", requestId, "none", req);
                 return sendJson(res, 401, { error: "We couldn't verify your account. Please sign in again." });

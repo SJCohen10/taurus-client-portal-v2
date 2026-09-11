@@ -93,44 +93,6 @@ function getAuthContextDebugMeta(req) {
     userType: getCatalystIdentityMeta(req).userType,
   };
 }
-// TEMP-FINDING4-DIAG - remove once a real logged-in session is confirmed to
-// resolve via the SDK in production. Mirrors the copy in the other functions'
-// catalystIdentity.js. Feeds no control flow and never throws.
-async function logFinding4Diag({ requestId, req, meta, attempts, sdkResolved, userManagement }) {
-  let userDetailsWouldResolve = null;
-  const userId = String(req?.headers?.["x-zc-user-id"] || "").trim();
-
-  if (userManagement && userId) {
-    try {
-      const userById = await userManagement.getUserDetails(userId);
-      userDetailsWouldResolve = Boolean(
-        getFirstEmailCandidate(getEmailCandidateFields("catalyst.userDetails", userById || {}))
-      );
-    } catch {
-      userDetailsWouldResolve = false;
-    }
-  }
-
-  try {
-    console.info("TEMP-FINDING4-DIAG", {
-      fn: "getportalusercontext",
-      requestId,
-      hadReqUser: Boolean(req?.user),
-      reqUserEmail: normalizeEmail(req?.user?.email) || null,
-      sdkEmail: sdkResolved?.email || null,
-      sdkSource: sdkResolved?.source || null,
-      sdkAttempts: attempts,
-      hasZcUserId: meta.hasZcUserId,
-      hasZcUserCredToken: meta.hasZcUserCredToken,
-      userType: meta.userType,
-      // Diagnostic only - this tier no longer feeds the identity decision.
-      userDetailsWouldResolve,
-    });
-  } catch {
-    // Never let a log line break a request.
-  }
-}
-
 // Returns { email, source } when the SDK resolves an email from the caller's own
 // session, or null when it resolves nothing - the caller turns null into a 401.
 //
@@ -140,7 +102,7 @@ async function logFinding4Diag({ requestId, req, meta, attempts, sdkResolved, us
 //
 // getCurrentUser is the only identity source. getUserDetails(x-zc-user-id) was a
 // lookup keyed on a client-supplied id - a header-derived identity in SDK
-// clothing - so it no longer participates. See logFinding4Diag above.
+// clothing - so it no longer participates.
 //
 // initialize is wrapped here. This fork did not wrap it, which was survivable
 // only while the marker gate meant it never ran on an anonymous request.
@@ -180,8 +142,6 @@ async function resolveCatalystUserEmail(req, requestId) {
     }
   }
 
-  await logFinding4Diag({ requestId, req, meta, attempts, sdkResolved, userManagement });
-
   return sdkResolved;
 }
 function getAuthenticatedEmail(req) {
@@ -201,8 +161,7 @@ async function resolveUserContext(req, requestedEmail, requestId) {
   // returns null rather than throwing when it resolves nothing.
   if (!resolved) {
     const viaCatalyst = await resolveCatalystUserEmail(req, requestId);
-    // The SDK's detailed source stays in the TEMP-FINDING4-DIAG line;
-    // identitySource records the tier.
+    // identitySource records the tier, not the SDK's own detailed source.
     if (viaCatalyst?.email) resolved = { email: viaCatalyst.email, source: "sdk" };
   }
 

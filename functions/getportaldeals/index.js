@@ -52,8 +52,8 @@ async function resolveEmailForRequest(req, requestedEmail, requestId) {
     if (!resolved) {
         try {
             const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "getportaldeals");
-            // The SDK's own detailed source (catalyst.currentUser.<field>) stays in
-            // the TEMP-FINDING4-DIAG line; identitySource records the tier.
+            // identitySource records the tier, not the SDK's own detailed
+            // source (catalyst.currentUser.<field>).
             if (viaCatalyst?.email) resolved = { email: viaCatalyst.email, source: "sdk" };
         } catch (err) {
             logIdentitySource("getportaldeals", requestId, "none", req);

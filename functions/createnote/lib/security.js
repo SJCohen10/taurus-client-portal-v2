@@ -24,8 +24,8 @@ async function resolveUserContext(req, requestedEmail, requestId, fnName) {
   if (!resolved) {
     try {
       const viaCatalyst = await resolveCatalystUserEmail(req, requestId, fnName);
-      // The SDK's detailed source (catalyst.currentUser.<field>) stays in the
-      // TEMP-FINDING4-DIAG line; identitySource records the tier.
+      // identitySource records the tier, not the SDK's own detailed source
+      // (catalyst.currentUser.<field>).
       if (viaCatalyst?.email) resolved = { email: viaCatalyst.email, source: "sdk" };
     } catch (err) {
       logIdentitySource(fnName, requestId, "none", req);

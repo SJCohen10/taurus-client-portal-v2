@@ -121,8 +121,7 @@ module.exports = async (req, res) => {
     if (!resolvedIdentity) {
       try {
         const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "listnotifications");
-        // The SDK's detailed source stays in the TEMP-FINDING4-DIAG line;
-        // identitySource records the tier.
+        // identitySource records the tier, not the SDK's own detailed source.
         if (viaCatalyst?.email) resolvedIdentity = { email: viaCatalyst.email, source: "sdk" };
       } catch (err) {
         logIdentitySource("listnotifications", requestId, "none", req);

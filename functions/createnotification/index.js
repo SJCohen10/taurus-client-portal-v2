@@ -13,14 +13,10 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
+// req.user is populated by the platform. Request headers are client-controllable
+// and carry no provenance, so none of them is an identity source (finding 4).
 function getCallerEmail(req) {
-  const headers = req?.headers || {};
-  const direct =
-    req?.user?.email ||
-    headers["x-zc-user-email"] ||
-    headers["x-zc-useremail"] ||
-    "";
-  return String(direct || "").trim().toLowerCase();
+  return String(req?.user?.email || "").trim().toLowerCase();
 }
 
 // Catalyst Advanced I/O often gives req.body as an object if JSON,
@@ -51,16 +47,19 @@ module.exports = async (req, res) => {
     const message = String(body.message || "").trim();
     const requestedEmail = String(body.email || body.audienceEmail || "").trim().toLowerCase();
 
-    // Identity comes from the platform only: req.user, the x-zc-* namespace, or
-    // the Catalyst SDK. A client-supplied email is never an identity source, in
-    // any environment. It is still read off the body and compared against the
+    // Identity comes from platform-attested sources only: req.user, then the
+    // Catalyst SDK reading the caller's own session. No request header is an
+    // identity source, in any environment - not the x-zc-* namespace either. The
+    // client-supplied email is still read off the body and compared against the
     // resolved identity, so sending someone else's address is a 403.
     const directEmail = getCallerEmail(req);
-    let resolvedIdentity = directEmail ? { email: directEmail, source: "request" } : null;
+    let resolvedIdentity = directEmail ? { email: directEmail, source: "req.user" } : null;
     if (!resolvedIdentity) {
       try {
         const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "createnotification");
-        if (viaCatalyst) resolvedIdentity = viaCatalyst;
+        // The SDK's detailed source stays in the TEMP-FINDING4-DIAG line;
+        // identitySource records the tier.
+        if (viaCatalyst?.email) resolvedIdentity = { email: viaCatalyst.email, source: "sdk" };
       } catch (err) {
         logIdentitySource("createnotification", requestId, "none", req);
         return sendJson(res, 401, { error: "We couldn't verify your account. Please sign in again." });

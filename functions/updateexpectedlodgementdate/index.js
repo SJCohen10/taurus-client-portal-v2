@@ -96,6 +96,6 @@ module.exports = async (req, res) => {
   } catch (error) {
     console.error("updateexpectedlodgementdate failed", { requestId, message: error.message });
     const status = error.statusCode || 500;
-    return sendJson(req, res, status, responseEnvelope({ requestId, message: status === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't update the expected lodgement date. Please contact your Taurus Account Manager." }));
+    return sendJson(req, res, status, responseEnvelope({ requestId, message: status === 401 ? "We couldn't verify your account. Please sign in again." : status === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't update the expected lodgement date. Please contact your Taurus Account Manager." }));
   }
 };

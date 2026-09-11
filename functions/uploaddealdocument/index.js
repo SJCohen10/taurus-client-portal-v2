@@ -557,6 +557,14 @@ module.exports = async (req, res) => {
             endpoint,
             message: err?.message || String(err),
         });
+        // Unresolved identity is a 401, not a 500. The catch used to flatten every
+        // error to 500, which hid it.
+        if (err?.statusCode === 401) {
+            return sendJson(req, res, 401, {
+                error: "We couldn't verify your account. Please sign in again.",
+                requestId,
+            });
+        }
         // err.message can carry the storage provider's own failure text, so it is
         // logged above and never returned. The requestId ties the two together.
         return sendJson(req, res, 500, {

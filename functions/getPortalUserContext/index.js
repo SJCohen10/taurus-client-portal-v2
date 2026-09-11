@@ -202,7 +202,15 @@ module.exports = async (req, res) => {
     } else {
       console.error("getPortalUserContext failed", { requestId, message: err.message, details: err.details || null });
     }
-    const payload = { error: err.statusCode ? err.message : "Internal server error", requestId };
+    // Unresolved identity is logged above; the client gets a generic message
+    // rather than the internal reason.
+    const clientError =
+      err.statusCode === 401
+        ? "We couldn't verify your account. Please sign in again."
+        : err.statusCode
+          ? err.message
+          : "Internal server error";
+    const payload = { error: clientError, requestId };
     if (err.reasonCode) payload.reasonCode = err.reasonCode;
     if (isDebugDetailsEnabled() && err.details) payload.details = err.details;
     return sendJson(req, res, err.statusCode || 500, payload);

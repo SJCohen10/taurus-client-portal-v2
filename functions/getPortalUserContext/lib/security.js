@@ -44,17 +44,17 @@ function getFirstEmailCandidate(candidates) {
   if (!first) return null;
   return { email: normalizeEmail(first.value), source: first.source };
 }
+// req.user is populated by the platform, so it is the only candidate the request
+// itself can carry. The x-zc-user-email / x-zc-useremail headers and the
+// JSON-parsed x-zc-user-details blob were candidates here until audit finding 4
+// confirmed a session-less request carrying one resolved as that user. They are
+// client-controllable and carry no provenance, so they are gone.
+//
+// getAuthContextDebugMeta below still reports on those headers for observability.
+// It feeds no decision.
 function getIdentityCandidates(req) {
-  const headers = req?.headers || {};
   const user = req?.user || {};
-  const userDetailsRaw = headers["x-zc-user-details"] || headers["x-zc-userdetails"] || "";
-  const headerUserDetails = parseMaybeJson(userDetailsRaw);
-  return [
-    ...getEmailCandidateFields("req.user", user),
-    ...getEmailCandidateFields("header.userdetails", headerUserDetails || {}),
-    { source: "header.x-zc-user-email", value: headers["x-zc-user-email"] },
-    { source: "header.x-zc-useremail", value: headers["x-zc-useremail"] },
-  ];
+  return [...getEmailCandidateFields("req.user", user)];
 }
 function getRefererOrigin(referer) {
   try { return referer ? new URL(referer).origin : ""; } catch { return ""; }
@@ -93,24 +93,30 @@ function getAuthContextDebugMeta(req) {
     userType: getCatalystIdentityMeta(req).userType,
   };
 }
+// Returns { email, source } when the SDK resolves an email from the caller's own
+// session, or null when it resolves nothing - the caller turns null into a 401.
+//
+// The SDK is attempted unconditionally. Gating it on x-zc-user-id /
+// x-zc-user-cred-token put a client-controllable header in the control flow, and
+// meant a genuine session arriving without a marker was rejected unheard.
+//
+// getCurrentUser is the only identity source. getUserDetails(x-zc-user-id) was a
+// lookup keyed on a client-supplied id - a header-derived identity in SDK
+// clothing - so it no longer participates.
+//
+// initialize is wrapped here. This fork did not wrap it, which was survivable
+// only while the marker gate meant it never ran on an anonymous request.
 async function resolveCatalystUserEmail(req, requestId) {
-  const headers = req?.headers || {};
-  const userId = String(headers["x-zc-user-id"] || "").trim();
   const meta = getCatalystIdentityMeta(req);
-  if (!meta.hasZcUserId && !meta.hasZcUserCredToken) return null;
-
-  const app = catalyst.initialize(req, { type: "advancedio" });
-  const userManagement = app.userManagement();
   const attempts = [];
+  let userManagement = null;
 
   try {
-    const currentUser = await userManagement.getCurrentUser();
-    attempts.push("current_user");
-    const resolved = getFirstEmailCandidate(getEmailCandidateFields("catalyst.currentUser", currentUser || {}));
-    if (resolved) return resolved;
+    const app = catalyst.initialize(req, { type: "advancedio" });
+    userManagement = app.userManagement();
   } catch (err) {
-    attempts.push("current_user_failed");
-    console.warn("getPortalUserContext Catalyst current user lookup failed", {
+    attempts.push("initialize_failed");
+    console.warn("getPortalUserContext Catalyst SDK initialize failed", {
       requestId,
       hasZcUserId: meta.hasZcUserId,
       userType: meta.userType,
@@ -118,15 +124,16 @@ async function resolveCatalystUserEmail(req, requestId) {
     });
   }
 
-  if (userId) {
+  let sdkResolved = null;
+
+  if (userManagement) {
     try {
-      const userById = await userManagement.getUserDetails(userId);
-      attempts.push("user_details");
-      const resolved = getFirstEmailCandidate(getEmailCandidateFields("catalyst.userDetails", userById || {}));
-      if (resolved) return resolved;
+      const currentUser = await userManagement.getCurrentUser();
+      attempts.push("current_user");
+      sdkResolved = getFirstEmailCandidate(getEmailCandidateFields("catalyst.currentUser", currentUser || {}));
     } catch (err) {
-      attempts.push("user_details_failed");
-      console.warn("getPortalUserContext Catalyst user id lookup failed", {
+      attempts.push("current_user_failed");
+      console.warn("getPortalUserContext Catalyst current user lookup failed", {
         requestId,
         hasZcUserId: meta.hasZcUserId,
         userType: meta.userType,
@@ -135,22 +142,27 @@ async function resolveCatalystUserEmail(req, requestId) {
     }
   }
 
-  const err = new Error("Authenticated Catalyst user did not include an email context");
-  err.statusCode = 401;
-  err.details = { catalystIdentityPresent: true, hasZcUserId: meta.hasZcUserId, userType: meta.userType, attempts };
-  throw err;
+  return sdkResolved;
 }
 function getAuthenticatedEmail(req) {
   const resolved = getFirstEmailCandidate(getIdentityCandidates(req));
   return resolved?.email || "";
 }
+// Identity comes from platform-attested sources only: req.user, then the Catalyst
+// SDK reading the caller's own session. No request header is an identity source.
+// The client-supplied email is still compared against the resolved identity, so
+// requesting someone else's address is a 403.
 async function resolveUserContext(req, requestedEmail, requestId) {
   const requested = normalizeEmail(requestedEmail);
   const directResolved = getFirstEmailCandidate(getIdentityCandidates(req));
-  let resolved = directResolved ? { email: directResolved.email, source: directResolved.source } : null;
+  let resolved = directResolved ? { email: directResolved.email, source: "req.user" } : null;
 
-  if (!resolved && hasCatalystUserMarker(req)) {
-    resolved = await resolveCatalystUserEmail(req, requestId);
+  // No marker gate: the SDK is attempted whenever req.user did not resolve, and
+  // returns null rather than throwing when it resolves nothing.
+  if (!resolved) {
+    const viaCatalyst = await resolveCatalystUserEmail(req, requestId);
+    // identitySource records the tier, not the SDK's own detailed source.
+    if (viaCatalyst?.email) resolved = { email: viaCatalyst.email, source: "sdk" };
   }
 
   if (resolved?.email && requested && resolved.email !== requested) { const err = new Error("User mismatch"); err.statusCode = 403; throw err; }

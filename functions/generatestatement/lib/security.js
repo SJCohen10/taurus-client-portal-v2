@@ -6,21 +6,27 @@ function getAllowedOrigins() { return String(process.env.PORTAL_ALLOWED_ORIGINS 
 function applyCors(req, res) { const origin = req.headers?.origin; const allowedOrigins = getAllowedOrigins(); if (origin && allowedOrigins.includes(origin)) { res.setHeader("Access-Control-Allow-Origin", origin); res.setHeader("Vary", "Origin"); } res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization"); }
 function handleOptions(req, res) { applyCors(req, res); if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return true; } return false; }
 function sendJson(req, res, statusCode, payload) { applyCors(req, res); res.writeHead(statusCode, { "Content-Type": "application/json" }); res.end(JSON.stringify(payload)); }
-function getAuthenticatedEmail(req) { const headers = req?.headers || {}; const email = req?.user?.email || headers["x-zc-user-email"] || headers["x-zc-useremail"] || ""; return String(email).trim().toLowerCase(); }
-// Identity comes from the platform only: req.user, the x-zc-* namespace, or the
-// Catalyst SDK. A client-supplied email is never an identity source, in any
-// environment. It is still read off the request and compared against the
+// req.user is populated by the platform, so it is the one identity the request
+// itself can carry. Request headers are client-controllable and carry no
+// provenance, which audit finding 4 confirmed in production.
+function getAuthenticatedEmail(req) { return String(req?.user?.email || "").trim().toLowerCase(); }
+// Identity comes from platform-attested sources only: req.user, then the
+// Catalyst SDK reading the caller's own session. No request header is an
+// identity source, in any environment - not the x-zc-* namespace either. The
+// client-supplied email is still read off the request and compared against the
 // resolved identity, so sending someone else's address is a 403 rather than
 // being quietly ignored.
 async function resolveUserContext(req, requestedEmail, requestId, fnName) {
   const requested = String(requestedEmail || "").trim().toLowerCase();
   const direct = getAuthenticatedEmail(req);
-  let resolved = direct ? { email: direct, source: "request" } : null;
+  let resolved = direct ? { email: direct, source: "req.user" } : null;
 
   if (!resolved) {
     try {
       const viaCatalyst = await resolveCatalystUserEmail(req, requestId, fnName);
-      if (viaCatalyst) resolved = { email: viaCatalyst.email, source: viaCatalyst.source };
+      // The SDK's detailed source (catalyst.currentUser.<field>) stays in the
+      // TEMP-FINDING4-DIAG line; identitySource records the tier.
+      if (viaCatalyst?.email) resolved = { email: viaCatalyst.email, source: "sdk" };
     } catch (err) {
       logIdentitySource(fnName, requestId, "none", req);
       throw err;

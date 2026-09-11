@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const { Buffer } = require("buffer");
 const { getOAuthAccessToken } = require("./lib/crm");
 const { handleOptions, sendJson, enforceUserContext, assertAllowedKeys, readJsonBody, enforceRateLimit, parseQuery } = require("./lib/security");
-const { getDealsForPortal, getCallerEmail } = require("./lib/portalDeals");
+const { getDealsForPortal } = require("./lib/portalDeals");
 
 const WORKDRIVE_BASE = process.env.ZOHO_WORKDRIVE_BASE || "https://www.zohoapis.com/workdrive/api/v1";
 const STATEMENTS_FOLDER_NAME = process.env.PORTAL_STATEMENTS_FOLDER_NAME || "Statements";
@@ -342,16 +342,18 @@ module.exports = async (req, res) => {
     const body = await readJsonBody(req);
     assertAllowedKeys(body, ["email", "assetId", "accountId", "statementType"]);
 
-    const bodyEmail = String(body.email || "").trim().toLowerCase();
-    const callerEmail = getCallerEmail(req);
-    const requestedEmail = bodyEmail || callerEmail;
+    // Only the body email is a client claim to compare against the resolved
+    // identity. It used to fall back to a header-derived caller email, which
+    // meant a stray x-zc-user-email became the claim and mismatched the
+    // platform identity - surfacing as a 403 that reads like a permissions bug
+    // rather than the 401 it actually is.
+    const requestedEmail = String(body.email || "").trim().toLowerCase();
 
     const email = await enforceUserContext(req, requestedEmail, requestId, "generatestatement");
 
     console.info("[generatestatement] resolved user context", {
       requestId,
-      bodyEmail,
-      callerEmail,
+      requestedEmail,
       resolvedEmail: email,
     });
 

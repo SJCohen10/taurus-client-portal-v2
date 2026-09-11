@@ -117,7 +117,7 @@ module.exports = async (req, res) => {
       req,
       res,
       status,
-      responseEnvelope({ requestId, message: status === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't load transactions. Please contact your Taurus Account Manager." })
+      responseEnvelope({ requestId, message: status === 401 ? "We couldn't verify your account. Please sign in again." : status === 504 ? "That took too long. Please contact your Taurus Account Manager." : "We couldn't load transactions. Please contact your Taurus Account Manager." })
     );
   }
 };

@@ -32,29 +32,29 @@ function createRequestId() {
     return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function getCallerEmail(req) {
-    const headers = req?.headers || {};
-    const direct =
-        req?.user?.email ||
-        headers["x-zc-user-email"] ||
-        headers["x-zc-useremail"] ||
-        "";
-    return String(direct || "").trim().toLowerCase();
+// req.user is populated by the platform, so it is the one identity the request
+// itself can carry. Request headers are not: they are client-controllable and
+// carry no provenance, which is what audit finding 4 confirmed in production.
+function getPlatformEmail(req) {
+    return String(req?.user?.email || "").trim().toLowerCase();
 }
 
-// Identity comes from the platform only: req.user, the x-zc-* namespace, or the
-// Catalyst SDK. A client-supplied email is never an identity source, in any
-// environment. It is still read off the query string and compared against the
-// resolved identity, so requesting someone else's address is a 403.
+// Identity comes from platform-attested sources only: req.user, then the
+// Catalyst SDK reading the caller's own session. No request header is an
+// identity source, in any environment - not the x-zc-* namespace either. The
+// client-supplied email is still read off the query string and compared against
+// the resolved identity, so requesting someone else's address is a 403.
 async function resolveEmailForRequest(req, requestedEmail, requestId) {
     const requested = String(requestedEmail || "").trim().toLowerCase();
-    const callerEmail = getCallerEmail(req);
-    let resolved = callerEmail ? { email: callerEmail, source: "request" } : null;
+    const platformEmail = getPlatformEmail(req);
+    let resolved = platformEmail ? { email: platformEmail, source: "req.user" } : null;
 
     if (!resolved) {
         try {
             const viaCatalyst = await resolveCatalystUserEmail(req, requestId, "getportaldeals");
-            if (viaCatalyst) resolved = viaCatalyst;
+            // The SDK's own detailed source (catalyst.currentUser.<field>) stays in
+            // the TEMP-FINDING4-DIAG line; identitySource records the tier.
+            if (viaCatalyst?.email) resolved = { email: viaCatalyst.email, source: "sdk" };
         } catch (err) {
             logIdentitySource("getportaldeals", requestId, "none", req);
             throw err;
@@ -137,6 +137,14 @@ module.exports = async (req, res) => {
         });
     } catch (err) {
         console.error("Error in getportaldeals:", { requestId, message: err?.message || String(err), details: err?.details || null });
+        // Unresolved identity is logged above and by logIdentitySource; the client
+        // gets a generic message rather than the internal reason.
+        if (err?.statusCode === 401) {
+            return sendJson(res, 401, {
+                error: "We couldn't verify your account. Please sign in again.",
+                requestId,
+            });
+        }
         if (err?.statusCode) {
             return sendJson(res, err.statusCode, { error: err.message, requestId });
         }
@@ -148,4 +156,4 @@ module.exports = async (req, res) => {
     }
 };
 
-module.exports._internals = { getCallerEmail, resolveEmailForRequest };
+module.exports._internals = { getPlatformEmail, resolveEmailForRequest };

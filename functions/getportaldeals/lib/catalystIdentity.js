@@ -12,8 +12,8 @@
 // marker gate removed it is attempted on anonymous requests too, where "no
 // identity" is the expected answer rather than an error.
 //
-// This is the getportaldeals copy only. The other copies still carry the header
-// tier (finding 15 - lib/ is duplicated per function).
+// lib/ is duplicated per function (finding 15), so this change is applied to each
+// copy individually rather than shared.
 
 const catalyst = require("zcatalyst-sdk-node");
 
